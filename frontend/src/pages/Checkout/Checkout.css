@@ -1,0 +1,40 @@
+.checkout-view {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px;
+}
+
+.checkout-card {
+  width: 100%;
+  max-width: 900px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+.checkout-card h1 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.checkout-table-wrap {
+  width: 100%;
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
