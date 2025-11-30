@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useCart } from "../../hooks/useCart";
 import { useAuth } from "../../hooks/useAuth";
 import { createOrderRequest } from "../../services/orders.service";
-import Button from "../../components/ui/Button";
+import { Button } from "@chakra-ui/react";
 import "./Checkout.css";
 
 export function Checkout() {

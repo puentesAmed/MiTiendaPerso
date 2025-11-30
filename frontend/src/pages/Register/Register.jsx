@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { registerRequest } from "../../services/auth.service";
-import Input from "../../components/ui/Input";
-import Button from "../../components/ui/Button";
+import { Input } from "@chakra-ui/react";
+import { Button } from "@chakra-ui/react";
 import "./Register.css";
 
 export function Register() {

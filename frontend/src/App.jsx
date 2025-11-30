@@ -25,7 +25,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { HamburgerIcon, CloseIcon, SunIcon, MoonIcon } from "@chakra-ui/icons";
 
 import { useAuth } from "./hooks/useAuth";
-import Logo from "./components/common/Logo/Logo";
+//import Logo from "./components/common/Logo/Logo";
 
 // Páginas visibles en la barra principal
 const PAGES = Object.freeze([

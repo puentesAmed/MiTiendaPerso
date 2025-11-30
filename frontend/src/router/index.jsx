@@ -1,14 +1,14 @@
-// src/router/index.jsx
 import { createBrowserRouter, Navigate } from "react-router-dom";
-
 import { App } from "../App";
 import { ProtectedRoute } from "./ProtectedRoute";
 
+import { Home } from "../pages/Home/Home";
 import { Login } from "../pages/Login/Login";
 import { Register } from "../pages/Register/Register";
+import { Cart } from "../pages/Cart/Cart";
 import { Checkout } from "../pages/Checkout/Checkout";
-// importa también Home u otras páginas si las necesitas
-// import { Home } from "../pages/Home/Home";
+import { ProductDetail } from "../pages/ProductDetail/ProductDetail";
+import { Admin } from "../pages/Admin/Admin";
 
 export const router = createBrowserRouter([
   {
@@ -16,21 +16,23 @@ export const router = createBrowserRouter([
     element: <App />,
     children: [
       // públicas
+      { index: true, element: <Home /> },
       { path: "login", element: <Login /> },
       { path: "register", element: <Register /> },
+      { path: "product/:id", element: <ProductDetail /> },
 
       // protegidas
       {
         element: <ProtectedRoute />,
         children: [
-          // { index: true, element: <Home /> },  // si quieres home protegido
+          { path: "cart", element: <Cart /> },
           { path: "checkout", element: <Checkout /> },
-          // aquí podrías añadir /carrito, /mis-pedidos, etc.
+          { path: "admin", element: <Admin /> },
         ],
       },
 
-      // 404
       { path: "*", element: <Navigate to="/" replace /> },
     ],
   },
 ]);
+
