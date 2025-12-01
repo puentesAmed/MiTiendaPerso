@@ -6,7 +6,8 @@
     "start":"node src/server.js",
     "seed":"node --env-file=.env scripts/seed.js",
     "seed:categories":"node scripts/seedCategories.js",
-    "seed:users":"node scripts/users.seed.js"
+    "seed:users":"node scripts/users.seed.js",
+    "seed:products":"node scripts/products.seed.js"
 },
 
 "dependencies":{

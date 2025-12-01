@@ -1,54 +1,44 @@
-import { Product } from '../models/Product.js';
+import { Product } from "../models/Product.js";
 
-/**
- * GET /api/products
- * Lista todos los productos con filtros opcionales
- */
+// GET /api/products
 export async function getProducts(req, res) {
   try {
     const { category, q, minPrice, maxPrice } = req.query;
-
     const filter = {};
 
     if (category) filter.category = category;
-    if (q) filter.name = { $regex: q, $options: 'i' };
+    if (q) filter.name = { $regex: q, $options: "i" };
     if (minPrice) filter.price = { ...filter.price, $gte: Number(minPrice) };
     if (maxPrice) filter.price = { ...filter.price, $lte: Number(maxPrice) };
 
     const products = await Product.find(filter).sort({ createdAt: -1 });
-
     res.json({ ok: true, products });
-  } catch (_err) {
-    res.status(500).json({ ok: false, message: 'Error al obtener productos' });
+  } catch (err) {
+    console.error("Error en getProducts:", err);
+    res.status(500).json({ ok: false, message: "Error al obtener productos" });
   }
 }
 
-/**
- * GET /api/products/:id
- * Obtiene un único producto
- */
+// GET /api/products/:id
 export async function getProduct(req, res) {
   try {
     const { id } = req.params;
-
     const product = await Product.findById(id);
 
     if (!product) {
       return res
         .status(404)
-        .json({ ok: false, message: 'Producto no encontrado' });
+        .json({ ok: false, message: "Producto no encontrado" });
     }
 
     res.json({ ok: true, product });
-  } catch (_err) {
-    res.status(500).json({ ok: false, message: 'Error al obtener el producto' });
+  } catch (err) {
+    console.error("Error en getProduct:", err);
+    res.status(500).json({ ok: false, message: "Error al obtener el producto" });
   }
 }
 
-/**
- * POST /api/products
- * Crea un nuevo producto
- */
+// POST /api/products
 export async function createProduct(req, res) {
   try {
     const { name, price, category, stock, description, image } = req.body;
@@ -65,15 +55,13 @@ export async function createProduct(req, res) {
     await product.save();
 
     res.status(201).json({ ok: true, product });
-  } catch (_err) {
-    res.status(500).json({ ok: false, message: 'Error al crear producto' });
+  } catch (err) {
+    console.error("Error en createProduct:", err);
+    res.status(500).json({ ok: false, message: "Error al crear producto" });
   }
 }
 
-/**
- * PUT /api/products/:id
- * Actualiza un producto
- */
+// PUT /api/products/:id
 export async function updateProduct(req, res) {
   try {
     const { id } = req.params;
@@ -86,19 +74,17 @@ export async function updateProduct(req, res) {
     if (!updated) {
       return res
         .status(404)
-        .json({ ok: false, message: 'Producto no encontrado' });
+        .json({ ok: false, message: "Producto no encontrado" });
     }
 
     res.json({ ok: true, product: updated });
-  } catch (_err) {
-    res.status(500).json({ ok: false, message: 'Error al actualizar producto' });
+  } catch (err) {
+    console.error("Error en updateProduct:", err);
+    res.status(500).json({ ok: false, message: "Error al actualizar producto" });
   }
 }
 
-/**
- * DELETE /api/products/:id
- * Elimina un producto
- */
+// DELETE /api/products/:id
 export async function deleteProduct(req, res) {
   try {
     const { id } = req.params;
@@ -108,11 +94,12 @@ export async function deleteProduct(req, res) {
     if (!deleted) {
       return res
         .status(404)
-        .json({ ok: false, message: 'Producto no encontrado' });
+        .json({ ok: false, message: "Producto no encontrado" });
     }
 
-    res.json({ ok: true, message: 'Producto eliminado' });
-  } catch (_err) {
-    res.status(500).json({ ok: false, message: 'Error al eliminar producto' });
+    res.json({ ok: true, message: "Producto eliminado" });
+  } catch (err) {
+    console.error("Error en deleteProduct:", err);
+    res.status(500).json({ ok: false, message: "Error al eliminar producto" });
   }
 }
