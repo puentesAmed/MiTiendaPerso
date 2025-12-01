@@ -1,36 +1,52 @@
-import "dotenv/config";
-import express from "express";
-import cors from "cors";
-import mongoose from "mongoose";
+import express from 'express';
+import cors from 'cors';
+import { env } from './config/env.js';
+import { connectDB } from './config/db.js';
+import { authRouter } from './routes/auth.routes.js';
+import { productsRouter } from './routes/products.routes.js';
+import { ordersRouter } from './routes/orders.routes.js';
 
-import { connectDB } from "./config/db.js";
-import { productsRouter } from "./routes/products.routes.js";
-import { authRouter } from "./routes/auth.routes.js";
-import { ordersRouter } from "./routes/orders.routes.js";
-import env from "./config/env.js";
+async function bootstrap() {
+  await connectDB();
 
+  const app = express();
 
-const app = express();
+  // CORS
+  app.use(
+    cors({
+      origin: env.CORS_ORIGINS.length > 0 ? env.CORS_ORIGINS : '*',
+    }),
+  );
 
-app.use(cors());
-app.use(express.json());
+  // Body parser
+  app.use(express.json());
 
+  // Rutas API
+  app.use('/auth', authRouter);
+  app.use('/api/products', productsRouter);
+  app.use('/api/orders', ordersRouter);
 
+  // Healthcheck
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok' });
+  });
 
-app.use("/api/products", productsRouter);
-app.use("/api/auth", authRouter);
-app.use("/api/orders", ordersRouter);
+  // 404
+  app.use((req, res) => {
+    res.status(404).json({ message: 'Not found' });
+  });
 
+  // Manejo básico de errores
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, _req, res, _next) => {
+    console.error('Error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  });
 
-app.get("/", (req, res) => {
-    res.json({ message: "API is running" });
-});
+  const PORT = env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`API escuchando en http://localhost:${PORT}`);
+  });
+}
 
-
-mongoose.connect(env.MONGO_URI)
-    .then(() => console.log("MongoDB connected"))
-    .catch(err => console.error(err));
-
-app.listen(env.PORT, () =>
-    console.log(`Server running on port ${env.PORT}`)
-);
+bootstrap();

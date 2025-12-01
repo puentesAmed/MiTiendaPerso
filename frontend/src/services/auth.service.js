@@ -1,9 +1,11 @@
-import { http } from "./http";
+import { http } from './http';
 
-export function loginRequest(credentials) {
-  return http.post("/auth/login", credentials);
+export function apiLogin(data) {
+  // POST a /auth/login (el server ya lo tiene)
+  return http.post('/auth/login', data);
 }
 
-export function registerRequest(data) {
-  return http.post("/auth/register", data);
+export async function apiRegister(payload) {
+  // payload: { name, email, password }
+  return http.post("/auth/register", payload);
 }

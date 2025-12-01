@@ -1,5 +1,5 @@
 import { createContext, useEffect, useMemo, useState, useCallback } from "react";
-import { loginRequest } from "../services/auth.service";
+import { apiLogin } from "../services/auth.service";
 import { http } from "../services/http";
 
 export const AuthContext = createContext(null);
@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   const login = useCallback(async (values) => {
-    const data = await loginRequest(values);
+    const data = await apiLogin(values);
     setUser(data); // data = { token, user:{...} }
   }, []);
 

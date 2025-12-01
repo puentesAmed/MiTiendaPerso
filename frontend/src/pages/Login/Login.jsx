@@ -1,61 +1,225 @@
-import React from 'react'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useAuth } from '../../hooks/useAuth'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { Box, Button, Input, useColorModeValue } from '@chakra-ui/react'
+/*import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 
+import { useNavigate, useLocation } from "react-router-dom";
+import { Input, Button, Box, Heading, VStack, Text } from "@chakra-ui/react";
 
+const schema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z.string().min(4, "Mínimo 4 caracteres"),
+});
 
+export function Login() {
+  const { login } = useAuth();
+  const nav = useNavigate();
+  const loc = useLocation();
 
-const schema = z.object({ email: z.string().email(), password: z.string().min(6) })
-export function Login(){
-  const bg = useColorModeValue('white','neutral.800')
-  const border = useColorModeValue('neutral.200','neutral.700')
-  const btnBg    = useColorModeValue('brand.500', 'accent.500');
-  const btnHover = useColorModeValue('brand.600', 'accent.600');
-  const btnColor = useColorModeValue('white', 'black');
-  const { register, handleSubmit, formState:{ errors, isSubmitting } } = useForm({ resolver: zodResolver(schema)})
-  const { login } = useAuth(); const nav = useNavigate(); const loc = useLocation()
-  const onSubmit = async (data) => {
-  try {
-    // Llamada real al backend
-    const { data: r } = await api.post('/auth/login', data);
-    r.user = { id, email, name, role }, r.token = JWT
-    login(r.user, r.token); // guarda usuario y token en Zustand persistente
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    setError,
+  } = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: { email: "", password: "" },
+  });
 
-    // Redirige a la página original o dashboard
-    nav((loc.state?.from?.pathname) || '/dashboard', { replace: true });
-  } catch (err) {
-    console.error('Login error', err);
-    alert('Credenciales incorrectas');
+  async function onSubmit(values) {
+    try {
+      await login(values);
+      const to = loc.state?.from?.pathname || "/";
+      nav(to, { replace: true });
+    } catch (e) {
+      setError("root", { message: e.message ?? "Error al iniciar sesión" });
+    }
   }
-};
-
 
   return (
-    <Box maxW="420px" mx="auto" mt={8} p={6} bg={bg} border="1px solid" borderColor={border} rounded="lg">
-      <div className="container" style={{maxWidth:420}}>
-        <div className="card"><h2>Iniciar sesión</h2>
-          <form onSubmit={handleSubmit(onSubmit)} className="grid">
-            <div><label>Email</label><input className="input" type="email" {...register('email')}/>{errors.email&&<small style={{color:'var(--color-danger)'}}>{errors.email.message}</small>}</div>
-            <div><label>Contraseña</label><input className="input" type="password" {...register('password')}/>{errors.password&&<small style={{color:'var(--color-danger)'}}>{errors.password.message}</small>}</div>
-            <Button
-              bg={btnBg}
-              color={btnColor}
-              _hover={{ bg: btnHover }}
-              onClick={handleSubmit(onSubmit)} // si es un form
-              isLoading={isSubmitting}         // Chakra muestra un spinner automáticamente
-              loadingText="Accediendo"         // texto cuando está cargando
-            >
-              Entrar
-            </Button>
+    <section className="login-view">
+      <div className="login-card">
+        <h1>Iniciar sesión</h1>
+        <form className="form-grid" onSubmit={handleSubmit(onSubmit)}>
+          <div className="form-field">
+            <label htmlFor="email">Email</label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              {...register("email")}
+              aria-invalid={!!errors.email}
+            />
+            {errors.email && (
+              <small className="error">{errors.email.message}</small>
+            )}
+          </div>
 
-          </form>
-        </div>
+          <div className="form-field">
+            <label htmlFor="password">Contraseña</label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              {...register("password")}
+              aria-invalid={!!errors.password}
+            />
+            {errors.password && (
+              <small className="error">{errors.password.message}</small>
+            )}
+          </div>
+
+          {errors.root && (
+            <small className="error">{errors.root.message}</small>
+          )}
+
+          <div className="form-actions">
+           <Button
+            type="submit"
+            colorScheme="blue"
+            width="full"
+            isLoading={isSubmitting}>
+            Entrar
+          </Button>
+
+          </div>
+        </form>
       </div>
-    </Box>
-  )
+    </section>
+  );
 }
+*/
 
+import React from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  Box,
+  Button,
+  Input,
+  FormControl,
+  FormLabel,
+  FormErrorMessage,
+  Heading,
+  useColorModeValue,
+  VStack,
+  InputGroup,
+  InputRightElement,
+  IconButton,
+} from "@chakra-ui/react";
+import { ViewIcon, ViewOffIcon } from "@chakra-ui/icons";
+import { useAuth } from "../../hooks/useAuth.js";
+
+
+
+const schema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z.string().min(4, "Mínimo 4 caracteres"),
+});
+
+export function Login() {
+  const { login } = useAuth();
+  const nav = useNavigate();
+  const loc = useLocation();
+
+  const [showPwd, setShowPwd] = React.useState(false);
+  
+  const cardBg = useColorModeValue("white", "neutral.800");
+  const border = useColorModeValue("neutral.200", "neutral.700");
+  const btnBg = useColorModeValue("brand.500", "accent.500");
+  const btnHover = useColorModeValue("brand.600", "accent.600");
+  const btnColor = useColorModeValue("white", "black");
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    setError,
+  } = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: { email: "", password: "" },
+  });
+
+
+  async function onSubmit(values) {
+    try {
+      await login(values);
+      const to = loc.state?.from?.pathname || "/";
+      nav(to, { replace: true });
+    } catch (e) {
+      setError("root", { message: e.message ?? "Error al iniciar sesión" });
+    }
+  }
+
+  return (
+    <Box
+      maxW="420px"
+      mx="auto"
+      mt={12}
+      p={6}
+      bg={cardBg}
+      border="1px solid"
+      borderColor={border}
+      rounded="lg"
+      boxShadow={useColorModeValue("sm", "none")}
+    >
+      <Heading as="h2" size="lg" mb={6} textAlign="center">
+        Iniciar sesión
+      </Heading>
+
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+        <VStack spacing={4} align="stretch">
+          <FormControl isInvalid={!!errors.email}>
+            <FormLabel>Email</FormLabel>
+            <Input
+              type="email"
+              placeholder="tucorreo@dominio.com"
+              autoComplete="email"
+              autoFocus
+              {...register("email")}
+            />
+            <FormErrorMessage>{errors.email?.message}</FormErrorMessage>
+          </FormControl>
+
+          <FormControl isInvalid={!!errors.password}>
+            <FormLabel>Contraseña</FormLabel>
+            <InputGroup>
+              <Input
+                type={showPwd ? "text" : "password"}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                {...register("password")}
+              />
+              <InputRightElement width="3rem">
+                <IconButton
+                  aria-label={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  size="sm"
+                  variant="ghost"
+                  // importante: que no envíe el formulario ni robe el foco
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setShowPwd((s) => !s)}
+                  icon={showPwd ? <ViewOffIcon /> : <ViewIcon />}
+                />
+              </InputRightElement>
+            </InputGroup>
+            <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
+          </FormControl>
+
+          <Button
+            type="submit"
+            bg={btnBg}
+            color={border}
+            _hover={{ bg: btnHover }}
+            isLoading={isSubmitting}
+            loadingText="Accediendo"
+            width="full"
+          >
+            Entrar
+          </Button>
+        </VStack>
+      </form>
+    </Box>
+  );
+}

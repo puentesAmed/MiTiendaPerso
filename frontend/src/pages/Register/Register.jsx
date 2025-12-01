@@ -1,111 +1,99 @@
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuth } from "../../hooks/useAuth.js";
 import { useNavigate } from "react-router-dom";
-import { registerRequest } from "../../services/auth.service";
-import { Input } from "@chakra-ui/react";
-import { Button } from "@chakra-ui/react";
+import { Input, Button, Box, Heading, VStack, Text } from "@chakra-ui/react";
 import "./Register.css";
 
-export function Register() {
-  const nav = useNavigate();
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
+const schema = z
+  .object({
+    name: z.string().min(2, "Mínimo 2 caracteres"),
+    email: z.string().email("Email inválido"),
+    password: z.string().min(4, "Mínimo 4 caracteres"),
+    password2: z.string().min(4, "Mínimo 4 caracteres"),
+  })
+  .refine((data) => data.password === data.password2, {
+    message: "Las contraseñas no coinciden",
+    path: ["password2"],
   });
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  const handleChange = (e) => {
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
-  };
+export function Register() {
+  const { register: registerUser } = useAuth();
+  const nav = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    setError,
+  } = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: { name: "", email: "", password: "", password2: "" },
+  });
 
-    if (!form.name || !form.email || !form.password) {
-      setError("Todos los campos son obligatorios");
-      return;
-    }
-    if (form.password !== form.confirmPassword) {
-      setError("Las contraseñas no coinciden");
-      return;
-    }
-
+  async function onSubmit(values) {
     try {
-      setLoading(true);
-      await registerRequest({
-        name: form.name,
-        email: form.email,
-        password: form.password,
+      await registerUser({
+        name: values.name,
+        email: values.email,
+        password: values.password,
       });
-
-      // Opción A: redirigir a login
       nav("/login", { replace: true });
-
-      // Opción B: auto-login -> llamar a login() del AuthContext aquí
-    } catch (err) {
-      setError(err?.message || "Error al registrar usuario");
-    } finally {
-      setLoading(false);
+    } catch (e) {
+      setError("root", { message: e.message ?? "Error al registrar" });
     }
-  };
+  }
 
   return (
-    <section className="register-view">
-      <div className="card register-card">
+    <section className="login-view">
+      <div className="login-card">
         <h1>Crear cuenta</h1>
-        <form className="form-grid" onSubmit={handleSubmit}>
+        <form className="form-grid" onSubmit={handleSubmit(onSubmit)}>
           <div className="form-field">
             <label htmlFor="name">Nombre</label>
-            <Input
-              id="name"
-              name="name"
-              value={form.name}
-              onChange={handleChange}
-            />
+            <Input id="name" {...register("name")} />
+            {errors.name && (
+              <small className="error">{errors.name.message}</small>
+            )}
           </div>
 
           <div className="form-field">
             <label htmlFor="email">Email</label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={handleChange}
-            />
+            <Input id="email" type="email" {...register("email")} />
+            {errors.email && (
+              <small className="error">{errors.email.message}</small>
+            )}
           </div>
 
           <div className="form-field">
             <label htmlFor="password">Contraseña</label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              value={form.password}
-              onChange={handleChange}
-            />
+            <Input id="password" type="password" {...register("password")} />
+            {errors.password && (
+              <small className="error">{errors.password.message}</small>
+            )}
           </div>
 
           <div className="form-field">
-            <label htmlFor="confirmPassword">Repetir contraseña</label>
-            <Input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              value={form.confirmPassword}
-              onChange={handleChange}
-            />
+            <label htmlFor="password2">Repite contraseña</label>
+            <Input id="password2" type="password" {...register("password2")} />
+            {errors.password2 && (
+              <small className="error">{errors.password2.message}</small>
+            )}
           </div>
 
-          {error && <p className="error">{error}</p>}
+          {errors.root && (
+            <small className="error">{errors.root.message}</small>
+          )}
 
           <div className="form-actions">
-            <Button type="submit" disabled={loading}>
-              {loading ? "Creando cuenta..." : "Crear cuenta"}
-            </Button>
+            <Button
+            type="submit"
+            colorScheme="blue"
+            width="full"
+            isLoading={isSubmitting}>
+            Registrarme
+          </Button>
           </div>
         </form>
       </div>

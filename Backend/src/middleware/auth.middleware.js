@@ -1,16 +1,17 @@
-import jwt from "jsonwebtoken";
-import env from "../config/env.js";
+import jwt from 'jsonwebtoken';
+import { env } from '../config/env.js';
 
 export function requireAuth(req, res, next) {
-  const header = req.headers.authorization || "";
-  const [, token] = header.split(" ");
+  const header = req.headers.authorization || '';
+  const [, token] = header.split(' '); // "Bearer token"
 
   if (!token) {
-    return res.status(401).json({ message: "No autenticado" });
+    return res.status(401).json({ message: 'No autenticado' });
   }
 
   try {
     const payload = jwt.verify(token, env.JWT_SECRET);
+
     req.userId = payload.sub;
     req.user = {
       id: payload.sub,
@@ -18,8 +19,9 @@ export function requireAuth(req, res, next) {
       role: payload.role,
       name: payload.name,
     };
+
     next();
-  } catch (err) {
-    return res.status(401).json({ message: "Token inválido" });
+  } catch (_err) {
+    return res.status(401).json({ message: 'Token inválido' });
   }
 }

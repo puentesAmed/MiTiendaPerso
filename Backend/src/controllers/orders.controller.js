@@ -1,16 +1,15 @@
-import { Order } from "../models/Order.js";
-import { Product } from "../models/Product.js";
+import { Order } from '../models/Order.js';
+import { Product } from '../models/Product.js';
 
 /**
  * POST /api/orders
  * Crea un pedido a partir del carrito enviado por el cliente.
- * No confía en precios ni totales del frontend: se recalculan con datos de BD.
  *
- * Body esperado:
+ * Body:
  * {
  *   "items": [
- *     { "productId": "....", "quantity": 2 },
- *     { "productId": "....", "quantity": 1 }
+ *     { "productId": "...", "quantity": 2 },
+ *     { "productId": "...", "quantity": 1 }
  *   ]
  * }
  */
@@ -20,18 +19,22 @@ export async function createOrder(req, res) {
     const { items } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ ok: false, message: "No autenticado" });
+      return res.status(401).json({ ok: false, message: 'No autenticado' });
     }
 
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ ok: false, message: "El carrito está vacío" });
+      return res
+        .status(400)
+        .json({ ok: false, message: 'El carrito está vacío' });
     }
 
-    // IDs de productos del carrito
     const productIds = items.map((i) => i.productId);
 
-    // Recuperar productos desde BD
-    const products = await Product.find({ _id: { $in: productIds }, active: true });
+    const products = await Product.find({
+      _id: { $in: productIds },
+      active: true,
+    });
+
     const productsMap = new Map(products.map((p) => [p._id.toString(), p]));
 
     const orderItems = [];
@@ -44,7 +47,7 @@ export async function createOrder(req, res) {
       if (!productId || qty <= 0) {
         return res.status(400).json({
           ok: false,
-          message: "Línea de carrito inválida",
+          message: 'Línea de carrito inválida',
         });
       }
 
@@ -79,27 +82,25 @@ export async function createOrder(req, res) {
     if (total <= 0) {
       return res.status(400).json({
         ok: false,
-        message: "Total de pedido inválido",
+        message: 'Total de pedido inválido',
       });
     }
 
-    // (Opcional) Actualizar stock de los productos
-    // Nota: para entornos críticos, usar transacciones con session de Mongoose.
+    // Actualizar stock (simple, sin transacciones)
     await Promise.all(
       orderItems.map((item) =>
         Product.updateOne(
           { _id: item.productId, stock: { $gte: item.quantity } },
-          { $inc: { stock: -item.quantity } }
-        )
-      )
+          { $inc: { stock: -item.quantity } },
+        ),
+      ),
     );
 
-    // Crear pedido
     const order = await Order.create({
       userId,
       items: orderItems,
       total,
-      status: "pending", // o el valor por defecto del modelo
+      status: 'pending',
     });
 
     return res.status(201).json({
@@ -108,21 +109,21 @@ export async function createOrder(req, res) {
       order,
     });
   } catch (err) {
-    console.error("Error en createOrder:", err);
-    return res.status(500).json({ ok: false, message: "Error al crear pedido" });
+    console.error('Error en createOrder:', err);
+    return res.status(500).json({ ok: false, message: 'Error al crear pedido' });
   }
 }
 
 /**
  * GET /api/orders/mine
- * Devuelve el historial de pedidos del usuario autenticado.
+ * Historial de pedidos del usuario autenticado.
  */
 export async function getOrdersByUser(req, res) {
   try {
     const userId = req.userId;
 
     if (!userId) {
-      return res.status(401).json({ ok: false, message: "No autenticado" });
+      return res.status(401).json({ ok: false, message: 'No autenticado' });
     }
 
     const orders = await Order.find({ userId })
@@ -134,7 +135,9 @@ export async function getOrdersByUser(req, res) {
       orders,
     });
   } catch (err) {
-    console.error("Error en getOrdersByUser:", err);
-    return res.status(500).json({ ok: false, message: "Error al obtener pedidos" });
+    console.error('Error en getOrdersByUser:', err);
+    return res
+      .status(500)
+      .json({ ok: false, message: 'Error al obtener pedidos' });
   }
 }

@@ -1,9 +1,12 @@
-// routes/orders.routes.js
-import { Router } from "express";
-import { requireAuth } from "../middleware/auth.middleware.js";
-import { createOrder, getOrdersByUser } from "../controllers/orders.controller.js";
+import { Router } from 'express';
+import {
+  createOrder,
+  getOrdersByUser,
+} from '../controllers/orders.controller.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
+
 
 export const ordersRouter = Router();
 
-ordersRouter.post("/", requireAuth, createOrder);
-ordersRouter.get("/", requireAuth, getOrdersByUser);
+ordersRouter.post('/', requireAuth, createOrder);
+ordersRouter.get('/mine', requireAuth, getOrdersByUser);

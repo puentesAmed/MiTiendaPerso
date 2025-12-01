@@ -1,4 +1,4 @@
-import { Product } from "../models/Product.js";
+import { Product } from '../models/Product.js';
 
 /**
  * GET /api/products
@@ -11,15 +11,15 @@ export async function getProducts(req, res) {
     const filter = {};
 
     if (category) filter.category = category;
-    if (q) filter.name = { $regex: q, $options: "i" };
+    if (q) filter.name = { $regex: q, $options: 'i' };
     if (minPrice) filter.price = { ...filter.price, $gte: Number(minPrice) };
     if (maxPrice) filter.price = { ...filter.price, $lte: Number(maxPrice) };
 
     const products = await Product.find(filter).sort({ createdAt: -1 });
 
     res.json({ ok: true, products });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: "Error al obtener productos" });
+  } catch (_err) {
+    res.status(500).json({ ok: false, message: 'Error al obtener productos' });
   }
 }
 
@@ -33,12 +33,15 @@ export async function getProduct(req, res) {
 
     const product = await Product.findById(id);
 
-    if (!product)
-      return res.status(404).json({ ok: false, message: "Producto no encontrado" });
+    if (!product) {
+      return res
+        .status(404)
+        .json({ ok: false, message: 'Producto no encontrado' });
+    }
 
     res.json({ ok: true, product });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: "Error al obtener el producto" });
+  } catch (_err) {
+    res.status(500).json({ ok: false, message: 'Error al obtener el producto' });
   }
 }
 
@@ -62,8 +65,8 @@ export async function createProduct(req, res) {
     await product.save();
 
     res.status(201).json({ ok: true, product });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: "Error al crear producto" });
+  } catch (_err) {
+    res.status(500).json({ ok: false, message: 'Error al crear producto' });
   }
 }
 
@@ -80,12 +83,15 @@ export async function updateProduct(req, res) {
       runValidators: true,
     });
 
-    if (!updated)
-      return res.status(404).json({ ok: false, message: "Producto no encontrado" });
+    if (!updated) {
+      return res
+        .status(404)
+        .json({ ok: false, message: 'Producto no encontrado' });
+    }
 
     res.json({ ok: true, product: updated });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: "Error al actualizar producto" });
+  } catch (_err) {
+    res.status(500).json({ ok: false, message: 'Error al actualizar producto' });
   }
 }
 
@@ -99,11 +105,14 @@ export async function deleteProduct(req, res) {
 
     const deleted = await Product.findByIdAndDelete(id);
 
-    if (!deleted)
-      return res.status(404).json({ ok: false, message: "Producto no encontrado" });
+    if (!deleted) {
+      return res
+        .status(404)
+        .json({ ok: false, message: 'Producto no encontrado' });
+    }
 
-    res.json({ ok: true, message: "Producto eliminado" });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: "Error al eliminar producto" });
+    res.json({ ok: true, message: 'Producto eliminado' });
+  } catch (_err) {
+    res.status(500).json({ ok: false, message: 'Error al eliminar producto' });
   }
 }
