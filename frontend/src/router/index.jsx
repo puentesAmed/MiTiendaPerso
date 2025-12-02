@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+/*port { createBrowserRouter, Navigate } from "react-router-dom";
 import { App } from "../App";
 import { ProtectedRoute } from "./ProtectedRoute";
 
@@ -38,3 +38,58 @@ export const router = createBrowserRouter([
   },
 ]);
 
+*/
+
+
+// src/router/index.jsx
+import { createBrowserRouter } from "react-router-dom";
+import { App } from "../App.jsx";
+import { Home } from "../pages/Home/Home.jsx";
+import { Login } from "../pages/Login/Login.jsx";
+import { Register } from "../pages/Register/Register.jsx";
+import { Products } from "../pages/Products/Products.jsx";
+import { ProductDetail } from "../pages/ProductDetail/ProductDetail.jsx";
+// Importa estas solo si existen
+import { Cart } from "../pages/Cart/Cart.jsx";
+import { Checkout } from "../pages/Checkout/Checkout";
+import { MyOrders } from "../pages/MyOrders/MyOrders.jsx";
+import { ProtectedRoute } from "./ProtectedRoute.jsx";
+import { Admin } from "../pages/Admin/Admin.jsx";
+
+
+
+
+export const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <App />,
+    children: [
+      // Página por defecto al entrar a "/"
+      { index: true, element: <Home/> },
+
+      // Auth públicas
+      { path: "login", element: <Login /> },
+      { path: "register", element: <Register /> },
+
+      // Productos (públicos)
+      { path: "productos", element: <Products /> },
+      { path: "productos/:id", element: <ProductDetail /> },
+
+      // Descomenta cuando tengas estas páginas creadas
+      { path: "carrito", element: <Cart /> },
+      { path: "checkout", element: <Checkout /> },
+      { path: "mis-pedidos", element: (<MyOrders />),},
+      //{ path: "/perfil", element: (<ProfilePage />)},
+      //{ path: "/ayuda", element: (<HelpPage />)},
+
+      {
+        path: "admin",
+        element: (
+          <ProtectedRoute roles={["admin"]}>
+            <Admin />
+          </ProtectedRoute>
+        ),
+      },
+    ],
+  },
+]);

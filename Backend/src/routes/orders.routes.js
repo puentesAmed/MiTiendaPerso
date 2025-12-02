@@ -8,5 +8,7 @@ import { requireAuth } from '../middleware/auth.middleware.js';
 
 export const ordersRouter = Router();
 
+ordersRouter.use(requireAuth);
+
 ordersRouter.post('/', requireAuth, createOrder);
 ordersRouter.get('/mine', requireAuth, getOrdersByUser);

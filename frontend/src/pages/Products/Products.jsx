@@ -29,18 +29,20 @@ export function Products() {
   const bg = useColorModeValue("gray.50", "gray.900");
 
   async function loadProducts(params = {}) {
-    try {
-      setLoading(true);
-      setError("");
-      const data = await apiGetProducts(params);
-      setProducts(data);
-    } catch (err) {
-      console.error(err);
-      setError("No se pudieron cargar los productos");
-    } finally {
-      setLoading(false);
-    }
+  try {
+    setLoading(true);
+    setError("");
+    const data = await apiGetProducts(params);
+    console.log('Products for UI:', data);
+    setProducts(data);
+  } catch (err) {
+    console.error(err);
+    setError("No se pudieron cargar los productos");
+  } finally {
+    setLoading(false);
   }
+}
+
 
   // primer load
   useEffect(() => {

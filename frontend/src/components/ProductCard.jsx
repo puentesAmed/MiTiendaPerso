@@ -40,6 +40,7 @@ export function ProductCard({ product }) {
             src={product.image}
             alt={product.name}
             objectFit="cover"
+            onError={(e) => {e.currentTarget.src = "/images/fallback-product.png";}}
             w="100%"
             h="180px"
           />

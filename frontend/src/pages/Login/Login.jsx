@@ -110,6 +110,9 @@ import {
 } from "@chakra-ui/react";
 import { ViewIcon, ViewOffIcon } from "@chakra-ui/icons";
 import { useAuth } from "../../hooks/useAuth.js";
+import { Link as RouterLink } from "react-router-dom";
+import { Link, Text, HStack } from "@chakra-ui/react";
+
 
 
 
@@ -218,6 +221,22 @@ export function Login() {
           >
             Entrar
           </Button>
+
+          <HStack justify="center" mt={4} spacing={1}>
+            <Text fontSize="sm" color="gray.400">
+              ¿No tienes cuenta?
+            </Text>
+            <Link
+              as={RouterLink}
+              to="/register"
+              fontSize="sm"
+              color="blue.300"
+              fontWeight="medium"
+            >
+              Regístrate aquí
+            </Link>
+          </HStack>
+
         </VStack>
       </form>
     </Box>

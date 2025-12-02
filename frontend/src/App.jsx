@@ -12,8 +12,14 @@ import {
   Badge,
   useColorMode,
   useColorModeValue,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  MenuDivider,
 } from "@chakra-ui/react";
-import { HamburgerIcon, CloseIcon, SunIcon, MoonIcon } from "@chakra-ui/icons";
+import { HamburgerIcon, CloseIcon, SunIcon, MoonIcon, ChevronDownIcon } from "@chakra-ui/icons";
+
 
 import { useAuth } from "./hooks/useAuth";
 import { useCart } from "./hooks/useCart";
@@ -141,33 +147,63 @@ export function App() {
             />
 
             {user ? (
-              <HStack
-                as="button"
-                type="button"
-                px={2}
-                py={1}
-                borderRadius="lg"
-                border="1px solid"
-                borderColor={border}
-                onClick={handleLogout}
-               
-              >
-                <Avatar size="sm" name={user.name || user.email} />
-                <Box textAlign="left" display={{ base: "none", md: "block" }}>
-                  <Text fontSize="xs">Hola,</Text>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {user.name || user.email}
-                  </Text>
-                </Box>
-                <Text display={{ base: "none", md: "inline" }} fontSize="xs" ml={2}>
-                  Salir
-                </Text>
-              </HStack>
+              <Menu placement="bottom-end">
+                <MenuButton
+                  as={Button}
+                  variant="outline"
+                  size="sm"
+                  px={2}
+                  py={1}
+                  borderRadius="lg"
+                  leftIcon={<Avatar size="sm" name={user.name || user.email} />}
+                  rightIcon={<ChevronDownIcon />}
+                >
+                  <Box textAlign="left">
+                    <Text fontSize="xs" color="gray.500">
+                      {user.name ? "Cuenta" : "Usuario"}
+                    </Text>
+                    <Text fontSize="sm" fontWeight="medium" noOfLines={1}>
+                      {user.name || user.email}
+                    </Text>
+                  </Box>
+                </MenuButton>
+
+                <MenuList minW="220px">
+                  <Box px={3} py={2} borderBottom="1px solid" borderColor={border}>
+                    <Text fontSize="xs" color="gray.500">
+                      Sesión iniciada como
+                    </Text>
+                    <Text fontSize="sm" fontWeight="medium" noOfLines={1}>
+                      {user.email}
+                    </Text>
+                  </Box>
+
+                  <MenuItem as={Link} to="/perfil">
+                    Perfil
+                  </MenuItem>
+
+                  <MenuItem as={Link} to="/mis-pedidos">
+                    Mis pedidos
+                  </MenuItem>
+
+                  <MenuItem as={Link} to="/ayuda">
+                    Solicitar ayuda
+                  </MenuItem>
+
+                  <MenuDivider />
+
+                  <MenuItem onClick={handleLogout} color="red.500">
+                    Cerrar sesión
+                  </MenuItem>
+                </MenuList>
+              </Menu>
             ) : (
               <Button as={Link} to="/login" size="sm" variant="outline">
                 Entrar
               </Button>
             )}
+
+
           </HStack>
         </Flex>
         {scrolled && <Divider opacity={0.25} />}
