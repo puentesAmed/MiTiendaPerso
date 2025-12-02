@@ -66,6 +66,7 @@ export const router = createBrowserRouter([
     children: [
       // Página por defecto al entrar a "/"
       { index: true, element: <Home/> },
+      { path: "Inicio", element: <Home/> },
 
       // Auth públicas
       { path: "login", element: <Login /> },

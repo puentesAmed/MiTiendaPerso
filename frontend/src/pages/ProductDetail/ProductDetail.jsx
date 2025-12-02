@@ -19,7 +19,7 @@ import {
   NumberDecrementStepper,
 } from "@chakra-ui/react";
 import { ArrowBackIcon } from "@chakra-ui/icons";
-import { apiGetProducts} from "../../services/products.service";
+import { apiGetProductById} from "../../services/products.service";
 import { useCart } from "../../hooks/useCart";
 
 export function ProductDetail() {
@@ -42,7 +42,7 @@ export function ProductDetail() {
       try {
         setLoading(true);
         setError("");
-        const data = await apiGetProducts(id);
+        const data = await apiGetProductById(id);
         if (isMounted) {
           setProduct(data);
         }
@@ -131,7 +131,7 @@ export function ProductDetail() {
               borderRadius="lg"
               w="100%"
               h={{ base: "260px", md: "360px" }}
-              objectFit="cover"
+              objectFit="contain"
             />
           ) : (
             <Box

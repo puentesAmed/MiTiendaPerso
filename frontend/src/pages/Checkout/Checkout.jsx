@@ -147,7 +147,7 @@ export function Checkout() {
   );
 }
 */
-
+/*
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../../hooks/useCart";
@@ -288,7 +288,7 @@ export function Checkout() {
               </table>
             </div>
 
-            {/* Selección de método de pago */}
+           
             <Box mt={4} mb={2}>
               <Heading as="h2" size="sm" mb={2}>
                 Método de pago
@@ -329,5 +329,199 @@ export function Checkout() {
         </div>
       </div>
     </section>
+  );
+}
+*/
+
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useCart } from "../../hooks/useCart";
+import { useAuth } from "../../hooks/useAuth";
+import { createOrderRequest } from "../../services/orders.service";
+import {
+  Box,
+  Button,
+  Heading,
+  Text,
+  Stack,
+  RadioGroup,
+  Radio,
+  Card,
+  CardBody,
+  Flex,
+  HStack,
+  VStack,
+  Input,
+  IconButton,
+  Alert,
+  AlertIcon,
+  Divider,
+} from "@chakra-ui/react";
+import { DeleteIcon } from "@chakra-ui/icons";
+
+export function Checkout() {
+  const { user } = useAuth();
+  const { items, totalAmount, clearCart, updateQuantity, removeItem } = useCart();
+  const nav = useNavigate();
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("card");
+
+  useEffect(() => {
+    if (!user) {
+      nav("/login", { replace: true, state: { from: "/checkout" } });
+    }
+  }, [user]);
+
+  if (!user) return null;
+
+  const handleConfirmOrder = async () => {
+    setError("");
+    setSuccessMsg("");
+
+    if (!items.length) {
+      setError("El carrito está vacío");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const data = await createOrderRequest(items, paymentMethod);
+
+      if (!data.ok) {
+        setError(data.message || "No se pudo procesar el pedido");
+        return;
+      }
+
+      clearCart();
+
+      setSuccessMsg(`Pedido nº ${data.orderId} creado correctamente.`);
+      nav("/mis-pedidos");
+    } catch (err) {
+      setError(err.message || "Error inesperado");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box maxW="900px" mx="auto" mt={10} p={5}>
+      <Heading mb={3}>Checkout</Heading>
+      <Text mb={6} color="gray.600">
+        Revisa tu pedido antes de confirmarlo.
+      </Text>
+
+      {!items.length && (
+        <Alert status="info" borderRadius="md" mb={4}>
+          <AlertIcon />
+          No hay productos en el carrito.
+        </Alert>
+      )}
+
+      <Stack spacing={4}>
+        {items.map((it) => (
+          <Card key={it.productId} boxShadow="md">
+            <CardBody>
+              <Flex
+                direction={{ base: "column", md: "row" }}
+                justify="space-between"
+                align={{ md: "center" }}
+                gap={4}
+              >
+                <VStack align="start" spacing={1} flex={1}>
+                  <Heading size="sm">{it.name}</Heading>
+                  <Text fontSize="sm" color="gray.600">
+                    Precio: {it.price.toFixed(2)} €
+                  </Text>
+                </VStack>
+
+                <HStack spacing={3}>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={it.quantity}
+                    onChange={(e) => updateQuantity(it.productId, e.target.value)}
+                    width="70px"
+                  />
+
+                  <Text fontWeight="bold">
+                    {(it.price * it.quantity).toFixed(2)} €
+                  </Text>
+
+                  <IconButton
+                    aria-label="Eliminar"
+                    icon={<DeleteIcon />}
+                    colorScheme="red"
+                    variant="ghost"
+                    onClick={() => removeItem(it.productId)}
+                  />
+                </HStack>
+              </Flex>
+            </CardBody>
+          </Card>
+        ))}
+      </Stack>
+
+      {items.length > 0 && (
+        <>
+          <Divider my={6} />
+
+          <Box mb={5}>
+            <Heading size="sm" mb={2}>
+              Método de pago
+            </Heading>
+
+            <RadioGroup value={paymentMethod} onChange={setPaymentMethod}>
+              <Stack spacing={2}>
+                <Radio value="card">Tarjeta de crédito/débito</Radio>
+                <Radio value="paypal">PayPal (simulado)</Radio>
+                <Radio value="cod">Contra reembolso</Radio>
+              </Stack>
+            </RadioGroup>
+          </Box>
+
+          <Box
+            p={4}
+            borderWidth="1px"
+            borderRadius="md"
+            bg="gray.50"
+            textAlign="right"
+          >
+            <Text fontSize="lg" fontWeight="bold">
+              Total: {totalAmount.toFixed(2)} €
+            </Text>
+          </Box>
+        </>
+      )}
+
+      {error && (
+        <Alert status="error" borderRadius="md" mt={4}>
+          <AlertIcon />
+          {error}
+        </Alert>
+      )}
+
+      {successMsg && (
+        <Alert status="success" borderRadius="md" mt={4}>
+          <AlertIcon />
+          {successMsg}
+        </Alert>
+      )}
+
+      <Button
+        colorScheme="blue"
+        size="lg"
+        w="100%"
+        mt={6}
+        isDisabled={loading || !items.length}
+        isLoading={loading}
+        onClick={handleConfirmOrder}
+      >
+        Confirmar pedido y pagar
+      </Button>
+    </Box>
   );
 }

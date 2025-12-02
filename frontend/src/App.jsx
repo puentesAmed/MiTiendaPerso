@@ -68,7 +68,7 @@ export function App() {
   return (
     <Flex direction="column" minH="100vh" bg={contentBg} color={contentColor}>
       {/* HEADER */}
-      <Box
+      {/*<Box
         as="header"
         position="sticky"
         top="0"
@@ -80,7 +80,7 @@ export function App() {
         boxShadow={scrolled ? "sm" : "none"}
       >
         <Flex align="center" px={{ base: 4, md: 6 }} py={2} gap={3}>
-          {/* Botón menú móvil */}
+          
           <IconButton
             aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
             icon={mobileOpen ? <CloseIcon boxSize={3} /> : <HamburgerIcon boxSize={5} />}
@@ -89,7 +89,7 @@ export function App() {
             variant="ghost"
           />
 
-          {/* Logo */}
+          
           <HStack spacing={3}>
             <Box
               w="9"
@@ -111,7 +111,7 @@ export function App() {
             </Box>
           </HStack>
 
-          {/* Navegación desktop */}
+          
           <HStack spacing={3} ml={6} display={{ base: "none", md: "flex" }}>
             <Button as={Link} to="/" variant="ghost" size="sm">
               Inicio
@@ -136,7 +136,7 @@ export function App() {
 
           <Spacer />
 
-          {/* Zona derecha: tema + usuario */}
+          
           <HStack spacing={2}>
             <IconButton
               aria-label="Cambiar tema"
@@ -208,6 +208,159 @@ export function App() {
         </Flex>
         {scrolled && <Divider opacity={0.25} />}
       </Box>
+      */}
+
+      {/* HEADER */}
+      <Box
+        as="header"
+        position="sticky"
+        top="0"
+        zIndex="sticky"
+        bg={useColorModeValue("rgba(255,255,255,0.85)", "rgba(23,25,35,0.6)")}
+        backdropFilter="saturate(180%) blur(12px)"
+        borderBottom="1px solid"
+        borderColor={useColorModeValue("gray.200", "gray.700")}
+        boxShadow={scrolled ? "md" : "none"}
+        transition="all 0.3s ease"
+      >
+        <Flex align="center" px={{ base: 4, md: 6 }} py={3} gap={4}>
+          {/* Botón menú móvil */}
+          <IconButton
+            aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
+            icon={mobileOpen ? <CloseIcon boxSize={3} /> : <HamburgerIcon boxSize={5} />}
+            display={{ base: "inline-flex", md: "none" }}
+            onClick={() => setMobileOpen((prev) => !prev)}
+            variant="ghost"
+            _hover={{ bg: "rgba(99,102,241,0.1)" }}
+          />
+
+          {/* Logo */}
+          <HStack spacing={3}>
+            <Box
+              w="10"
+              h="10"
+              borderRadius="xl"
+              bg="#6366F1"
+              boxShadow="lg"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              transition="0.2s"
+              _hover={{ transform: "scale(1.05)" }}
+            >
+              <Logo />
+            </Box>
+            <Box lineHeight="short">
+              <Text fontWeight="extrabold" fontSize="lg" color="#1f1f1f">
+                MiTiendaPerso
+              </Text>
+              <Text fontSize="xs" color="gray.500">
+                Crea · Personaliza · Sorprende
+              </Text>
+            </Box>
+          </HStack>
+
+          {/* Navegación desktop */}
+          <HStack spacing={4} ml={6} display={{ base: "none", md: "flex" }}>
+            <Button as={Link} to="/" variant="ghost" size="sm"
+              _hover={{ color: "#6366F1", transform: "translateY(-2px)" }}>
+              Inicio
+            </Button>
+
+            <Button as={Link} to="/productos" variant="ghost" size="sm"
+              _hover={{ color: "#6366F1", transform: "translateY(-2px)" }}>
+              Productos
+            </Button>
+
+            
+
+            <Button as={Link} to="/carrito" variant="ghost" size="sm"
+              position="relative"
+              _hover={{ color: "#6366F1", transform: "translateY(-2px)" }}
+            >
+              Carrito
+              {cartCount > 0 && (
+                <Badge
+                  colorScheme="purple"
+                  ml={2}
+                  borderRadius="full"
+                  px={2}
+                  py={0.5}
+                >
+                  {cartCount}
+                </Badge>
+              )}
+            </Button>
+
+            {user && user.role === "admin" && (
+              <Button as={Link} to="/admin" variant="ghost" size="sm"
+                _hover={{ color: "#6366F1", transform: "translateY(-2px)" }}>
+                Admin
+              </Button>
+            )}
+          </HStack>
+
+          <Spacer />
+
+          {/* Zona derecha */}
+          <HStack spacing={3}>
+
+            {/* Botón de modo oscuro */}
+            <IconButton
+              aria-label="Cambiar tema"
+              onClick={toggleColorMode}
+              icon={colorMode === "light" ? <MoonIcon /> : <SunIcon />}
+              size="sm"
+              variant="ghost"
+              _hover={{ bg: "rgba(99,102,241,0.1)" }}
+            />
+
+            {/* Usuario */}
+            {user ? (
+              <Menu placement="bottom-end">
+                <MenuButton
+                  as={Button}
+                  variant="outline"
+                  borderRadius="full"
+                  px={3}
+                  py={1}
+                  leftIcon={<Avatar size="sm" name={user.name || user.email} />}
+                  rightIcon={<ChevronDownIcon />}
+                  _hover={{ bg: "rgba(99,102,241,0.1)" }}
+                >
+                  <Text fontWeight="medium" noOfLines={1}>
+                    {user.name || user.email}
+                  </Text>
+                </MenuButton>
+
+                <MenuList>
+                  <MenuItem as={Link} to="/perfil">Perfil</MenuItem>
+                  <MenuItem as={Link} to="/mis-pedidos">Mis pedidos</MenuItem>
+                  <MenuItem as={Link} to="/ayuda">Ayuda</MenuItem>
+                  <MenuDivider />
+                  <MenuItem onClick={handleLogout} color="red.400">Cerrar sesión</MenuItem>
+                </MenuList>
+              </Menu>
+            ) : (
+              <Button
+                as={Link}
+                to="/login"
+                size="sm"
+                bg="#6366F1"
+                color="white"
+                borderRadius="full"
+                px={4}
+                _hover={{ bg: "#4F46E5" }}
+              >
+                Entrar
+              </Button>
+            )}
+          </HStack>
+        </Flex>
+
+        {scrolled && <Divider opacity={0.15} />}
+      </Box>
+
 
       {/* Menú móvil desplegable */}
       {mobileOpen && (
