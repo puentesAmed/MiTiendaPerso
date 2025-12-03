@@ -6,7 +6,7 @@ export function CartProvider({ children }) {
   const [items, setItems] = useState([]); 
   // items: [{ productId, name, price, quantity, image }]
 
-  const addItem = useCallback((product, quantity = 1) => {
+  const addItem = useCallback((product, quantity = 1, customization = null) => {
     setItems((prev) => {
       const qty = Number(quantity) || 1;
       const idx = prev.findIndex((i) => i.productId === product.id || i.productId === product._id);
@@ -22,6 +22,7 @@ export function CartProvider({ children }) {
             price: Number(product.price) || 0,
             quantity: qty,
             image: product.image || "",
+            customization, // { enabled, areaCode, imageUrl, text, notes, widthMm, heightMm }
           },
         ];
       }

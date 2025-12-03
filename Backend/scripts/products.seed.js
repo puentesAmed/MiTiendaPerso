@@ -65,7 +65,114 @@ async function seedProducts() {
         category: "electronica",
         stock: 10,
         image: "https://via.placeholder.com/400x300?text=Monitor",
-      }
+      },
+
+       // 1) Camiseta personalizable
+    {
+      name: "Camiseta básica personalizada",
+      description:
+        "Camiseta de algodón 100% con opción de impresión en pecho y espalda.",
+      price: 19.9,
+      image: "https://via.placeholder.com/400x300?text=Camiseta+personalizada",
+      stock: 50,
+      active: true,
+      category: "ropa",
+      customizable: true,
+      customizationAreas: [
+        {
+          name: "Pecho frontal",
+          code: "front",
+          maxWidthMm: 280,
+          maxHeightMm: 200,
+          notes: "Zona centrada en la parte frontal de la camiseta.",
+        },
+        {
+          name: "Espalda completa",
+          code: "back",
+          maxWidthMm: 300,
+          maxHeightMm: 350,
+          notes: "Ideal para dorsales o diseños grandes.",
+        },
+      ],
+    },
+
+    // 2) Sudadera personalizable
+    {
+      name: "Sudadera con capucha personalizada",
+      description:
+        "Sudadera unisex con capucha, interior perchado. Personalizable en pecho y espalda.",
+      price: 34.9,
+      image: "https://via.placeholder.com/400x300?text=Sudadera+personalizada",
+      stock: 30,
+      active: true,
+      category: "ropa",
+      customizable: true,
+      customizationAreas: [
+        {
+          name: "Pecho pequeño",
+          code: "front_small",
+          maxWidthMm: 100,
+          maxHeightMm: 60,
+          notes: "Logo pequeño en el lado izquierdo.",
+        },
+        {
+          name: "Espalda",
+          code: "back",
+          maxWidthMm: 260,
+          maxHeightMm: 260,
+          notes: "Texto o imagen centrada.",
+        },
+      ],
+    },
+
+    // 3) Taza personalizable
+    {
+      name: "Taza cerámica personalizada",
+      description:
+        "Taza blanca de cerámica con impresión envolvente. Apta para lavavajillas.",
+      price: 12.5,
+      image: "https://via.placeholder.com/400x300?text=Taza+personalizada",
+      stock: 100,
+      active: true,
+      category: "hogar",
+      customizable: true,
+      customizationAreas: [
+        {
+          name: "Área lateral",
+          code: "side",
+          maxWidthMm: 80,
+          maxHeightMm: 50,
+          notes: "Zona visible cuando se sujeta con la mano derecha.",
+        },
+      ],
+    },
+
+    // 4) Producto NO personalizable
+    {
+      name: "Pantalón vaquero clásico",
+      description: "Vaquero azul corte recto. No admite personalización.",
+      price: 39.9,
+      image: "https://via.placeholder.com/400x300?text=Pantalon+vaquero",
+      stock: 40,
+      active: true,
+      category: "ropa",
+      customizable: false,
+      customizationAreas: [],
+    },
+
+    // 5) Producto NO personalizable
+    {
+      name: "Auriculares Bluetooth",
+      description:
+        "Auriculares inalámbricos con cancelación de ruido. Producto estándar.",
+      price: 59.9,
+      image: "https://via.placeholder.com/400x300?text=Auriculares",
+      stock: 20,
+      active: true,
+      category: "electronica",
+      customizable: false,
+      customizationAreas: [],
+    },
     ];
 
     console.log("Insertando productos...");

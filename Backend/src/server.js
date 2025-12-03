@@ -5,11 +5,16 @@ import { connectDB } from './config/db.js';
 import { authRouter } from './routes/auth.routes.js';
 import { productsRouter } from './routes/products.routes.js';
 import { ordersRouter } from './routes/orders.routes.js';
+import path from "path";
+import { uploadRouter } from "./routes/uploads.routes.js";
 
 async function bootstrap() {
   await connectDB();
 
   const app = express();
+
+  app.use("/uploads", express.static(path.resolve("uploads")));
+  app.use("/api/uploads", uploadRouter);
 
   // CORS
   app.use(

@@ -1,12 +1,18 @@
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 
-export function ProtectedRoute() {
-  const { isAuthenticated } = useAuth();
+
+
+export function ProtectedRoute({ roles, children }) {
+  const { user, isAuthenticated } = useAuth();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  return <Outlet />;
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
 }
