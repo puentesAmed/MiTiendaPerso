@@ -49,7 +49,8 @@ import { Login } from "../pages/Login/Login.jsx";
 import { Register } from "../pages/Register/Register.jsx";
 import { Products } from "../pages/Products/Products.jsx";
 import { ProductDetail } from "../pages/ProductDetail/ProductDetail.jsx";
-// Importa estas solo si existen
+import { ProductDesignerPage } from "../pages/ProductDesigner/ProductDesignerPage.jsx";
+
 import { Cart } from "../pages/Cart/Cart.jsx";
 import { Checkout } from "../pages/Checkout/Checkout";
 import { MyOrders } from "../pages/MyOrders/MyOrders.jsx";
@@ -75,6 +76,7 @@ export const router = createBrowserRouter([
       // Productos (públicos)
       { path: "productos", element: <Products /> },
       { path: "productos/:id", element: <ProductDetail /> },
+      { path: "personalizar/:id", element: <ProductDesignerPage /> },
 
       // Descomenta cuando tengas estas páginas creadas
       { path: "carrito", element: <Cart /> },

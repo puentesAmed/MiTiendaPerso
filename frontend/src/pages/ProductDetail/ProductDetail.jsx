@@ -1,5 +1,5 @@
 /*// src/pages/ProductDetail/ProductDetail.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -17,9 +17,15 @@ import {
   NumberInputStepper,
   NumberIncrementStepper,
   NumberDecrementStepper,
+  Select,
+  Textarea,
+  Divider,
+  FormControl,
+  FormLabel,
+  Input,
 } from "@chakra-ui/react";
 import { ArrowBackIcon } from "@chakra-ui/icons";
-import { apiGetProductById} from "../../services/products.service";
+import { apiGetProductById } from "../../services/products.service";
 import { useCart } from "../../hooks/useCart";
 
 export function ProductDetail() {
@@ -32,8 +38,17 @@ export function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // estado para personalización
+  const [customText, setCustomText] = useState("");
+  const [position, setPosition] = useState("");
+  const [color, setColor] = useState("");
+  const [notes, setNotes] = useState("");
+  const [customImageFile, setCustomImageFile] = useState(null);
+
+  // TODOS los hooks (incluidos useColorModeValue) SIEMPRE aquí arriba
   const bg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
+  const customBoxBg = useColorModeValue("purple.50", "purple.900Alpha.200");
 
   useEffect(() => {
     let isMounted = true;
@@ -63,11 +78,72 @@ export function ProductDetail() {
     };
   }, [id]);
 
+  const isCustomizable = !!product?.customizable;
+
+  // Configuración de personalización con valores por defecto seguros
+  const customizationConfig = useMemo(() => {
+    if (!product || !product.customizationConfig) {
+      return {
+        maxImages: 1,
+        maxTextLength: 50,
+        allowedPositions: ["front", "back"],
+        allowedColors: ["black", "white", "red"],
+        notes: "",
+      };
+    }
+
+    const cfg = product.customizationConfig;
+    const safe = typeof cfg === "object" && cfg !== null ? cfg : {};
+
+    return {
+      maxImages: safe.maxImages ?? 1,
+      maxTextLength: safe.maxTextLength ?? 50,
+      allowedPositions: Array.isArray(safe.allowedPositions)
+        ? safe.allowedPositions
+        : ["front", "back"],
+      allowedColors: Array.isArray(safe.allowedColors)
+        ? safe.allowedColors
+        : ["black", "white", "red"],
+      notes: typeof safe.notes === "string" ? safe.notes : "",
+    };
+  }, [product]);
+
+  // Inicializa posición/color cuando el producto es personalizable
+  useEffect(() => {
+    if (isCustomizable) {
+      if (!position && customizationConfig.allowedPositions.length > 0) {
+        setPosition(customizationConfig.allowedPositions[0]);
+      }
+      if (!color && customizationConfig.allowedColors.length > 0) {
+        setColor(customizationConfig.allowedColors[0]);
+      }
+    }
+  }, [isCustomizable, customizationConfig, position, color]);
+
   const handleAddToCart = () => {
     const qty = Number(quantity) || 1;
-    if (product && qty > 0) {
-      addItem(product, qty); // adapta si tu CartContext tiene otra firma
+    if (!product || qty <= 0) return;
+
+    let customizationPayload = undefined;
+
+    if (product.customizable) {
+      customizationPayload = {
+        text: customText || null,
+        position: position || null,
+        color: color || null,
+        notes: notes || null,
+        // aquí, por ahora, solo guardamos el nombre del archivo
+        imageFileName: customImageFile?.name || null,
+      };
     }
+
+    addItem(
+      {
+        ...product,
+        customization: customizationPayload,
+      },
+      qty
+    );
   };
 
   if (loading) {
@@ -122,7 +198,7 @@ export function ProductDetail() {
         borderRadius="xl"
         p={4}
       >
-        
+      
         <Box flex="1" minW={{ base: "100%", md: "320px" }}>
           {product.image ? (
             <Image
@@ -154,11 +230,19 @@ export function ProductDetail() {
         
         <Box flex="2">
           <Stack spacing={3}>
-            <HStack justify="space-between">
-              <Heading size="lg">{product.name}</Heading>
-              {product.category && (
-                <Badge colorScheme="blue" fontSize="0.8rem">
-                  {product.category}
+            <HStack justify="space-between" align="flex-start">
+              <Box>
+                <Heading size="lg">{product.name}</Heading>
+                {product.category && (
+                  <Badge mt={1} colorScheme="blue" fontSize="0.8rem">
+                    {product.category}
+                  </Badge>
+                )}
+              </Box>
+
+              {isCustomizable && (
+                <Badge colorScheme="purple" alignSelf="flex-start">
+                  Personalizable
                 </Badge>
               )}
             </HStack>
@@ -185,6 +269,125 @@ export function ProductDetail() {
                   : "Sin stock"}
               </Text>
             </HStack>
+
+           
+            {isCustomizable && (
+              <Box
+                mt={4}
+                p={3}
+                borderRadius="lg"
+                borderWidth="1px"
+                borderColor="purple.300"
+                bg={customBoxBg}
+              >
+                <Heading size="sm" mb={2}>
+                  Personaliza tu producto
+                </Heading>
+                {customizationConfig.notes && (
+                  <Text fontSize="xs" color="gray.600" mb={2}>
+                    {customizationConfig.notes}
+                  </Text>
+                )}
+
+                <Stack spacing={3}>
+                  
+                  <FormControl>
+                    <FormLabel fontSize="sm">
+                      Imagen de referencia (opcional)
+                    </FormLabel>
+                    <Input
+                      size="sm"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) =>
+                        setCustomImageFile(
+                          e.target.files && e.target.files[0]
+                            ? e.target.files[0]
+                            : null
+                        )
+                      }
+                    />
+                    {customImageFile && (
+                      <Text fontSize="xs" color="gray.500" mt={1}>
+                        Archivo seleccionado: {customImageFile.name}
+                      </Text>
+                    )}
+                  </FormControl>
+
+                  
+                  <FormControl>
+                    <FormLabel fontSize="sm">
+                      Texto a imprimir (opcional)
+                    </FormLabel>
+                    <Input
+                      size="sm"
+                      maxLength={customizationConfig.maxTextLength}
+                      placeholder={`Máx. ${customizationConfig.maxTextLength} caracteres`}
+                      value={customText}
+                      onChange={(e) => setCustomText(e.target.value)}
+                    />
+                    <Text fontSize="xs" color="gray.500" mt={1}>
+                      {customText.length}/{customizationConfig.maxTextLength}{" "}
+                      caracteres
+                    </Text>
+                  </FormControl>
+
+                 
+                  <FormControl>
+                    <FormLabel fontSize="sm">Posición</FormLabel>
+                    <Select
+                      size="sm"
+                      value={position}
+                      onChange={(e) => setPosition(e.target.value)}
+                    >
+                      {customizationConfig.allowedPositions.map((pos) => (
+                        <option key={pos} value={pos}>
+                          {pos}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  
+                  <FormControl>
+                    <FormLabel fontSize="sm">Color principal</FormLabel>
+                    <Select
+                      size="sm"
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                    >
+                      {customizationConfig.allowedColors.map((col) => (
+                        <option key={col} value={col}>
+                          {col}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                 
+                  <FormControl>
+                    <FormLabel fontSize="sm">
+                      Notas para el diseño (opcional)
+                    </FormLabel>
+                    <Textarea
+                      size="sm"
+                      rows={3}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Indica detalles, por ejemplo: centrar el texto, tamaño aproximado, etc."
+                    />
+                  </FormControl>
+                </Stack>
+
+                <Divider my={3} />
+
+                <Text fontSize="xs" color="gray.500">
+                  Una vez realizado el pedido, revisaremos el diseño y, si hay
+                  algún problema con la imagen o la posición, nos pondremos en
+                  contacto contigo.
+                </Text>
+              </Box>
+            )}
 
             
             <HStack mt={4} spacing={4}>
@@ -226,8 +429,8 @@ export function ProductDetail() {
 */
 
 // src/pages/ProductDetail/ProductDetail.jsx
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState, useMemo } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   Box,
   Heading,
@@ -244,144 +447,129 @@ import {
   NumberInputStepper,
   NumberIncrementStepper,
   NumberDecrementStepper,
+  Select,
+  Textarea,
+  Divider,
   FormControl,
   FormLabel,
-  Select,
   Input,
-  Textarea,
-  Alert,
-  AlertIcon,
-  AlertDescription,
-  Divider,
 } from "@chakra-ui/react";
 import { ArrowBackIcon } from "@chakra-ui/icons";
 import { apiGetProductById } from "../../services/products.service";
 import { useCart } from "../../hooks/useCart";
-import { http } from "../../services/http";
 
 export function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addItem } = useCart();
 
+  // estado producto / vista
   const [product, setProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Estado de personalización
-  const [areaCode, setAreaCode] = useState("");
-  const [customImageUrl, setCustomImageUrl] = useState("");
+  // estado personalización
   const [customText, setCustomText] = useState("");
-  const [customNotes, setCustomNotes] = useState("");
-  const [widthMm, setWidthMm] = useState("");
-  const [heightMm, setHeightMm] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [customError, setCustomError] = useState("");
+  const [position, setPosition] = useState("");
+  const [color, setColor] = useState("");
+  const [notes, setNotes] = useState("");
+  const [customImageFile, setCustomImageFile] = useState(null);
 
+  // hooks de tema SIEMPRE arriba
   const bg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
+  const customBoxBg = useColorModeValue("purple.50", "purple.900Alpha.200");
 
+  // cargar producto
   useEffect(() => {
-    let isMounted = true;
+    let alive = true;
 
     async function load() {
       try {
         setLoading(true);
         setError("");
         const data = await apiGetProductById(id);
-        if (isMounted) {
-          setProduct(data);
-        }
+        if (alive) setProduct(data);
       } catch (err) {
         console.error(err);
-        if (isMounted) {
-          setError("No se pudo cargar el producto");
-        }
+        if (alive) setError("No se pudo cargar el producto");
       } finally {
-        if (isMounted) setLoading(false);
+        if (alive) setLoading(false);
       }
     }
 
     if (id) load();
-
     return () => {
-      isMounted = false;
+      alive = false;
     };
   }, [id]);
 
-  const handleUploadImage = async (file) => {
-    if (!file) return;
-    setCustomError("");
-    try {
-      setUploading(true);
-      const formData = new FormData();
-      formData.append("file", file);
+  const isCustomizable = !!product?.customizable;
 
-      // Debes tener en el backend POST /api/uploads/image
-      const { data } = await http.post("/api/uploads/image", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      if (!data?.url) {
-        throw new Error("Respuesta de subida inválida");
-      }
-      setCustomImageUrl(data.url);
-    } catch (err) {
-      console.error(err);
-      setCustomError("No se pudo subir la imagen. Inténtalo de nuevo.");
-    } finally {
-      setUploading(false);
+  // configuración de personalización segura
+  const customizationConfig = useMemo(() => {
+    if (!product || !product.customizationConfig) {
+      return {
+        maxImages: 1,
+        maxTextLength: 50,
+        allowedPositions: ["front", "back"],
+        allowedColors: ["black", "white", "red"],
+        notes: "",
+      };
     }
-  };
+
+    const cfg = product.customizationConfig;
+    const safe = typeof cfg === "object" && cfg !== null ? cfg : {};
+
+    return {
+      maxImages: safe.maxImages ?? 1,
+      maxTextLength: safe.maxTextLength ?? 50,
+      allowedPositions: Array.isArray(safe.allowedPositions)
+        ? safe.allowedPositions
+        : ["front", "back"],
+      allowedColors: Array.isArray(safe.allowedColors)
+        ? safe.allowedColors
+        : ["black", "white", "red"],
+      notes: typeof safe.notes === "string" ? safe.notes : "",
+    };
+  }, [product]);
+
+  // inicializar selects
+  useEffect(() => {
+    if (!isCustomizable) return;
+
+    if (!position && customizationConfig.allowedPositions.length > 0) {
+      setPosition(customizationConfig.allowedPositions[0]);
+    }
+    if (!color && customizationConfig.allowedColors.length > 0) {
+      setColor(customizationConfig.allowedColors[0]);
+    }
+  }, [isCustomizable, customizationConfig, position, color]);
 
   const handleAddToCart = () => {
     const qty = Number(quantity) || 1;
     if (!product || qty <= 0) return;
 
-    setCustomError("");
-
-    let customization = null;
+    let customizationPayload = undefined;
 
     if (product.customizable) {
-      // Si es personalizable, construimos el objeto de personalización.
-      if (!areaCode && (customImageUrl || customText)) {
-        setCustomError("Selecciona una zona de personalización.");
-        return;
-      }
-
-      const selectedArea = product.customizationAreas?.find(
-        (a) => a.code === areaCode
-      );
-
-      // Validación básica en front (el back debe validar también)
-      if (selectedArea) {
-        const w = Number(widthMm) || 0;
-        const h = Number(heightMm) || 0;
-        if (w > selectedArea.maxWidthMm || h > selectedArea.maxHeightMm) {
-          setCustomError(
-            `Las medidas (${w}x${h} mm) superan el máximo permitido en ${selectedArea.name} (${selectedArea.maxWidthMm}x${selectedArea.maxHeightMm} mm).`
-          );
-          return;
-        }
-      }
-
-      customization =
-        customImageUrl || customText || customNotes || areaCode
-          ? {
-              enabled: true,
-              areaCode: areaCode || null,
-              imageUrl: customImageUrl || null,
-              text: customText || "",
-              notes: customNotes || "",
-              widthMm: widthMm ? Number(widthMm) : null,
-              heightMm: heightMm ? Number(heightMm) : null,
-            }
-          : null;
+      customizationPayload = {
+        text: customText || null,
+        position: position || null,
+        color: color || null,
+        notes: notes || null,
+        imageFileName: customImageFile?.name || null,
+      };
     }
 
-    // IMPORTANTE: tu CartContext debe aceptar el 3er parámetro customization
-    addItem(product, qty, customization);
+    addItem(
+      {
+        ...product,
+        customization: customizationPayload,
+      },
+      qty
+    );
   };
 
   if (loading) {
@@ -415,10 +603,6 @@ export function ProductDetail() {
       </Box>
     );
   }
-
-  const selectedArea = product.customizationAreas?.find(
-    (a) => a.code === areaCode
-  );
 
   return (
     <Box p={{ base: 4, md: 6 }} bg={bg} borderRadius="xl" boxShadow="md">
@@ -469,23 +653,24 @@ export function ProductDetail() {
           )}
         </Box>
 
-        {/* Info + Personalización */}
+        {/* Info + personalización */}
         <Box flex="2">
-          <Stack spacing={4}>
-            <HStack justify="space-between">
-              <Heading size="lg">{product.name}</Heading>
-              <HStack spacing={2}>
+          <Stack spacing={3}>
+            <HStack justify="space-between" align="flex-start">
+              <Box>
+                <Heading size="lg">{product.name}</Heading>
                 {product.category && (
-                  <Badge colorScheme="blue" fontSize="0.8rem">
+                  <Badge mt={1} colorScheme="blue" fontSize="0.8rem">
                     {product.category}
                   </Badge>
                 )}
-                {product.customizable && (
-                  <Badge colorScheme="purple" fontSize="0.7rem">
-                    Personalizable
-                  </Badge>
-                )}
-              </HStack>
+              </Box>
+
+              {isCustomizable && (
+                <Badge colorScheme="purple" alignSelf="flex-start">
+                  Personalizable
+                </Badge>
+              )}
             </HStack>
 
             {product.description && (
@@ -511,132 +696,139 @@ export function ProductDetail() {
               </Text>
             </HStack>
 
-            {/* Bloque de personalización */}
-            {product.customizable && (
+            {/* Personalización básica */}
+            {isCustomizable && (
               <Box
-                mt={2}
+                mt={4}
                 p={3}
-                borderWidth="1px"
                 borderRadius="lg"
-                bg={useColorModeValue("gray.50", "gray.700")}
+                borderWidth="1px"
+                borderColor="purple.300"
+                bg={customBoxBg}
               >
-                <Text fontWeight="semibold" mb={2}>
+                <Heading size="sm" mb={2}>
                   Personaliza tu producto
-                </Text>
-                <Text fontSize="xs" color="gray.500" mb={3}>
-                  Sube tu diseño y elige la zona donde quieres que lo
-                  imprimamos. Respeta las medidas máximas indicadas.
-                </Text>
+                </Heading>
+                {customizationConfig.notes && (
+                  <Text fontSize="xs" color="gray.600" mb={2}>
+                    {customizationConfig.notes}
+                  </Text>
+                )}
 
                 <Stack spacing={3}>
+                  {/* Imagen de referencia */}
                   <FormControl>
-                    <FormLabel fontSize="sm">Zona de impresión</FormLabel>
+                    <FormLabel fontSize="sm">
+                      Imagen de referencia (opcional)
+                    </FormLabel>
+                    <Input
+                      size="sm"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) =>
+                        setCustomImageFile(
+                          e.target.files && e.target.files[0]
+                            ? e.target.files[0]
+                            : null
+                        )
+                      }
+                    />
+                    {customImageFile && (
+                      <Text fontSize="xs" color="gray.500" mt={1}>
+                        Archivo seleccionado: {customImageFile.name}
+                      </Text>
+                    )}
+                  </FormControl>
+
+                  {/* Texto */}
+                  <FormControl>
+                    <FormLabel fontSize="sm">
+                      Texto a imprimir (opcional)
+                    </FormLabel>
+                    <Input
+                      size="sm"
+                      maxLength={customizationConfig.maxTextLength}
+                      placeholder={`Máx. ${customizationConfig.maxTextLength} caracteres`}
+                      value={customText}
+                      onChange={(e) => setCustomText(e.target.value)}
+                    />
+                    <Text fontSize="xs" color="gray.500" mt={1}>
+                      {customText.length}/{customizationConfig.maxTextLength}{" "}
+                      caracteres
+                    </Text>
+                  </FormControl>
+
+                  {/* Posición */}
+                  <FormControl>
+                    <FormLabel fontSize="sm">Posición</FormLabel>
                     <Select
                       size="sm"
-                      placeholder="Selecciona una zona"
-                      value={areaCode}
-                      onChange={(e) => setAreaCode(e.target.value)}
+                      value={position}
+                      onChange={(e) => setPosition(e.target.value)}
                     >
-                      {product.customizationAreas?.map((area) => (
-                        <option key={area.code} value={area.code}>
-                          {area.name} ({area.maxWidthMm}x{area.maxHeightMm} mm)
+                      {customizationConfig.allowedPositions.map((pos) => (
+                        <option key={pos} value={pos}>
+                          {pos}
                         </option>
                       ))}
                     </Select>
                   </FormControl>
 
-                  {selectedArea && (
-                    <Alert status="info" fontSize="xs">
-                      <AlertIcon />
-                      <AlertDescription>
-                        Área: {selectedArea.name}. Máximo{" "}
-                        {selectedArea.maxWidthMm}x{selectedArea.maxHeightMm} mm.{" "}
-                        {selectedArea.notes && ` ${selectedArea.notes}`}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
+                  {/* Color */}
                   <FormControl>
-                    <FormLabel fontSize="sm">Imagen a imprimir</FormLabel>
-                    <Input
-                      type="file"
+                    <FormLabel fontSize="sm">Color principal</FormLabel>
+                    <Select
                       size="sm"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadImage(file);
-                      }}
-                    />
-                    {uploading && (
-                      <Text fontSize="xs" color="gray.500" mt={1}>
-                        Subiendo imagen...
-                      </Text>
-                    )}
-                    {customImageUrl && !uploading && (
-                      <Text fontSize="xs" color="green.400" mt={1}>
-                        Imagen subida correctamente.
-                      </Text>
-                    )}
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                    >
+                      {customizationConfig.allowedColors.map((col) => (
+                        <option key={col} value={col}>
+                          {col}
+                        </option>
+                      ))}
+                    </Select>
                   </FormControl>
 
+                  {/* Notas */}
                   <FormControl>
                     <FormLabel fontSize="sm">
-                      Texto (opcional)
-                    </FormLabel>
-                    <Input
-                      size="sm"
-                      placeholder="Texto a imprimir"
-                      value={customText}
-                      onChange={(e) => setCustomText(e.target.value)}
-                    />
-                  </FormControl>
-
-                  <HStack spacing={3}>
-                    <FormControl>
-                      <FormLabel fontSize="sm">Ancho (mm)</FormLabel>
-                      <Input
-                        size="sm"
-                        type="number"
-                        value={widthMm}
-                        onChange={(e) => setWidthMm(e.target.value)}
-                      />
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel fontSize="sm">Alto (mm)</FormLabel>
-                      <Input
-                        size="sm"
-                        type="number"
-                        value={heightMm}
-                        onChange={(e) => setHeightMm(e.target.value)}
-                      />
-                    </FormControl>
-                  </HStack>
-
-                  <FormControl>
-                    <FormLabel fontSize="sm">
-                      Instrucciones adicionales
+                      Notas para el diseño (opcional)
                     </FormLabel>
                     <Textarea
                       size="sm"
-                      placeholder="Ej: centrado, reducir tamaño, imprimir solo en blanco, etc."
-                      value={customNotes}
-                      onChange={(e) => setCustomNotes(e.target.value)}
+                      rows={3}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Indica detalles, por ejemplo: centrar el texto, tamaño aproximado, etc."
                     />
                   </FormControl>
-
-                  {customError && (
-                    <Text fontSize="xs" color="red.400">
-                      {customError}
-                    </Text>
-                  )}
                 </Stack>
+
+                <Divider my={3} />
+
+                <Text fontSize="xs" color="gray.500">
+                  Una vez realizado el pedido, revisaremos el diseño y, si hay
+                  algún problema con la imagen o la posición, nos pondremos en
+                  contacto contigo.
+                </Text>
+
+                {/* Botón hacia el diseñador avanzado (opcional) */}
+                <Box mt={3}>
+                  <Button
+                    as={Link}
+                    to={`/personalizar/${product._id}`}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Abrir diseñador avanzado
+                  </Button>
+                </Box>
               </Box>
             )}
 
-            <Divider />
-
-            {/* Cantidad + añadir al carrito */}
-            <HStack mt={2} spacing={4}>
+            {/* Cantidad + carrito */}
+            <HStack mt={4} spacing={4}>
               <Box>
                 <Text mb={1} fontSize="xs" color="gray.500">
                   Cantidad
@@ -661,7 +853,7 @@ export function ProductDetail() {
               <Button
                 colorScheme="blue"
                 onClick={handleAddToCart}
-                isDisabled={product.stock <= 0 || uploading}
+                isDisabled={product.stock <= 0}
               >
                 Añadir al carrito
               </Button>

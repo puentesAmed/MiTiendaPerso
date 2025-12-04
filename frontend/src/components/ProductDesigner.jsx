@@ -1,0 +1,486 @@
+// src/components/ProductDesigner/ProductDesigner.jsx
+import { useState, useEffect, useRef, useMemo } from "react";
+import {
+  Stage,
+  Layer,
+  Image as KonvaImage,
+  Rect,
+  Text as KonvaText,
+  Transformer,
+} from "react-konva";
+import {
+  Box,
+  Stack,
+  HStack,
+  Button,
+  FormControl,
+  FormLabel,
+  Input,
+  Select,
+  NumberInput,
+  NumberInputField,
+  Text as ChakraText,
+  Divider,
+} from "@chakra-ui/react";
+
+// Hook para cargar imágenes
+function useImage(url) {
+  const [image, setImage] = useState(null);
+
+  useEffect(() => {
+    if (!url) return;
+    const img = new window.Image();
+    img.crossOrigin = "Anonymous";
+    img.src = url;
+    img.onload = () => setImage(img);
+  }, [url]);
+
+  return image;
+}
+
+// Componente para una imagen arrastrable y transformable
+function DesignerImageElement({ el, isSelected, onSelect, onChange }) {
+  const img = useImage(el.url);
+  const shapeRef = useRef();
+
+  useEffect(() => {
+    if (isSelected && shapeRef.current) {
+      shapeRef.current.moveToTop();
+    }
+  }, [isSelected]);
+
+  const handleDragEnd = (e) => {
+    const node = e.target;
+    onChange(el.id, {
+      x: node.x(),
+      y: node.y(),
+    });
+  };
+
+  const handleTransformEnd = (e) => {
+    const node = shapeRef.current;
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    const rotation = node.rotation();
+
+    onChange(el.id, {
+      x: node.x(),
+      y: node.y(),
+      scaleX,
+      scaleY,
+      rotation,
+    });
+  };
+
+  return (
+    <KonvaImage
+      id={el.id}
+      ref={shapeRef}
+      image={img}
+      x={el.x}
+      y={el.y}
+      draggable
+      scaleX={el.scaleX ?? el.scale ?? 1}
+      scaleY={el.scaleY ?? el.scale ?? 1}
+      rotation={el.rotation || 0}
+      onClick={onSelect}
+      onTap={onSelect}
+      onDragEnd={handleDragEnd}
+      onTransformEnd={handleTransformEnd}
+    />
+  );
+}
+
+export function ProductDesigner({
+  frontImage,
+  backImage,
+  printArea = { x: 100, y: 40, width: 260, height: 360 },
+  value,
+  onChange,
+}) {
+  // Estado interno inicial (permitimos que venga algo en value)
+  const initialSide = value?.side || "front";
+  const initialElementsBySide = useMemo(
+    () =>
+      value?.elementsBySide || {
+        front: value?.elements || [],
+        back: [],
+      },
+    [value]
+  );
+
+  const [side, setSide] = useState(initialSide);
+  const [elementsBySide, setElementsBySide] = useState(initialElementsBySide);
+  const [selectedId, setSelectedId] = useState(null);
+
+  // Imagen de mockup según lado
+  const productImg = useImage(side === "front" ? frontImage : backImage);
+
+  const layerRef = useRef(null);
+  const trRef = useRef(null);
+
+  // Fuente disponible para textos
+  const fontOptions = [
+    "Arial",
+    "Helvetica",
+    "Times New Roman",
+    "Courier New",
+    "Comic Sans MS",
+    "Impact",
+  ];
+
+  const currentElements = elementsBySide[side] || [];
+  const selectedElement = currentElements.find((el) => el.id === selectedId);
+
+  // Avisar al padre cuando cambie algo
+  useEffect(() => {
+    onChange?.({
+      side,
+      elementsBySide,
+    });
+  }, [side, elementsBySide, onChange]);
+
+  // Actualización de Transformer cuando cambia la selección o elementos
+  useEffect(() => {
+    if (!trRef.current || !layerRef.current) return;
+
+    const stage = layerRef.current.getStage();
+    if (!selectedId) {
+      trRef.current.nodes([]);
+      trRef.current.getLayer().batchDraw();
+      return;
+    }
+
+    const selectedNode = stage.findOne(`#${selectedId}`);
+    if (selectedNode) {
+      trRef.current.nodes([selectedNode]);
+    } else {
+      trRef.current.nodes([]);
+    }
+    trRef.current.getLayer().batchDraw();
+  }, [selectedId, elementsBySide, side]);
+
+  const updateElement = (id, attrs) => {
+    setElementsBySide((prev) => {
+      const nextSideEls = (prev[side] || []).map((el) =>
+        el.id === id ? { ...el, ...attrs } : el
+      );
+      return {
+        ...prev,
+        [side]: nextSideEls,
+      };
+    });
+  };
+
+  const handleAddText = () => {
+    const id = crypto.randomUUID();
+    const newText = {
+      id,
+      type: "text",
+      text: "Tu texto aquí",
+      x: printArea.x + 20,
+      y: printArea.y + 20,
+      fontSize: 24,
+      fontFamily: "Arial",
+      fill: "#ffffff",
+      rotation: 0,
+    };
+
+    setElementsBySide((prev) => ({
+      ...prev,
+      [side]: [...(prev[side] || []), newText],
+    }));
+    setSelectedId(id);
+  };
+
+  const handleAddImage = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const id = crypto.randomUUID();
+      const newImg = {
+        id,
+        type: "image",
+        url: reader.result,
+        x: printArea.x + 40,
+        y: printArea.y + 40,
+        scaleX: 0.5,
+        scaleY: 0.5,
+        rotation: 0,
+      };
+      setElementsBySide((prev) => ({
+        ...prev,
+        [side]: [...(prev[side] || []), newImg],
+      }));
+      setSelectedId(id);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDragMove = (id, pos) => {
+    updateElement(id, { x: pos.x, y: pos.y });
+  };
+
+  const handleSideChange = (newSide) => {
+    setSide(newSide);
+    setSelectedId(null);
+  };
+
+  const handleDeleteSelected = () => {
+    if (!selectedId) return;
+    setElementsBySide((prev) => ({
+      ...prev,
+      [side]: (prev[side] || []).filter((el) => el.id !== selectedId),
+    }));
+    setSelectedId(null);
+  };
+
+  const handleStageClick = (e) => {
+    // Si clic en el fondo, deseleccionar
+    const clickedOnEmpty = e.target === e.target.getStage();
+    if (clickedOnEmpty) {
+      setSelectedId(null);
+    }
+  };
+
+  return (
+    <HStack align="flex-start" spacing={6}>
+      {/* Panel de herramientas */}
+      <Stack minW="260px" spacing={4}>
+        <FormControl>
+          <FormLabel>Lado del producto</FormLabel>
+          <Select
+            size="sm"
+            value={side}
+            onChange={(e) => handleSideChange(e.target.value)}
+          >
+            <option value="front">Delante</option>
+            <option value="back">Detrás</option>
+          </Select>
+        </FormControl>
+
+        <Divider />
+
+        <Button size="sm" onClick={handleAddText}>
+          Añadir texto
+        </Button>
+
+        <FormControl>
+          <FormLabel>Cargar imagen</FormLabel>
+          <Input
+            type="file"
+            accept="image/*"
+            size="sm"
+            onChange={(e) => handleAddImage(e.target.files?.[0])}
+          />
+        </FormControl>
+
+        {selectedElement && (
+          <>
+            <Divider />
+            <ChakraText fontSize="sm" fontWeight="bold">
+              Elemento seleccionado
+            </ChakraText>
+            <ChakraText fontSize="xs" color="gray.500">
+              Tipo: {selectedElement.type}
+            </ChakraText>
+
+            {selectedElement.type === "text" && (
+              <>
+                <FormControl>
+                  <FormLabel fontSize="sm">Texto</FormLabel>
+                  <Input
+                    size="sm"
+                    value={selectedElement.text}
+                    onChange={(e) =>
+                      updateElement(selectedElement.id, {
+                        text: e.target.value,
+                      })
+                    }
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel fontSize="sm">Fuente</FormLabel>
+                  <Select
+                    size="sm"
+                    value={selectedElement.fontFamily || "Arial"}
+                    onChange={(e) =>
+                      updateElement(selectedElement.id, {
+                        fontFamily: e.target.value,
+                      })
+                    }
+                  >
+                    {fontOptions.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel fontSize="sm">Tamaño</FormLabel>
+                  <NumberInput
+                    size="sm"
+                    min={8}
+                    max={120}
+                    value={selectedElement.fontSize || 24}
+                    onChange={(val) =>
+                      updateElement(selectedElement.id, {
+                        fontSize: Number(val) || 24,
+                      })
+                    }
+                  >
+                    <NumberInputField />
+                  </NumberInput>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel fontSize="sm">Color</FormLabel>
+                  <Input
+                    size="sm"
+                    type="color"
+                    value={selectedElement.fill || "#ffffff"}
+                    onChange={(e) =>
+                      updateElement(selectedElement.id, {
+                        fill: e.target.value,
+                      })
+                    }
+                  />
+                </FormControl>
+              </>
+            )}
+
+            <FormControl>
+              <FormLabel fontSize="sm">Rotación</FormLabel>
+              <NumberInput
+                size="sm"
+                min={-180}
+                max={180}
+                value={selectedElement.rotation || 0}
+                onChange={(val) =>
+                  updateElement(selectedElement.id, {
+                    rotation: Number(val) || 0,
+                  })
+                }
+              >
+                <NumberInputField />
+              </NumberInput>
+            </FormControl>
+
+            <Button
+              size="xs"
+              colorScheme="red"
+              variant="outline"
+              onClick={handleDeleteSelected}
+            >
+              Eliminar elemento
+            </Button>
+          </>
+        )}
+      </Stack>
+
+      {/* Lienzo con el mockup */}
+      <Box
+        borderWidth="1px"
+        borderRadius="md"
+        overflow="hidden"
+        bg="gray.100"
+        flex="1"
+        display="flex"
+        justifyContent="center"
+      >
+        <Stage width={500} height={500} onMouseDown={handleStageClick} onTouchStart={handleStageClick}>
+          <Layer ref={layerRef}>
+            {/* Mockup del producto */}
+            {productImg && (
+              <KonvaImage
+                image={productImg}
+                x={0}
+                y={0}
+                width={500}
+                height={500}
+              />
+            )}
+
+            {/* Área de impresión */}
+            <Rect
+              x={printArea.x}
+              y={printArea.y}
+              width={printArea.width}
+              height={printArea.height}
+              stroke="#ffffff"
+              dash={[4, 4]}
+            />
+
+            {/* Elementos (texto / imagen) */}
+            {currentElements.map((el) => {
+              if (el.type === "text") {
+                return (
+                  <KonvaText
+                    key={el.id}
+                    id={el.id}
+                    text={el.text}
+                    x={el.x}
+                    y={el.y}
+                    fontSize={el.fontSize || 24}
+                    fontFamily={el.fontFamily || "Arial"}
+                    fill={el.fill || "#ffffff"}
+                    rotation={el.rotation || 0}
+                    draggable
+                    onClick={() => setSelectedId(el.id)}
+                    onTap={() => setSelectedId(el.id)}
+                    onDragEnd={(e) =>
+                      handleDragMove(el.id, e.target.position())
+                    }
+                    onTransformEnd={(e) => {
+                      const node = e.target;
+                      const scaleX = node.scaleX();
+                      const newFontSize = (el.fontSize || 24) * scaleX;
+
+                      // Reseteamos escala para no acumular
+                      node.scaleX(1);
+                      node.scaleY(1);
+
+                      updateElement(el.id, {
+                        x: node.x(),
+                        y: node.y(),
+                        fontSize: newFontSize,
+                        rotation: node.rotation(),
+                      });
+                    }}
+                  />
+                );
+              }
+              if (el.type === "image") {
+                return (
+                  <DesignerImageElement
+                    key={el.id}
+                    el={el}
+                    isSelected={selectedId === el.id}
+                    onSelect={() => setSelectedId(el.id)}
+                    onChange={updateElement}
+                  />
+                );
+              }
+              return null;
+            })}
+
+            {/* Transformer para elemento seleccionado */}
+            <Transformer
+              ref={trRef}
+              rotateEnabled
+              enabledAnchors={[
+                "top-left",
+                "top-right",
+                "bottom-left",
+                "bottom-right",
+              ]}
+            />
+          </Layer>
+        </Stage>
+      </Box>
+    </HStack>
+  );
+}
