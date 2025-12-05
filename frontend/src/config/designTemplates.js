@@ -1,14 +1,22 @@
 // src/config/designTemplates.js
+import tshirtFront from "../../public/mockups/tshirt/frame-1.png";
+import tshirtBack from "../../public/mockups/tshirt/frame-6.png";
+
+
 export const DESIGN_TEMPLATES = {
   tshirt: {
-    label: "Camiseta clásica",
-    width: 500,
-    height: 500,
-    frontImage: "/mockups/tshirt-front.png",
-    backImage: "/mockups/tshirt-back.png",
-    // zona de impresión sobre el mockup
-    printArea: { x: 140, y: 120, width: 220, height: 300 },
+    width: 750,
+    height: 700,
+    frontImage: tshirtFront,
+    backImage: tshirtBack,
+    printArea: { x: 260, y: 160, width: 250, height: 290 },
+    frames360: [
+      { src: tshirtFront, side: "front" },
+      // si tienes más frames, define cada uno con side apropiado
+      { src: tshirtBack, side: "back" },
+    ],
   },
+
   hoodie: {
     label: "Sudadera",
     width: 500,
@@ -19,10 +27,10 @@ export const DESIGN_TEMPLATES = {
   },
   mug: {
     label: "Taza",
-    width: 500,
+    width: 400,
     height: 400,
     frontImage: "/mockups/mug-front.png",
     backImage: "/mockups/mug-back.png",
-    printArea: { x: 80, y: 120, width: 340, height: 160 },
+    printArea: { x: 50, y: 90, width: 200, height: 250 },
   },
 };
