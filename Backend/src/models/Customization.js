@@ -31,6 +31,9 @@ const CustomizationSchema = new mongoose.Schema(
 
     previewImage: String, // PNG final generado desde Konva
 
+    // NUEVO
+    zipPath: { type: String, default: null },
+
     orderId: { type: mongoose.Schema.Types.ObjectId, ref: "Order" },
 
     status: {

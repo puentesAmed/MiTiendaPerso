@@ -852,7 +852,7 @@ import {
   ModalFooter,
 } from "@chakra-ui/react";
 
-import { AddIcon, EditIcon, DeleteIcon, RepeatIcon } from "@chakra-ui/icons";
+import { AddIcon, EditIcon, DeleteIcon, RepeatIcon, DownloadIcon } from "@chakra-ui/icons";
 
 import { http } from "../../services/http";
 import {
@@ -918,13 +918,14 @@ export function Admin() {
   // ---------------------------
   const [customizations, setCustomizations] = useState([]);
   const [loadingCustomizations, setLoadingCustomizations] = useState(false);
-  const [selectedCustomization, setSelectedCustomization] = useState(null);
-
   const [errorCustomizations, setErrorCustomizations] = useState("");
+
+  
   const [filterProduct, setFilterProduct] = useState("");
   const [filterUser, setFilterUser] = useState("");
-
+  
   // Modal detalle
+  const [selectedCustomization, setSelectedCustomization] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
   
   // Chakra UI colors
@@ -1134,6 +1135,10 @@ export function Admin() {
     loadAdminOrders();
   }, [loadAdminOrders]);
 
+  /* ---------------------------------------------------------
+   * CAMBIAR ESTADO DE PEDIDO
+   * --------------------------------------------------------- */
+
   const handleChangeOrderStatus = async (orderId, status) => {
     try {
       const data = await adminUpdateOrderStatus(orderId, status);
@@ -1150,6 +1155,10 @@ export function Admin() {
       toast({ title: "Error", status: "error" });
     }
   };
+
+  /* ---------------------------------------------------------
+   * PERSONALIZACIONES (CUSTOMIZATIONS)
+   * --------------------------------------------------------- */
 
     const loadCustomizations = useCallback(async (params = {}) => {
     try {
@@ -1177,12 +1186,47 @@ export function Admin() {
     loadCustomizations();
   }, [loadCustomizations]);
 
+  /* ---------------------------------------------------------
+   * ABRIR MODAL DE DETALLES DEL DISEÑO
+   * --------------------------------------------------------- */
+
   const openCustomizationDetail = (c) => {
     setSelectedCustomization(c);
     setDetailOpen(true);
   };
 
 
+  /* ---------------------------------------------------------
+   * DESCARGAR ZIP DESDE EL ADMIN
+   * --------------------------------------------------------- */
+  const handleDownloadZip = async (customization) => {
+    if (!customization.zipUrl) {
+      return toast({
+        title: "ZIP no disponible",
+        description:
+          "Todavía no existe archivo ZIP. El pedido debe haberse creado y procesado.",
+        status: "warning",
+        duration: 3000,
+      });
+    }
+
+    try {
+      // Forzamos la descarga del ZIP
+      const link = document.createElement("a");
+      link.href = customization.zipUrl;
+      link.download = `custom_${String(customization._id).slice(-8)}.zip`;
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error("Error al descargar ZIP:", err);
+      toast({
+        title: "No se pudo descargar el ZIP",
+        status: "error",
+      });
+    }
+  };
 
   return (
     <Box>
@@ -1686,7 +1730,9 @@ export function Admin() {
               p={4}
               boxShadow="md"
             >
-              {/* Encabezado */}
+              {/* --------------------------------------------------- */}
+              {/* ENCABEZADO */}
+              {/* --------------------------------------------------- */}
               <Flex align="center" mb={2}>
                 <Heading size="sm">Diseños personalizados</Heading>
                 <Spacer />
@@ -1700,7 +1746,9 @@ export function Admin() {
                 </Button>
               </Flex>
 
-              {/* Filtros */}
+              {/* --------------------------------------------------- */}
+              {/* FILTROS */}
+              {/* --------------------------------------------------- */}
               <Flex gap={3} wrap="wrap" mb={2}>
                 <FormControl maxW="240px">
                   <FormLabel fontSize="xs" mb={1}>Producto</FormLabel>
@@ -1716,7 +1764,7 @@ export function Admin() {
                   <FormLabel fontSize="xs" mb={1}>Usuario</FormLabel>
                   <Input
                     size="sm"
-                    placeholder="email o id usuario"
+                    placeholder="email o id"
                     value={filterUser}
                     onChange={(e) => setFilterUser(e.target.value)}
                   />
@@ -1736,12 +1784,12 @@ export function Admin() {
               </Flex>
 
               {errorCustomizations && (
-                <Text color="red.400" fontSize="sm">
-                  {errorCustomizations}
-                </Text>
+                <Text color="red.400" fontSize="sm">{errorCustomizations}</Text>
               )}
 
-              {/* Tabla de diseños */}
+              {/* --------------------------------------------------- */}
+              {/* TABLA DE PERSONALIZACIONES */}
+              {/* --------------------------------------------------- */}
               <Box maxH="420px" overflowY="auto">
                 <Table size="sm">
                   <Thead position="sticky" top={0} bg={headerBg} zIndex={1}>
@@ -1751,6 +1799,7 @@ export function Admin() {
                       <Th>Producto</Th>
                       <Th>Usuario</Th>
                       <Th>Fecha</Th>
+                      <Th>ZIP</Th>
                       <Th>Acciones</Th>
                     </Tr>
                   </Thead>
@@ -1758,23 +1807,21 @@ export function Admin() {
                   <Tbody>
                     {customizations.map((c) => (
                       <Tr key={c._id}>
+                        {/* ID recortado */}
                         <Td fontSize="xs" fontFamily="mono">
                           {String(c._id).slice(-8)}
                         </Td>
 
-                        {/* Preview */}
+                        {/* PREVIEW */}
                         <Td>
                           {c.previewImage ? (
-                            <img
+                            <Image
                               src={c.previewImage}
                               alt="preview"
-                              style={{
-                                width: "60px",
-                                height: "60px",
-                                objectFit: "cover",
-                                borderRadius: "6px",
-                                border: "1px solid #ddd",
-                              }}
+                              boxSize="60px"
+                              objectFit="cover"
+                              borderRadius="6px"
+                              border="1px solid #ddd"
                             />
                           ) : (
                             <Text fontSize="xs" color="gray.500">
@@ -1783,28 +1830,45 @@ export function Admin() {
                           )}
                         </Td>
 
-                        {/* Producto */}
+                        {/* PRODUCTO */}
                         <Td>
-                          {c.productName
-                            ? c.productName
-                            : c.productId?.name || "—"}
+                          {c.productName ||
+                            c.productId?.name ||
+                            c.productId ||
+                            "—"}
                         </Td>
 
-                        {/* Usuario */}
+                        {/* USUARIO */}
                         <Td>
-                          {c.userEmail
-                            ? c.userEmail
-                            : c.userId?.email || "—"}
+                          {c.userEmail ||
+                            c.userId?.email ||
+                            c.userId?._id ||
+                            "—"}
                         </Td>
 
-                        {/* Fecha */}
+                        {/* FECHA */}
                         <Td fontSize="xs">
                           {c.createdAt
                             ? new Date(c.createdAt).toLocaleString()
                             : "—"}
                         </Td>
 
-                        {/* Acciones */}
+                        {/* DESCARGAR ZIP */}
+                        <Td>
+                          {c.zipUrl ? (
+                            <Button
+                              size="xs"
+                              colorScheme="purple"
+                              onClick={() => handleDownloadZip(c)}
+                            >
+                              Descargar
+                            </Button>
+                          ) : (
+                            <Badge colorScheme="gray">Pendiente</Badge>
+                          )}
+                        </Td>
+
+                        {/* VER DETALLES */}
                         <Td>
                           <Button
                             size="xs"
@@ -1820,11 +1884,7 @@ export function Admin() {
                     {!loadingCustomizations && customizations.length === 0 && (
                       <Tr>
                         <Td colSpan={6}>
-                          <Text
-                            fontSize="sm"
-                            color="gray.500"
-                            textAlign="center"
-                          >
+                          <Text fontSize="sm" color="gray.500" textAlign="center">
                             No hay personalizaciones registradas.
                           </Text>
                         </Td>
@@ -1835,7 +1895,9 @@ export function Admin() {
               </Box>
             </Flex>
 
-            {/* Modal con detalle del diseño */}
+            {/* --------------------------------------------------- */}
+            {/* MODAL DETALLE */}
+            {/* --------------------------------------------------- */}
             <Modal
               isOpen={detailOpen}
               onClose={() => setDetailOpen(false)}
@@ -1846,9 +1908,11 @@ export function Admin() {
               <ModalContent>
                 <ModalHeader>Detalles del diseño</ModalHeader>
                 <ModalCloseButton />
+
                 <ModalBody>
                   {selectedCustomization ? (
-                    <Stack spacing={3}>
+                    <Stack spacing={4}>
+                      {/* Información base */}
                       <Text fontSize="sm">
                         <strong>ID:</strong> {selectedCustomization._id}
                       </Text>
@@ -1867,24 +1931,19 @@ export function Admin() {
                           "—"}
                       </Text>
 
-                      <Text fontSize="sm">
-                        <strong>Notas del cliente:</strong>{" "}
-                        {selectedCustomization.notes || "—"}
-                      </Text>
-
+                      {/* PREVIEW HD */}
                       <Box>
                         <Text fontWeight="bold" mb={1}>
-                          Vista previa
+                          Vista previa HD
                         </Text>
+
                         {selectedCustomization.previewImage ? (
-                          <img
+                          <Image
                             src={selectedCustomization.previewImage}
-                            alt="preview"
-                            style={{
-                              width: "100%",
-                              borderRadius: "8px",
-                              border: "1px solid #ddd",
-                            }}
+                            alt="preview HD"
+                            width="100%"
+                            borderRadius="8px"
+                            border="1px solid #ddd"
                           />
                         ) : (
                           <Text fontSize="sm" color="gray.500">
@@ -1893,27 +1952,35 @@ export function Admin() {
                         )}
                       </Box>
 
+                      {/* JSON DEL DISEÑO */}
                       <Box>
                         <Text fontWeight="bold" mb={1}>
                           JSON del diseño
                         </Text>
+
                         <pre
                           style={{
                             background: "#f7f7f7",
-                            padding: "10px",
+                            padding: "12px",
                             borderRadius: "8px",
                             fontSize: "12px",
-                            maxHeight: "250px",
+                            maxHeight: "300px",
                             overflowY: "auto",
                           }}
                         >
-                          {JSON.stringify(
-                            selectedCustomization.design,
-                            null,
-                            2
-                          )}
+                          {JSON.stringify(selectedCustomization.design, null, 2)}
                         </pre>
                       </Box>
+
+                      {/* ZIP */}
+                      {selectedCustomization.zipUrl && (
+                        <Button
+                          colorScheme="purple"
+                          onClick={() => handleDownloadZip(selectedCustomization)}
+                        >
+                          Descargar ZIP
+                        </Button>
+                      )}
                     </Stack>
                   ) : (
                     <Text>Cargando…</Text>
@@ -1921,13 +1988,12 @@ export function Admin() {
                 </ModalBody>
 
                 <ModalFooter>
-                  <Button onClick={() => setDetailOpen(false)}>
-                    Cerrar
-                  </Button>
+                  <Button onClick={() => setDetailOpen(false)}>Cerrar</Button>
                 </ModalFooter>
               </ModalContent>
             </Modal>
           </TabPanel>
+
         </TabPanels>
       </Tabs>
     </Box>

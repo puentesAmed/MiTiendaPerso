@@ -98,6 +98,12 @@ async function bootstrap() {
   app.use('/api/orders', ordersRouter);
   app.use("/api/customizations", customizationRoutes);
 
+  app.use("/uploads", express.static(path.resolve("uploads")));
+  app.use("/api/uploads", uploadRouter);
+  app.use("/uploads/customizations", express.static(path.resolve("uploads/customizations")));
+
+
+
   // Healthcheck
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });

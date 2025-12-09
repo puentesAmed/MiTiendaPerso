@@ -501,7 +501,7 @@ export function ProductDesigner({
   );
 }
 */
-/*
+
 // src/components/ProductDesigner/ProductDesigner.jsx
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
@@ -762,7 +762,7 @@ export function ProductDesigner({
 
   return (
     <HStack align="flex-start" spacing={6}>
-      º
+      {/* Panel de herramientas */}
       <Stack minW="260px" spacing={4}>
         <FormControl>
           <FormLabel>Lado del producto</FormLabel>
@@ -792,7 +792,7 @@ export function ProductDesigner({
           />
         </FormControl>
 
-        
+        {/* NUEVO: notas para el diseño */}
         <FormControl>
           <FormLabel fontSize="sm">
             Notas para el diseño (opcional)
@@ -920,7 +920,7 @@ export function ProductDesigner({
         )}
       </Stack>
 
-      
+      {/* Lienzo con el mockup */}
       <Box
         borderWidth="1px"
         borderRadius="md"
@@ -938,7 +938,7 @@ export function ProductDesigner({
           ref={effectiveStageRef}
         >
           <Layer ref={layerRef}>
-            
+            {/* Mockup del producto */}
             {productImg && (
               <KonvaImage
                 image={productImg}
@@ -949,7 +949,7 @@ export function ProductDesigner({
               />
             )}
 
-            
+            {/* Área de impresión */}
             <Rect
               x={offsetX + printArea.x}
               y={offsetY + printArea.y}
@@ -959,7 +959,7 @@ export function ProductDesigner({
               dash={[4, 4]}
             />
 
-            
+            {/* Elementos (texto / imagen) */}
             {currentElements.map((el) => {
               if (el.type === "text") {
                 return (
@@ -1032,7 +1032,7 @@ export function ProductDesigner({
               return null;
             })}
 
-            
+            {/* Transformer */}
             <Transformer
               ref={trRef}
               rotateEnabled
@@ -1043,526 +1043,6 @@ export function ProductDesigner({
                 "bottom-right",
               ]}
             />
-          </Layer>
-        </Stage>
-      </Box>
-    </HStack>
-  );
-}
-*/
-
-// src/components/ProductDesigner/ProductDesigner.jsx
-import { useState, useEffect, useRef, useMemo } from "react";
-import {
-  Stage,
-  Layer,
-  Image as KonvaImage,
-  Rect,
-  Text as KonvaText,
-  Transformer,
-} from "react-konva";
-import {
-  Box,
-  Stack,
-  HStack,
-  Button,
-  FormControl,
-  FormLabel,
-  Input,
-  Select,
-  NumberInput,
-  NumberInputField,
-  Text as ChakraText,
-  Divider,
-  Textarea,
-} from "@chakra-ui/react";
-
-/* ────────────────────────────────────────────────
-   HOOK PARA CARGAR IMÁGENES
-─────────────────────────────────────────────────── */
-function useImage(url) {
-  const [image, setImage] = useState(null);
-
-  useEffect(() => {
-    if (!url) {
-      setImage(null);
-      return;
-    }
-    const img = new window.Image();
-    img.crossOrigin = "Anonymous";
-    img.src = url;
-    img.onload = () => setImage(img);
-  }, [url]);
-
-  return image;
-}
-
-/* ────────────────────────────────────────────────
-   ELEMENTO IMAGEN EDITABLE
-─────────────────────────────────────────────────── */
-function DesignerImageElement({ el, isSelected, onSelect, onChange }) {
-  const img = useImage(el.url);
-  const shapeRef = useRef();
-
-  useEffect(() => {
-    if (isSelected && shapeRef.current) {
-      shapeRef.current.moveToTop();
-    }
-  }, [isSelected]);
-
-  const handleDragEnd = (e) => {
-    const node = e.target;
-    onChange(el.id, {
-      x: node.x(),
-      y: node.y(),
-    });
-  };
-
-  const handleTransformEnd = () => {
-    const node = shapeRef.current;
-    if (!node) return;
-
-    onChange(el.id, {
-      x: node.x(),
-      y: node.y(),
-      scaleX: node.scaleX(),
-      scaleY: node.scaleY(),
-      rotation: node.rotation(),
-    });
-  };
-
-  return (
-    <KonvaImage
-      id={el.id}
-      ref={shapeRef}
-      image={img}
-      x={el.x}
-      y={el.y}
-      draggable
-      scaleX={el.scaleX ?? 1}
-      scaleY={el.scaleY ?? 1}
-      rotation={el.rotation || 0}
-      onClick={onSelect}
-      onTap={onSelect}
-      onDragEnd={handleDragEnd}
-      onTransformEnd={handleTransformEnd}
-    />
-  );
-}
-
-/* ────────────────────────────────────────────────
-   COMPONENTE PRINCIPAL DEL DISEÑADOR
-─────────────────────────────────────────────────── */
-export function ProductDesigner({
-  frontImage,
-  backImage,
-  printArea = { x: 100, y: 40, width: 260, height: 360 },
-  stageWidth = 500,
-  stageHeight = 500,
-  value,
-  onChange,
-  stageRef,
-}) {
-  const initialSide = value?.side || "front";
-  const initialElementsBySide = useMemo(
-    () =>
-      value?.elementsBySide || {
-        front: value?.elements || [],
-        back: [],
-      },
-    [value]
-  );
-
-  const [side, setSide] = useState(initialSide);
-  const [elementsBySide, setElementsBySide] = useState(initialElementsBySide);
-  const [selectedId, setSelectedId] = useState(null);
-  const [notes, setNotes] = useState(value?.notes || "");
-  const [savedAt, setSavedAt] = useState(null);
-
-  const productImg = useImage(side === "front" ? frontImage : backImage);
-
-  const internalStageRef = useRef(null);
-  const layerRef = useRef(null);
-  const trRef = useRef(null);
-
-  const effectiveStageRef = stageRef ?? internalStageRef;
-
-  const fontOptions = [
-    "Arial",
-    "Helvetica",
-    "Times New Roman",
-    "Courier New",
-    "Comic Sans MS",
-    "Impact",
-  ];
-
-  const currentElements = elementsBySide[side] || [];
-  const selectedElement = currentElements.find((el) => el.id === selectedId);
-
-  /* ────────────────────────────────────────────────
-     ENVIAR CAMBIOS AL PADRE
-  ─────────────────────────────────────────────────── */
-  useEffect(() => {
-    onChange?.({
-      side,
-      elementsBySide,
-      notes,
-    });
-  }, [side, elementsBySide, notes]);
-
-  /* ────────────────────────────────────────────────
-     TRANSFORMER MANEJO
-  ─────────────────────────────────────────────────── */
-  useEffect(() => {
-    if (!trRef.current || !layerRef.current) return;
-
-    const stage = layerRef.current.getStage();
-
-    if (!selectedId) {
-      trRef.current.nodes([]);
-      trRef.current.getLayer().batchDraw();
-      return;
-    }
-
-    const selectedNode = stage.findOne(`#${selectedId}`);
-
-    trRef.current.nodes(selectedNode ? [selectedNode] : []);
-    trRef.current.getLayer().batchDraw();
-  }, [selectedId, elementsBySide, side]);
-
-  /* ────────────────────────────────────────────────
-     FUNCIONES INTERNAS
-  ─────────────────────────────────────────────────── */
-  const updateElement = (id, attrs) => {
-    setElementsBySide((prev) => {
-      const nextSide = (prev[side] || []).map((el) =>
-        el.id === id ? { ...el, ...attrs } : el
-      );
-      return { ...prev, [side]: nextSide };
-    });
-  };
-
-  const handleAddText = () => {
-    const id = crypto.randomUUID();
-    const newText = {
-      id,
-      type: "text",
-      text: "Tu texto aquí",
-      x: printArea.x + 20,
-      y: printArea.y + 20,
-      fontSize: 24,
-      fontFamily: "Arial",
-      fill: "#ffffff",
-      rotation: 0,
-    };
-
-    setElementsBySide((prev) => ({
-      ...prev,
-      [side]: [...(prev[side] || []), newText],
-    }));
-    setSelectedId(id);
-  };
-
-  const handleAddImage = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const id = crypto.randomUUID();
-      const newImg = {
-        id,
-        type: "image",
-        url: reader.result,
-        x: printArea.x + 40,
-        y: printArea.y + 40,
-        scaleX: 0.5,
-        scaleY: 0.5,
-        rotation: 0,
-      };
-
-      setElementsBySide((prev) => ({
-        ...prev,
-        [side]: [...(prev[side] || []), newImg],
-      }));
-      setSelectedId(id);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleSideChange = (newSide) => {
-    setSide(newSide);
-    setSelectedId(null);
-  };
-
-  const handleDeleteSelected = () => {
-    if (!selectedId) return;
-    setElementsBySide((prev) => ({
-      ...prev,
-      [side]: prev[side].filter((el) => el.id !== selectedId),
-    }));
-    setSelectedId(null);
-  };
-
-  const handleStageClick = (e) => {
-    if (e.target === e.target.getStage()) {
-      setSelectedId(null);
-    }
-  };
-
-  /* ────────────────────────────────────────────────
-     GENERACIÓN PREVIEW PARA GUARDAR
-  ─────────────────────────────────────────────────── */
-  const buildDesignObject = (includePreview = false) => {
-    const base = {
-      side,
-      elementsBySide,
-      notes,
-    };
-
-    if (includePreview && effectiveStageRef?.current?.toDataURL) {
-      try {
-        base.preview = effectiveStageRef.current.toDataURL({
-          pixelRatio: 2,
-        });
-      } catch {}
-    }
-
-    return base;
-  };
-
-  const handleSaveDesign = () => {
-    const fullData = buildDesignObject(true);
-    setSavedAt(new Date().toISOString());
-    onChange?.(fullData);
-  };
-
-  /* ────────────────────────────────────────────────
-     CENTRAR MOCKUP
-  ─────────────────────────────────────────────────── */
-  const mockupWidth = 500;
-  const mockupHeight = 500;
-  const offsetX = (stageWidth - mockupWidth) / 2;
-  const offsetY = (stageHeight - mockupHeight) / 2;
-
-  /* ────────────────────────────────────────────────
-     UI
-  ─────────────────────────────────────────────────── */
-  return (
-    <HStack align="flex-start" spacing={6}>
-      {/* PANEL LATERAL */}
-      <Stack minW="260px" spacing={4}>
-        <FormControl>
-          <FormLabel>Lado del producto</FormLabel>
-          <Select size="sm" value={side} onChange={(e) => handleSideChange(e.target.value)}>
-            <option value="front">Delante</option>
-            <option value="back">Detrás</option>
-          </Select>
-        </FormControl>
-
-        <Divider />
-
-        <Button size="sm" onClick={handleAddText}>
-          Añadir texto
-        </Button>
-
-        <FormControl>
-          <FormLabel>Cargar imagen</FormLabel>
-          <Input type="file" accept="image/*" size="sm" onChange={(e) => handleAddImage(e.target.files?.[0])} />
-        </FormControl>
-
-        <FormControl>
-          <FormLabel fontSize="sm">Notas para el diseño</FormLabel>
-          <Textarea size="sm" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </FormControl>
-
-        <Button colorScheme="green" size="sm" onClick={handleSaveDesign}>
-          Guardar diseño
-        </Button>
-
-        {savedAt && (
-          <ChakraText fontSize="xs" color="gray.500">
-            Diseño guardado: {new Date(savedAt).toLocaleString()}
-          </ChakraText>
-        )}
-
-        <Divider />
-
-        {selectedElement && (
-          <>
-            <ChakraText fontSize="sm" fontWeight="bold">
-              Elemento seleccionado
-            </ChakraText>
-
-            {selectedElement.type === "text" && (
-              <>
-                <FormControl>
-                  <FormLabel fontSize="sm">Texto</FormLabel>
-                  <Input
-                    size="sm"
-                    value={selectedElement.text}
-                    onChange={(e) => updateElement(selectedElement.id, { text: e.target.value })}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm">Fuente</FormLabel>
-                  <Select
-                    size="sm"
-                    value={selectedElement.fontFamily}
-                    onChange={(e) => updateElement(selectedElement.id, { fontFamily: e.target.value })}
-                  >
-                    {fontOptions.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm">Tamaño</FormLabel>
-                  <NumberInput
-                    size="sm"
-                    min={8}
-                    max={120}
-                    value={selectedElement.fontSize}
-                    onChange={(val) =>
-                      updateElement(selectedElement.id, { fontSize: Number(val) || 24 })
-                    }
-                  >
-                    <NumberInputField />
-                  </NumberInput>
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm">Color</FormLabel>
-                  <Input
-                    size="sm"
-                    type="color"
-                    value={selectedElement.fill}
-                    onChange={(e) => updateElement(selectedElement.id, { fill: e.target.value })}
-                  />
-                </FormControl>
-              </>
-            )}
-
-            <FormControl>
-              <FormLabel fontSize="sm">Rotación</FormLabel>
-              <NumberInput
-                size="sm"
-                min={-180}
-                max={180}
-                value={selectedElement.rotation}
-                onChange={(val) =>
-                  updateElement(selectedElement.id, { rotation: Number(val) || 0 })
-                }
-              >
-                <NumberInputField />
-              </NumberInput>
-            </FormControl>
-
-            <Button size="xs" colorScheme="red" variant="outline" onClick={handleDeleteSelected}>
-              Eliminar elemento
-            </Button>
-          </>
-        )}
-      </Stack>
-
-      {/* LIENZO */}
-      <Box borderWidth="1px" borderRadius="md" overflow="hidden" bg="gray.100" flex="1">
-        <Stage
-          width={stageWidth}
-          height={stageHeight}
-          ref={effectiveStageRef}
-          onMouseDown={handleStageClick}
-          onTouchStart={handleStageClick}
-        >
-          <Layer ref={layerRef}>
-            {productImg && (
-              <KonvaImage
-                image={productImg}
-                x={offsetX}
-                y={offsetY}
-                width={mockupWidth}
-                height={mockupHeight}
-              />
-            )}
-
-            {/* MARCO PRINT AREA */}
-            <Rect
-              x={offsetX + printArea.x}
-              y={offsetY + printArea.y}
-              width={printArea.width}
-              height={printArea.height}
-              stroke="#00B5D8"
-              dash={[4, 4]}
-            />
-
-            {/* ELEMENTOS */}
-            {currentElements.map((el) => {
-              if (el.type === "text") {
-                return (
-                  <KonvaText
-                    key={el.id}
-                    id={el.id}
-                    text={el.text}
-                    x={offsetX + el.x}
-                    y={offsetY + el.y}
-                    fontSize={el.fontSize}
-                    fontFamily={el.fontFamily}
-                    fill={el.fill}
-                    rotation={el.rotation}
-                    draggable
-                    onClick={() => setSelectedId(el.id)}
-                    onTap={() => setSelectedId(el.id)}
-                    onDragEnd={(e) =>
-                      updateElement(el.id, {
-                        x: e.target.x() - offsetX,
-                        y: e.target.y() - offsetY,
-                      })
-                    }
-                    onTransformEnd={(e) => {
-                      const node = e.target;
-                      const scale = node.scaleX();
-                      node.scaleX(1);
-                      node.scaleY(1);
-
-                      updateElement(el.id, {
-                        x: node.x() - offsetX,
-                        y: node.y() - offsetY,
-                        fontSize: el.fontSize * scale,
-                        rotation: node.rotation(),
-                      });
-                    }}
-                  />
-                );
-              }
-
-              if (el.type === "image") {
-                return (
-                  <DesignerImageElement
-                    key={el.id}
-                    el={{
-                      ...el,
-                      x: offsetX + el.x,
-                      y: offsetY + el.y,
-                    }}
-                    isSelected={selectedId === el.id}
-                    onSelect={() => setSelectedId(el.id)}
-                    onChange={(id, attrs) =>
-                      updateElement(id, {
-                        ...attrs,
-                        x: attrs.x - offsetX,
-                        y: attrs.y - offsetY,
-                      })
-                    }
-                  />
-                );
-              }
-
-              return null;
-            })}
-
-            <Transformer ref={trRef} rotateEnabled />
           </Layer>
         </Stage>
       </Box>
