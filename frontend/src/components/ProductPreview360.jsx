@@ -1,115 +1,4 @@
-/*// src/components/ProductPreview360.jsx
-import { useState } from "react";
-import { Stage, Layer, Image as KonvaImage } from "react-konva";
-import { Box, HStack, IconButton } from "@chakra-ui/react";
-import { ArrowBackIcon, ArrowForwardIcon } from "@chakra-ui/icons";
-import { useEffect, useRef } from "react";
-
-// Hook sencillo para cargar imágenes
-function useImage(url) {
-  const [image, setImage] = useState(null);
-
-  useEffect(() => {
-    if (!url) {
-      setImage(null);
-      return;
-    }
-    const img = new window.Image();
-    img.crossOrigin = "Anonymous";
-    img.src = url;
-    img.onload = () => setImage(img);
-  }, [url]);
-
-  return image;
-}
-
-export function ProductPreview360({
-  frames = [],
-  designUrl,
-  width = 500,
-  height = 500,
-  printArea = { x: 0, y: 0, width: 500, height: 500 },
-}) {
-  const [frameIndex, setFrameIndex] = useState(0);
-
-  // Imagen del frame actual (mockup 3D)
-  const currentFrameUrl = frames[frameIndex] || frames[0] || null;
-  const frameImg = useImage(currentFrameUrl);
-
-  // Imagen del diseño exportado desde el diseñador (dataURL)
-  const designImg = useImage(designUrl);
-
-  const handlePrev = () => {
-    if (!frames.length) return;
-    setFrameIndex((prev) => (prev - 1 + frames.length) % frames.length);
-  };
-
-  const handleNext = () => {
-    if (!frames.length) return;
-    setFrameIndex((prev) => (prev + 1) % frames.length);
-  };
-
-  return (
-    <Box>
-      <Box
-        borderWidth="1px"
-        borderRadius="md"
-        overflow="hidden"
-        bg="gray.100"
-        display="flex"
-        justifyContent="center"
-      >
-        <Stage width={width} height={height}>
-          <Layer>
-           
-            {frameImg && (
-              <KonvaImage
-                image={frameImg}
-                x={0}
-                y={0}
-                width={width}
-                height={height}
-              />
-            )}
-
-           
-            {designImg && (
-              <KonvaImage
-                image={designImg}
-                x={printArea?.x ?? 0}
-                y={printArea?.y ?? 0}
-                width={printArea?.width ?? width}
-                height={printArea?.height ?? height}
-                listening={false}
-                // opcional: un pelín de transparencia si quieres
-                // opacity={0.95}
-              />
-            )}
-          </Layer>
-        </Stage>
-      </Box>
-
-      {frames.length > 1 && (
-        <HStack justify="center" mt={2} spacing={4}>
-          <IconButton
-            aria-label="Frame anterior"
-            icon={<ArrowBackIcon />}
-            size="sm"
-            onClick={handlePrev}
-          />
-          <IconButton
-            aria-label="Frame siguiente"
-            icon={<ArrowForwardIcon />}
-            size="sm"
-            onClick={handleNext}
-          />
-        </HStack>
-      )}
-    </Box>
-  );
-}
-*/
-
+/*
 // src/components/ProductPreview360.jsx
 import { useState, useEffect, useMemo } from "react";
 import { Stage, Layer, Image as KonvaImage, Text as KonvaText } from "react-konva";
@@ -205,7 +94,7 @@ export function ProductPreview360({
       >
         <Stage width={width} height={height}>
           <Layer>
-            {/* 1) Mockup 3D */}
+            
             {frameImg && (
               <KonvaImage
                 image={frameImg}
@@ -216,20 +105,9 @@ export function ProductPreview360({
               />
             )}
 
-            {/* 2) Área de impresión (solo si quieres verla en preview) */}
-            {/* 
-            <Rect
-              x={printArea.x}
-              y={printArea.y}
-              width={printArea.width}
-              height={printArea.height}
-              stroke="#ffffff"
-              dash={[4, 4]}
-              listening={false}
-            />
-            */}
+            
 
-            {/* 3) Elementos del lado correspondiente */}
+            
             {elements.map((el) => {
               if (el.type === "text") {
                 return (
@@ -270,6 +148,174 @@ export function ProductPreview360({
             onClick={handleNext}
           />
         </HStack>
+      )}
+    </Box>
+  );
+}
+*/
+
+// src/components/ProductPreview360.jsx
+import { Box, Image } from "@chakra-ui/react";
+import { useState } from "react";
+
+/*
+  props:
+  - frames: [{ src, side }] → opcional
+  - design: { elementsBySide, preview }
+  - width, height
+  - printArea
+*/
+
+export function ProductPreview360({
+  frames = [],
+  design,
+  width = 500,
+  height = 500,
+  printArea,
+}) {
+  const [frameIndex, setFrameIndex] = useState(0);
+
+  const hasFrames = Array.isArray(frames) && frames.length > 0;
+  const currentFrame = hasFrames ? frames[frameIndex] : frames[0];
+
+  const previewSrc = design?.preview || null;
+
+  const elements =
+    design?.elementsBySide?.[
+      currentFrame?.side === "back" ? "back" : "front"
+    ] || [];
+
+  /*  MÉTODOS MANUALES PARA AVANZAR FRAME (sin auto-rotación) */
+  const nextFrame = () => {
+    if (!hasFrames) return;
+    setFrameIndex((i) => (i + 1) % frames.length);
+  };
+
+  const prevFrame = () => {
+    if (!hasFrames) return;
+    setFrameIndex((i) => (i - 1 + frames.length) % frames.length);
+  };
+
+  return (
+    <Box
+      position="relative"
+      width={width + "px"}
+      height={height + "px"}
+      borderRadius="md"
+      overflow="hidden"
+      bg="gray.200"
+      userSelect="none"
+    >
+      {/* FRAME BASE */}
+      {currentFrame?.src && (
+        <Image
+          src={currentFrame.src}
+          width="100%"
+          height="100%"
+          objectFit="contain"
+          draggable={false}
+        />
+      )}
+
+      {/* ███████   REALISTIC BLEND MODE   ███████ */}
+      {previewSrc && (
+        <Image
+          src={previewSrc}
+          position="absolute"
+          top="0"
+          left="0"
+          width="100%"
+          height="100%"
+          objectFit="contain"
+          mixBlendMode="multiply"       /* ← efecto realista */
+          opacity={0.80}                /* ← ajuste de intensidad */
+          pointerEvents="none"
+        />
+      )}
+
+      {/* Render manual si NO hay preview */}
+      {!previewSrc &&
+        elements.map((el) => {
+          if (el.type === "text") {
+            return (
+              <Box
+                key={el.id}
+                position="absolute"
+                left={printArea.x + el.x + "px"}
+                top={printArea.y + el.y + "px"}
+                fontSize={el.fontSize + "px"}
+                fontFamily={el.fontFamily}
+                color={el.fill}
+                style={{
+                  transform: `rotate(${el.rotation}deg)`,
+                  mixBlendMode: "multiply",  // ef. realista
+                  opacity: 0.85,
+                }}
+                pointerEvents="none"
+              >
+                {el.text}
+              </Box>
+            );
+          }
+
+          if (el.type === "image") {
+            return (
+              <Image
+                key={el.id}
+                src={el.url}
+                position="absolute"
+                left={printArea.x + el.x + "px"}
+                top={printArea.y + el.y + "px"}
+                width={el.scaleX ? `${el.scaleX * 100}%` : "50%"}
+                objectFit="contain"
+                style={{
+                  transform: `rotate(${el.rotation}deg)`,
+                  mixBlendMode: "multiply",
+                  opacity: 0.85,
+                }}
+                pointerEvents="none"
+              />
+            );
+          }
+
+          return null;
+        })}
+
+      {/* BOTONES MANUALES PARA CAMBIAR FRAME (si existen múltiples) */}
+      {hasFrames && frames.length > 1 && (
+        <>
+          <Box
+            position="absolute"
+            top="50%"
+            left="10px"
+            transform="translateY(-50%)"
+            bg="rgba(0,0,0,0.35)"
+            color="white"
+            px={2}
+            py={1}
+            borderRadius="md"
+            cursor="pointer"
+            onClick={prevFrame}
+          >
+            ◀
+          </Box>
+
+          <Box
+            position="absolute"
+            top="50%"
+            right="10px"
+            transform="translateY(-50%)"
+            bg="rgba(0,0,0,0.35)"
+            color="white"
+            px={2}
+            py={1}
+            borderRadius="md"
+            cursor="pointer"
+            onClick={nextFrame}
+          >
+            ▶
+          </Box>
+        </>
       )}
     </Box>
   );
