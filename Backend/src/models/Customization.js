@@ -1,8 +1,9 @@
+// src/models/Customization.js
 import mongoose from "mongoose";
 
 const ElementSchema = new mongoose.Schema({
   id: String,
-  type: String,     // "text" | "image"
+  type: String, // "text" | "image"
   text: String,
   url: String,
   x: Number,
@@ -25,16 +26,21 @@ const CustomizationSchema = new mongoose.Schema(
         front: [ElementSchema],
         back: [ElementSchema],
       },
-      notes: String,
-      side: String,
+      notes: { type: String, default: "" },
+      side: { type: String, default: "front" },
     },
 
-    previewImage: String, // PNG final generado desde Konva
+    // Imagen PNG en base64 → SIEMPRE debe ser un string
+    previewImage: { type: String, default: null },
 
-    // NUEVO
-    zipPath: { type: String, default: null },
+    // Mockups en URL → string simples
+    mockupFront: { type: String, default: null },
+    mockupBack: { type: String, default: null },
 
-    orderId: { type: mongoose.Schema.Types.ObjectId, ref: "Order" },
+    // ZIP generado por el backend
+    zipUrl: { type: String, default: null },
+
+    orderId: { type: mongoose.Schema.Types.ObjectId, ref: "Order", default: null },
 
     status: {
       type: String,
