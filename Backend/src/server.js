@@ -72,6 +72,10 @@ import path from "path";
 import { uploadRouter } from "./routes/uploads.routes.js";
 import { customizationRoutes } from "./routes/customizations.routes.js";
 
+import { testZip } from "./debug/testZip.js";
+testZip();
+
+
 async function bootstrap() {
   await connectDB();
 
