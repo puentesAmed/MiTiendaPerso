@@ -1199,35 +1199,7 @@ export function Admin() {
   /* ---------------------------------------------------------
    * DESCARGAR ZIP DESDE EL ADMIN
    * --------------------------------------------------------- */
-  /*const handleDownloadZip = async (customization) => {
-    if (!customization.zipUrl) {
-      return toast({
-        title: "ZIP no disponible",
-        description:
-          "Todavía no existe archivo ZIP. El pedido debe haberse creado y procesado.",
-        status: "warning",
-        duration: 3000,
-      });
-    }
-
-    try {
-      // Forzamos la descarga del ZIP
-      const link = document.createElement("a");
-      link.href = customization.zipUrl;
-      link.download = `custom_${String(customization._id).slice(-8)}.zip`;
-      link.target = "_blank";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (err) {
-      console.error("Error al descargar ZIP:", err);
-      toast({
-        title: "No se pudo descargar el ZIP",
-        status: "error",
-      });
-    }
-  };
-*/
+  /*
   const handleDownloadZip = async (customization) => {
   if (!customization.zipUrl) return;
 
@@ -1252,6 +1224,39 @@ export function Admin() {
   URL.revokeObjectURL(a.href);
 };
 
+*/
+
+const handleDownloadZip = async (customization) => {
+  if (!customization.zipUrl) return;
+
+  try {
+    const API_URL = import.meta.env.VITE_API_URL;
+
+    const response = await fetch(
+      `${API_URL}${customization.zipUrl}`,
+      { cache: "no-store" }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+
+    console.log("ZIP SIZE:", blob.size); // debe ser ~400KB
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `custom_${customization._id}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    console.error("Error descargando ZIP:", err);
+  }
+};
 
 
   return (
