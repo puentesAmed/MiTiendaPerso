@@ -1199,7 +1199,7 @@ export function Admin() {
   /* ---------------------------------------------------------
    * DESCARGAR ZIP DESDE EL ADMIN
    * --------------------------------------------------------- */
-  const handleDownloadZip = async (customization) => {
+  /*const handleDownloadZip = async (customization) => {
     if (!customization.zipUrl) {
       return toast({
         title: "ZIP no disponible",
@@ -1227,6 +1227,32 @@ export function Admin() {
       });
     }
   };
+*/
+  const handleDownloadZip = async (customization) => {
+  if (!customization.zipUrl) return;
+
+  const BACKEND_URL = "http://localhost:3000";
+
+  const response = await fetch(
+    BACKEND_URL + customization.zipUrl,
+    { cache: "no-store" }
+  );
+
+  const blob = await response.blob();
+
+  console.log("ZIP SIZE:", blob.size); // ← debe ser ~400KB
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `custom_${customization._id}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(a.href);
+};
+
+
 
   return (
     <Box>
