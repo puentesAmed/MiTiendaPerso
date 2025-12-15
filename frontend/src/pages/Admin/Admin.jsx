@@ -1847,7 +1847,7 @@ const handleDownloadZip = async (customization) => {
                         <Td>
                           {c.previewImage ? (
                             <Image
-                              src={c.previewImage}
+                              src={c.previewLowQuality || c.previewImage}
                               alt="preview"
                               boxSize="60px"
                               objectFit="cover"
@@ -1991,7 +1991,7 @@ const handleDownloadZip = async (customization) => {
 
                         <pre
                           style={{
-                            background: "#f7f7f7",
+                            background: "#000000",
                             padding: "12px",
                             borderRadius: "8px",
                             fontSize: "12px",

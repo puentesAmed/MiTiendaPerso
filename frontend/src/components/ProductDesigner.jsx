@@ -546,7 +546,6 @@ export function ProductDesigner({
   );
 }
 */
-
 // src/components/ProductDesigner/ProductDesigner.jsx
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
@@ -573,247 +572,198 @@ import {
   Textarea,
 } from "@chakra-ui/react";
 
-/* ======================================================
-   HOOK PARA CARGAR UNA IMAGEN HTML
-========================================================= */
-function useImage(url) {
-  const [image, setImage] = useState(null);
+/* =============================
+   Hook seguro para imágenes
+============================= */
+function useImage(src) {
+  const [img, setImg] = useState(null);
 
   useEffect(() => {
-    if (!url) return;
-    const img = new window.Image();
-    img.crossOrigin = "Anonymous";
-    img.src = url;
-    img.onload = () => setImage(img);
-  }, [url]);
+    if (!src) return;
+    const image = new window.Image();
+    image.crossOrigin = "anonymous";
+    image.src = src;
+    image.onload = () => setImg(image);
+  }, [src]);
 
-  return image;
+  return img;
 }
 
-/* ======================================================
-   ELEMENTO IMAGEN EDITABLE (konva)
-========================================================= */
+/* =============================
+   Imagen editable
+============================= */
 function DesignerImageElement({ el, isSelected, onSelect, onChange }) {
   const img = useImage(el.url);
-  const shapeRef = useRef();
+  const ref = useRef();
 
   useEffect(() => {
-    if (isSelected && shapeRef.current) {
-      shapeRef.current.moveToTop();
+    if (isSelected && ref.current) {
+      ref.current.moveToTop();
     }
   }, [isSelected]);
-
-  const handleDragEnd = (e) => {
-    const node = e.target;
-    onChange(el.id, {
-      x: node.x(),
-      y: node.y(),
-    });
-  };
-
-  const handleTransformEnd = () => {
-    const node = shapeRef.current;
-    const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
-    const rotation = node.rotation();
-
-    onChange(el.id, {
-      x: node.x(),
-      y: node.y(),
-      scaleX,
-      scaleY,
-      rotation,
-    });
-  };
 
   return (
     <KonvaImage
       id={el.id}
-      ref={shapeRef}
+      ref={ref}
       image={img}
       x={el.x}
       y={el.y}
-      draggable
       scaleX={el.scaleX ?? 1}
       scaleY={el.scaleY ?? 1}
       rotation={el.rotation || 0}
+      draggable
       onClick={onSelect}
       onTap={onSelect}
-      onDragEnd={handleDragEnd}
-      onTransformEnd={handleTransformEnd}
+      onDragEnd={(e) =>
+        onChange(el.id, {
+          x: e.target.x(),
+          y: e.target.y(),
+        })
+      }
+      onTransformEnd={() => {
+        const node = ref.current;
+        onChange(el.id, {
+          x: node.x(),
+          y: node.y(),
+          scaleX: node.scaleX(),
+          scaleY: node.scaleY(),
+          rotation: node.rotation(),
+        });
+        node.scaleX(1);
+        node.scaleY(1);
+      }}
     />
   );
 }
 
-/* ======================================================
-   COMPONENTE PRINCIPAL DEL DISEÑADOR
-========================================================= */
+/* =============================
+   COMPONENTE PRINCIPAL
+============================= */
 export function ProductDesigner({
   frontImage,
   backImage,
-  printArea = { x: 100, y: 40, width: 260, height: 360 },
-  stageWidth = 500,
-  stageHeight = 500,
+  printArea,
+  stageWidth,
+  stageHeight,
   value,
   onChange,
   stageRef,
 }) {
-  const initialSide = value?.side || "front";
-  const initialElementsBySide = useMemo(
-    () =>
-      value?.elementsBySide || {
-        front: value?.elements || [],
-        back: [],
-      },
-    [value]
+  const [side, setSide] = useState(value?.side || "front");
+  const [elementsBySide, setElementsBySide] = useState(
+    value?.elementsBySide || { front: [], back: [] }
   );
-
-  const [side, setSide] = useState(initialSide);
-  const [elementsBySide, setElementsBySide] = useState(initialElementsBySide);
-  const [selectedId, setSelectedId] = useState(null);
   const [notes, setNotes] = useState(value?.notes || "");
+  const [selectedId, setSelectedId] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
 
-  const productImg = useImage(side === "front" ? frontImage : backImage);
-
   const internalStageRef = useRef(null);
-  const layerRef = useRef(null);
-  const trRef = useRef(null);
-
   const effectiveStageRef = stageRef || internalStageRef;
 
-  const fontOptions = [
-    "Arial",
-    "Helvetica",
-    "Times New Roman",
-    "Courier New",
-    "Comic Sans MS",
-    "Impact",
-  ];
+  const layerRef = useRef();
+  const trRef = useRef();
 
-  const currentElements = elementsBySide[side] || [];
-  const selectedElement = currentElements.find((el) => el.id === selectedId);
+  const productImg = useImage(side === "front" ? frontImage : backImage);
+  const currentElements = elementsBySide[side];
 
-  /* ======================================================
-     NOTIFICAR CAMBIOS AL PADRE (sin preview HD)
-  ====================================================== */
+  /* =============================
+     Sync Transformer
+  ============================= */
+  useEffect(() => {
+    if (!trRef.current || !layerRef.current) return;
+
+    const stage = layerRef.current.getStage();
+    const node = stage.findOne(`#${selectedId}`);
+    trRef.current.nodes(node ? [node] : []);
+    trRef.current.getLayer().batchDraw();
+  }, [selectedId, side, elementsBySide]);
+
+  /* =============================
+     Update parent (sin preview)
+  ============================= */
   useEffect(() => {
     onChange?.({
       side,
       elementsBySide,
       notes,
     });
-  }, [side, elementsBySide, notes, onChange]);
+  }, [side, elementsBySide, notes]);
 
-  /* ======================================================
-     TRANSFORMER
-  ====================================================== */
-  useEffect(() => {
-    if (!trRef.current || !layerRef.current) return;
-
-    const stage = layerRef.current.getStage();
-    if (!selectedId) {
-      trRef.current.nodes([]);
-      trRef.current.getLayer().batchDraw();
-      return;
-    }
-
-    const selectedNode = stage.findOne(`#${selectedId}`);
-    trRef.current.nodes(selectedNode ? [selectedNode] : []);
-    trRef.current.getLayer().batchDraw();
-  }, [selectedId, elementsBySide, side]);
-
-  /* ======================================================
-     FUNCIONES DE EDICIÓN
-  ====================================================== */
+  /* =============================
+     Utils
+  ============================= */
   const updateElement = (id, attrs) => {
-    setElementsBySide((prev) => {
-      const next = (prev[side] || []).map((el) =>
-        el.id === id ? { ...el, ...attrs } : el
-      );
-      return { ...prev, [side]: next };
-    });
-  };
-
-  const handleAddText = () => {
-    const id = crypto.randomUUID();
-    const newText = {
-      id,
-      type: "text",
-      text: "Texto aquí",
-      x: printArea.x + 20,
-      y: printArea.y + 20,
-      fontSize: 24,
-      fontFamily: "Arial",
-      fill: "#ffffff",
-      rotation: 0,
-    };
-
     setElementsBySide((prev) => ({
       ...prev,
-      [side]: [...(prev[side] || []), newText],
+      [side]: prev[side].map((el) =>
+        el.id === id ? { ...el, ...attrs } : el
+      ),
     }));
+  };
 
+  const addText = () => {
+    const id = crypto.randomUUID();
+    setElementsBySide((prev) => ({
+      ...prev,
+      [side]: [
+        ...prev[side],
+        {
+          id,
+          type: "text",
+          text: "Texto",
+          x: printArea.x + 20,
+          y: printArea.y + 20,
+          fontSize: 24,
+          fontFamily: "Arial",
+          fill: "#ffffff",
+          rotation: 0,
+        },
+      ],
+    }));
     setSelectedId(id);
   };
 
-  const handleAddImage = (file) => {
-    if (!file) return;
-
+  const addImage = (file) => {
     const reader = new FileReader();
     reader.onload = () => {
       const id = crypto.randomUUID();
-      const newImg = {
-        id,
-        type: "image",
-        url: reader.result,
-        x: printArea.x + 40,
-        y: printArea.y + 40,
-        scaleX: 0.5,
-        scaleY: 0.5,
-        rotation: 0,
-      };
-
       setElementsBySide((prev) => ({
         ...prev,
-        [side]: [...(prev[side] || []), newImg],
+        [side]: [
+          ...prev[side],
+          {
+            id,
+            type: "image",
+            url: reader.result,
+            x: printArea.x + 40,
+            y: printArea.y + 40,
+            scaleX: 0.5,
+            scaleY: 0.5,
+            rotation: 0,
+          },
+        ],
       }));
-
       setSelectedId(id);
     };
-
     reader.readAsDataURL(file);
   };
 
-  const handleSideChange = (newSide) => {
-    setSide(newSide);
-    setSelectedId(null);
-  };
-
-  const handleDeleteSelected = () => {
-    if (!selectedId) return;
-    setElementsBySide((prev) => ({
-      ...prev,
-      [side]: prev[side].filter((el) => el.id !== selectedId),
-    }));
-    setSelectedId(null);
-  };
-
-  const handleStageClick = (e) => {
-    if (e.target === e.target.getStage()) {
-      setSelectedId(null);
-    }
-  };
-
-  /* ======================================================
-     PREVIEW LOW QUALITY PARA EL BOTÓN "GUARDAR"
-  ====================================================== */
-  const handleSaveDesign = () => {
+  /* =============================
+     GENERAR PREVIEWS POR LADO
+  ============================= */
+  const handleSaveDesign = async () => {
     if (!effectiveStageRef.current) return;
 
-    const previewLow = effectiveStageRef.current.toDataURL({
-      pixelRatio: 1,
-    });
+    const previewsBySide = {};
+
+    for (const sideName of ["front", "back"]) {
+      setSide(sideName);
+      await new Promise((r) => setTimeout(r, 50));
+
+      previewsBySide[sideName] =
+        effectiveStageRef.current.toDataURL({ pixelRatio: 2 });
+    }
 
     setSavedAt(new Date().toISOString());
 
@@ -821,55 +771,44 @@ export function ProductDesigner({
       side,
       elementsBySide,
       notes,
-      previewLowQuality: previewLow,
+      previewsBySide,
     });
   };
 
-  /* ======================================================
-     OFFSET & MOCKUP
-  ====================================================== */
-  const mockupWidth = 500;
-  const mockupHeight = 500;
-  const offsetX = (stageWidth - mockupWidth) / 2;
-  const offsetY = (stageHeight - mockupHeight) / 2;
-
-  /* ======================================================
-     RENDER
-  ====================================================== */
+  /* =============================
+     Layout
+  ============================= */
   return (
     <HStack align="flex-start" spacing={6}>
-      {/* PANEL LATERAL */}
+      {/* PANEL */}
       <Stack minW="260px" spacing={4}>
         <FormControl>
-          <FormLabel>Lado del producto</FormLabel>
-          <Select size="sm" value={side} onChange={(e) => handleSideChange(e.target.value)}>
+          <FormLabel>Lado</FormLabel>
+          <Select value={side} onChange={(e) => setSide(e.target.value)}>
             <option value="front">Delante</option>
             <option value="back">Detrás</option>
           </Select>
         </FormControl>
 
-        <Divider />
-
-        <Button size="sm" onClick={handleAddText}>
+        <Button size="sm" onClick={addText}>
           Añadir texto
         </Button>
 
-        <FormControl>
-          <FormLabel>Subir imagen</FormLabel>
-          <Input type="file" accept="image/*" size="sm" onChange={(e) => handleAddImage(e.target.files?.[0])} />
-        </FormControl>
+        <Input
+          type="file"
+          accept="image/*"
+          size="sm"
+          onChange={(e) => addImage(e.target.files[0])}
+        />
 
-        <FormControl>
-          <FormLabel>Notas</FormLabel>
-          <Textarea
-            size="sm"
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </FormControl>
+        <Textarea
+          size="sm"
+          placeholder="Notas"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
 
-        <Button colorScheme="green" size="sm" onClick={handleSaveDesign}>
+        <Button colorScheme="green" onClick={handleSaveDesign}>
           Guardar diseño
         </Button>
 
@@ -878,188 +817,60 @@ export function ProductDesigner({
             Guardado: {new Date(savedAt).toLocaleString()}
           </ChakraText>
         )}
-
-        <Divider />
-
-        {/* PROPIEDADES DEL ELEMENTO */}
-        {selectedElement && (
-          <>
-            <ChakraText fontWeight="bold">Elemento seleccionado</ChakraText>
-
-            {selectedElement.type === "text" && (
-              <>
-                <FormControl>
-                  <FormLabel>Texto</FormLabel>
-                  <Input
-                    size="sm"
-                    value={selectedElement.text}
-                    onChange={(e) =>
-                      updateElement(selectedElement.id, { text: e.target.value })
-                    }
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>Fuente</FormLabel>
-                  <Select
-                    size="sm"
-                    value={selectedElement.fontFamily}
-                    onChange={(e) =>
-                      updateElement(selectedElement.id, { fontFamily: e.target.value })
-                    }
-                  >
-                    {fontOptions.map((f) => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>Tamaño</FormLabel>
-                  <NumberInput
-                    size="sm"
-                    min={8}
-                    max={120}
-                    value={selectedElement.fontSize}
-                    onChange={(v) =>
-                      updateElement(selectedElement.id, { fontSize: Number(v) })
-                    }
-                  >
-                    <NumberInputField />
-                  </NumberInput>
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>Color</FormLabel>
-                  <Input
-                    size="sm"
-                    type="color"
-                    value={selectedElement.fill}
-                    onChange={(e) =>
-                      updateElement(selectedElement.id, { fill: e.target.value })
-                    }
-                  />
-                </FormControl>
-              </>
-            )}
-
-            <FormControl>
-              <FormLabel>Rotación</FormLabel>
-              <NumberInput
-                size="sm"
-                min={-180}
-                max={180}
-                value={selectedElement.rotation}
-                onChange={(v) =>
-                  updateElement(selectedElement.id, { rotation: Number(v) })
-                }
-              >
-                <NumberInputField />
-              </NumberInput>
-            </FormControl>
-
-            <Button size="xs" colorScheme="red" variant="outline" onClick={handleDeleteSelected}>
-              Eliminar
-            </Button>
-          </>
-        )}
       </Stack>
 
       {/* CANVAS */}
-      <Box borderWidth="1px" borderRadius="md" overflow="hidden" bg="gray.100" flex="1">
+      <Box borderWidth="1px" borderRadius="md" bg="gray.100">
         <Stage
           width={stageWidth}
           height={stageHeight}
-          onMouseDown={handleStageClick}
-          onTouchStart={handleStageClick}
           ref={effectiveStageRef}
         >
           <Layer ref={layerRef}>
             {productImg && (
               <KonvaImage
                 image={productImg}
-                x={offsetX}
-                y={offsetY}
-                width={mockupWidth}
-                height={mockupHeight}
+                width={stageWidth}
+                height={stageHeight}
               />
             )}
 
-            {/* Área imprimible */}
             <Rect
-              x={offsetX + printArea.x}
-              y={offsetY + printArea.y}
+              x={printArea.x}
+              y={printArea.y}
               width={printArea.width}
               height={printArea.height}
               stroke="#00B5D8"
               dash={[4, 4]}
             />
 
-            {/* Elementos */}
-            {currentElements.map((el) => {
-              if (el.type === "text") {
-                return (
-                  <KonvaText
-                    key={el.id}
-                    id={el.id}
-                    text={el.text}
-                    x={offsetX + el.x}
-                    y={offsetY + el.y}
-                    fontSize={el.fontSize}
-                    fontFamily={el.fontFamily}
-                    fill={el.fill}
-                    rotation={el.rotation}
-                    draggable
-                    onClick={() => setSelectedId(el.id)}
-                    onTap={() => setSelectedId(el.id)}
-                    onDragEnd={(e) =>
-                      updateElement(el.id, {
-                        x: e.target.x() - offsetX,
-                        y: e.target.y() - offsetY,
-                      })
-                    }
-                    onTransformEnd={(e) => {
-                      const node = e.target;
-                      const scale = node.scaleX();
-                      node.scaleX(1);
-                      node.scaleY(1);
-                      updateElement(el.id, {
-                        x: node.x() - offsetX,
-                        y: node.y() - offsetY,
-                        fontSize: el.fontSize * scale,
-                        rotation: node.rotation(),
-                      });
-                    }}
-                  />
-                );
-              }
+            {currentElements.map((el) =>
+              el.type === "text" ? (
+                <KonvaText
+                  key={el.id}
+                  id={el.id}
+                  {...el}
+                  draggable
+                  onClick={() => setSelectedId(el.id)}
+                  onDragEnd={(e) =>
+                    updateElement(el.id, {
+                      x: e.target.x(),
+                      y: e.target.y(),
+                    })
+                  }
+                />
+              ) : (
+                <DesignerImageElement
+                  key={el.id}
+                  el={el}
+                  isSelected={selectedId === el.id}
+                  onSelect={() => setSelectedId(el.id)}
+                  onChange={updateElement}
+                />
+              )
+            )}
 
-              if (el.type === "image") {
-                return (
-                  <DesignerImageElement
-                    key={el.id}
-                    el={{
-                      ...el,
-                      x: offsetX + el.x,
-                      y: offsetY + el.y,
-                    }}
-                    onSelect={() => setSelectedId(el.id)}
-                    isSelected={selectedId === el.id}
-                    onChange={(id, attrs) =>
-                      updateElement(id, {
-                        ...attrs,
-                        x: attrs.x - offsetX,
-                        y: attrs.y - offsetY,
-                      })
-                    }
-                  />
-                );
-              }
-
-              return null;
-            })}
-
-            <Transformer ref={trRef} rotateEnabled />
+            <Transformer ref={trRef} />
           </Layer>
         </Stage>
       </Box>

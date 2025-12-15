@@ -5,11 +5,12 @@ import tshirtBack from "../../public/mockups/tshirt/frame-6.png";
 
 export const DESIGN_TEMPLATES = {
   tshirt: {
-    width: 750,
-    height: 700,
+    width: 550,
+    height: 500,
     frontImage: tshirtFront,
     backImage: tshirtBack,
-    printArea: { x: 260, y: 160, width: 250, height: 290 },
+    printArea: { x: 170, y: 110, width: 230, height: 250 },
+    
     frames360: [
       { src: tshirtFront, side: "front" },
       // si tienes más frames, define cada uno con side apropiado
