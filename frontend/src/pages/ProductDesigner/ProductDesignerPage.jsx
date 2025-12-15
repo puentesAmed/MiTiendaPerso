@@ -219,6 +219,7 @@ import { useCart } from "../../hooks/useCart";
 import { ProductDesigner } from "../../components/ProductDesigner";
 import { ProductPreview360 } from "../../components/ProductPreview360";
 import { DESIGN_TEMPLATES } from "../../config/designTemplates";
+import { ProductPreviewGallery } from "../../components/ProductPreviewGallery";
 
 export function ProductDesignerPage() {
   const { id } = useParams();
@@ -261,6 +262,24 @@ export function ProductDesignerPage() {
   /* ───────────────────────────────
      GENERAR PREVIEW POR LADO
   ─────────────────────────────── */
+  /*const handlePreviewClick = async () => {
+  if (!stageRef.current) return;
+
+  const frontPreview = await stageRef.current.exportPreviewForSide("front");
+  const backPreview  = await stageRef.current.exportPreviewForSide("back");
+
+  setDesign(prev => ({
+    ...prev,
+    previewsBySide: {
+      front: frontPreview,
+      back: backPreview,
+    },
+  }));
+
+  setMode("preview");
+};
+*/
+
   const handlePreviewClick = async () => {
   if (!stageRef.current) return;
 
@@ -361,10 +380,15 @@ export function ProductDesignerPage() {
           ) : (
             <ProductPreview360
               frames={template.frames360}
-              design={design}
+              design={design.previewsBySide ? design : null}
               width={template.width}
               height={template.height}
             />
+
+            /*<ProductPreviewGallery
+              design={design}
+            />*/
+
           )}
 
           <HStack justify="space-between">

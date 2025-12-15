@@ -128,7 +128,7 @@ export function ProductPreview360({
 }
 */
 
-// src/components/ProductPreview360.jsx
+
 import { Box, Image } from "@chakra-ui/react";
 import { useState } from "react";
 
@@ -138,11 +138,29 @@ export function ProductPreview360({
   width = 500,
   height = 500,
 }) {
-  const [index, setIndex] = useState(0);
-  const frame = frames[index];
+  const [frameIndex, setFrameIndex] = useState(0);
+  const hasFrames = frames.length > 0;
+
+  const frame = frames[frameIndex];
   const side = frame?.side === "back" ? "back" : "front";
 
+  // 👇 ESTA ES LA CLAVE
   const preview = design?.previewsBySide?.[side];
+
+  if (!preview) {
+    return (
+      <Box
+        width={`${width}px`}
+        height={`${height}px`}
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        bg="gray.200"
+      >
+        No hay preview disponible
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -153,18 +171,19 @@ export function ProductPreview360({
       borderRadius="md"
       overflow="hidden"
     >
-      {preview && (
-        <Image
-          key={side}
-          src={preview}
-          width="100%"
-          height="100%"
-          objectFit="contain"
-          draggable={false}
-        />
-      )}
+      {/* IMAGEN FINAL (mockup + diseño) */}
+      <Image
+        key={side}
+        src={preview}
+        width="100%"
+        height="100%"
+        objectFit="contain"
+        draggable={false}
+        pointerEvents="none"
+      />
 
-      {frames.length > 1 && (
+      {/* CONTROLES */}
+      {hasFrames && frames.length > 1 && (
         <>
           <Box
             position="absolute"
@@ -172,21 +191,22 @@ export function ProductPreview360({
             top="50%"
             transform="translateY(-50%)"
             cursor="pointer"
+            fontSize="24px"
             onClick={() =>
-              setIndex((i) => (i - 1 + frames.length) % frames.length)
+              setFrameIndex((i) => (i - 1 + frames.length) % frames.length)
             }
           >
             ◀
           </Box>
-
           <Box
             position="absolute"
             right="10px"
             top="50%"
             transform="translateY(-50%)"
             cursor="pointer"
+            fontSize="24px"
             onClick={() =>
-              setIndex((i) => (i + 1) % frames.length)
+              setFrameIndex((i) => (i + 1) % frames.length)
             }
           >
             ▶

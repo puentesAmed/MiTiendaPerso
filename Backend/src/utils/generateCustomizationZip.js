@@ -155,7 +155,7 @@ export async function generateCustomizationZip(customizationDoc) {
   }
 
   // 3️⃣ Mockups
-  if (customizationDoc.mockupFront) {
+ /* if (customizationDoc.mockupFront) {
     try {
       const buffer = await downloadFile(customizationDoc.mockupFront);
       archive.append(buffer, { name: "mockup_front.png" });
@@ -171,7 +171,18 @@ export async function generateCustomizationZip(customizationDoc) {
     } catch (e) {
       console.warn("⚠ mockupBack omitido");
     }
-  }
+  }*/
+    if (customizationDoc.previewsBySide?.front) {
+      const buffer = base64ToBuffer(customizationDoc.previewsBySide.front);
+      archive.append(buffer, { name: "design_front.png" });
+    }
+
+    if (customizationDoc.previewsBySide?.back) {
+      const buffer = base64ToBuffer(customizationDoc.previewsBySide.back);
+      archive.append(buffer, { name: "design_back.png" });
+    }
+
+
 
   // 4️⃣ Assets originales
   const sides = customizationDoc.design?.elementsBySide || {};
