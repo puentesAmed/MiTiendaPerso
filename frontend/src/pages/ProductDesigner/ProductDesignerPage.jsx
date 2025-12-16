@@ -199,6 +199,7 @@ export function ProductDesignerPage() {
 }
   */
 
+// src/pages/ProductDesigner/ProductDesignerPage.jsx
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -219,13 +220,14 @@ import { useCart } from "../../hooks/useCart";
 import { ProductDesigner } from "../../components/ProductDesigner";
 import { ProductPreview360 } from "../../components/ProductPreview360";
 import { DESIGN_TEMPLATES } from "../../config/designTemplates";
-import { ProductPreviewGallery } from "../../components/ProductPreviewGallery";
 
 export function ProductDesignerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addItem } = useCart();
 
+  // IMPORTANTE: este ref NO debe ser el Stage puro;
+  // debe ser el "handle" que expone ProductDesigner (exportPreviewForSide, toDataURL, etc.)
   const stageRef = useRef(null);
 
   const [product, setProduct] = useState(null);
@@ -239,19 +241,20 @@ export function ProductDesignerPage() {
 
   /* ───────────────────────────────
      CARGAR PRODUCTO
-  ─────────────────────────────── */
+  ──────────────────────────────── */
   useEffect(() => {
     let alive = true;
 
     async function load() {
       try {
         setLoading(true);
+        setError("");
         const data = await apiGetProductById(id);
         if (alive) setProduct(data);
-      } catch {
-        setError("No se pudo cargar el producto");
+      } catch (err) {
+        if (alive) setError("No se pudo cargar el producto");
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     }
 
@@ -260,59 +263,94 @@ export function ProductDesignerPage() {
   }, [id]);
 
   /* ───────────────────────────────
-     GENERAR PREVIEW POR LADO
-  ─────────────────────────────── */
-  /*const handlePreviewClick = async () => {
-  if (!stageRef.current) return;
-
-  const frontPreview = await stageRef.current.exportPreviewForSide("front");
-  const backPreview  = await stageRef.current.exportPreviewForSide("back");
-
-  setDesign(prev => ({
-    ...prev,
-    previewsBySide: {
-      front: frontPreview,
-      back: backPreview,
-    },
-  }));
-
-  setMode("preview");
-};
-*/
-
+     PREVISUALIZAR: GENERAR LOS PREVIEWS FINALES (FRONT/BACK)
+     (LOS QUE QUIERES EN EL ZIP)
+  ──────────────────────────────── */
   const handlePreviewClick = async () => {
-  if (!stageRef.current) return;
+    try {
+      if (!stageRef.current?.exportPreviewForSide) {
+        console.warn(
+          "stageRef.current.exportPreviewForSide no existe. Revisa ProductDesigner."
+        );
+        setMode("preview");
+        return;
+      }
 
-  const frontPreview = await stageRef.current.exportPreviewForSide("front");
-  const backPreview  = await stageRef.current.exportPreviewForSide("back");
+      // Exportar FRONT/BACK en HD
+      const frontPreview = await stageRef.current.exportPreviewForSide("front");
+      const backPreview = await stageRef.current.exportPreviewForSide("back");
 
-  setDesign(prev => ({
-    ...prev,
-    previewsBySide: {
-      front: frontPreview,
-      back: backPreview,
-    },
-  }));
+      setDesign((prev) => ({
+        ...(prev || {}),
+        previewsBySide: {
+          front: frontPreview || null,
+          back: backPreview || null,
+        },
+      }));
 
-  setMode("preview");
-};
-
+      setMode("preview");
+    } catch (err) {
+      console.error("Error generando previews:", err);
+      setMode("preview");
+    }
+  };
 
   /* ───────────────────────────────
-     AÑADIR AL CARRITO
-  ─────────────────────────────── */
-  const handleAddToCart = () => {
+     AÑADIR AL CARRITO (ENVÍA PREVIEWS FINALES)
+  ──────────────────────────────── */
+  /*const handleAddToCart = async () => {
+  if (!product || !design || !stageRef.current?.exportPreviewForSide) return;
+
+  // 🔴 ESPERAR EXPLÍCITAMENTE LOS PNG
+  const front = await stageRef.current.exportPreviewForSide("front");
+  const back  = await stageRef.current.exportPreviewForSide("back");
+
+  console.log("PREVIEWS QUE SE ENVIAN:", { front, back });
+
+  const customizationPayload = {
+    type: "designer",
+    design,
+    previewsBySide: {
+      front,
+      back,
+    },
+    mockupFront: template?.frontImage
+      ? window.location.origin + template.frontImage
+      : null,
+    mockupBack: template?.backImage
+      ? window.location.origin + template.backImage
+      : null,
+  };
+
+  addItem(product, 1, customizationPayload);
+  navigate("/carrito");
+};
+
+*/
+  const handleAddToCart = async () => {
     if (!product || !design) return;
 
-    const template = DESIGN_TEMPLATES[product.customizationType || "tshirt"];
+    let previewsBySide = design.previewsBySide;
+
+    // 🔴 SOLO si NO existen previews, los generamos (modo edit)
+    if (
+      (!previewsBySide?.front || !previewsBySide?.back) &&
+      stageRef.current?.exportPreviewForSide
+    ) {
+      const front = await stageRef.current.exportPreviewForSide("front");
+      const back = await stageRef.current.exportPreviewForSide("back");
+
+      previewsBySide = { front, back };
+    }
 
     const customizationPayload = {
       type: "designer",
       design,
-      mockupFront: template.frontImage
+      previewsBySide,
+      mockupFront: template?.frontImage
         ? window.location.origin + template.frontImage
         : null,
-      mockupBack: template.backImage
+      mockupBack: template?.backImage
         ? window.location.origin + template.backImage
         : null,
     };
@@ -323,7 +361,7 @@ export function ProductDesignerPage() {
 
   /* ───────────────────────────────
      UI
-  ─────────────────────────────── */
+  ──────────────────────────────── */
   if (loading) {
     return (
       <Box minH="60vh" display="flex" alignItems="center" justifyContent="center">
@@ -354,11 +392,7 @@ export function ProductDesignerPage() {
   return (
     <Box p={6} bg={bg} borderRadius="xl">
       <HStack justify="space-between" mb={4}>
-        <Button
-          leftIcon={<ArrowBackIcon />}
-          variant="ghost"
-          onClick={() => navigate(-1)}
-        >
+        <Button leftIcon={<ArrowBackIcon />} variant="ghost" onClick={() => navigate(-1)}>
           Volver
         </Button>
         <Heading size="md">Personalizar: {product.name}</Heading>
@@ -380,24 +414,16 @@ export function ProductDesignerPage() {
           ) : (
             <ProductPreview360
               frames={template.frames360}
-              design={design.previewsBySide ? design : null}
+              // En modo preview mostramos el diseño ya con previewsBySide
+              design={design?.previewsBySide ? design : null}
               width={template.width}
               height={template.height}
             />
-
-            /*<ProductPreviewGallery
-              design={design}
-            />*/
-
           )}
 
           <HStack justify="space-between">
             {mode === "edit" ? (
-              <Button
-                variant="outline"
-                onClick={handlePreviewClick}
-                disabled={!design}
-              >
+              <Button variant="outline" onClick={handlePreviewClick} disabled={!design}>
                 Previsualizar prenda (360º)
               </Button>
             ) : (
@@ -406,11 +432,7 @@ export function ProductDesignerPage() {
               </Button>
             )}
 
-            <Button
-              colorScheme="blue"
-              onClick={handleAddToCart}
-              disabled={!design}
-            >
+            <Button colorScheme="blue" onClick={handleAddToCart} disabled={!design}>
               Añadir diseño al carrito
             </Button>
           </HStack>

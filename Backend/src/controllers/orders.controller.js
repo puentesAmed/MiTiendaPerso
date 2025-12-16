@@ -81,14 +81,16 @@ export async function createOrder(req, res) {
 
         const mockupFront = cartItem.customization.mockupFront || null;
         const mockupBack = cartItem.customization.mockupBack || null;
+        const previewsBySide = cartItem.customization?.previewsBySide || null;
+
 
         const record = await Customization.create({
           userId,
           productId: product._id,
           design,
           previewImage,   // <--- STRING (base64 PNG)
-          mockupFront,    // <--- STRING
-          mockupBack,     // <--- STRING
+          
+          previewsBySide,
           status: "pending",
           orderId: null,
         });
