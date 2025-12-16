@@ -9,7 +9,10 @@ export const DESIGN_TEMPLATES = {
     height: 500,
     frontImage: tshirtFront,
     backImage: tshirtBack,
-    printArea: { x: 170, y: 110, width: 230, height: 250 },
+    printArea: { 
+      front: {x: 152, y: 110, width: 220, height: 250 },
+      back: {x: 140, y: 90, width: 220, height: 250 },
+    },
     
     frames360: [
       { src: tshirtFront, side: "front" },
