@@ -291,7 +291,7 @@ export function Checkout() {
   );
 }
 */
-// src/pages/Checkout/Checkout.jsx
+/*// src/pages/Checkout/Checkout.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../../hooks/useCart";
@@ -340,16 +340,16 @@ export function Checkout() {
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingProduct, setPendingProduct] = useState(null);
 
-  useEffect(() => {
+  /*useEffect(() => {
     if (!user) {
       nav("/login", { replace: true, state: { from: "/checkout" } });
     }
   }, [user]);
 
-  if (!user) return null;
+  if (!user) return null;*/
 
   // 🔥 DETECCIÓN REAL de productos que requieren personalización
-  const productNeedsCustomization = (item) => {
+ /* const productNeedsCustomization = (item) => {
     if (!item.customizable) return false; // No requiere nada
 
     if (!item.customization) return true;
@@ -464,6 +464,253 @@ export function Checkout() {
                     {(it.price * it.quantity).toFixed(2)} €
                   </Text>
 
+                  <IconButton
+                    aria-label="Eliminar"
+                    icon={<DeleteIcon />}
+                    colorScheme="red"
+                    variant="ghost"
+                    onClick={() => removeItem(it.productId)}
+                  />
+                </HStack>
+              </Flex>
+            </CardBody>
+          </Card>
+        ))}
+      </Stack>
+
+      <Divider my={6} />
+
+      <Text fontSize="lg" fontWeight="bold">
+        Total: {totalAmount.toFixed(2)} €
+      </Text>
+
+      {error && (
+        <Alert mt={4} status="error">
+          <AlertIcon />
+          {error}
+        </Alert>
+      )}
+
+      {successMsg && (
+        <Alert mt={4} status="success">
+          <AlertIcon />
+          {successMsg}
+        </Alert>
+      )}
+
+      <Button
+        mt={6}
+        width="100%"
+        colorScheme="blue"
+        size="lg"
+        onClick={handleConfirmOrder}
+        isLoading={loading}
+      >
+        Confirmar pedido y pagar
+      </Button>
+
+      
+      /*<Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Falta personalización</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text>
+              El producto <strong>{pendingProduct?.name}</strong> debe
+              personalizarse antes de completar el pedido.
+            </Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              colorScheme="blue"
+              mr={3}
+              onClick={() => {
+                setModalOpen(false);
+                nav(`/personalizar/${pendingProduct.productId}`);
+              }}
+            >
+              Personalizar ahora
+            </Button>
+            <Button variant="ghost" onClick={() => setModalOpen(false)}>
+              Cancelar
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </Box>
+  );
+}
+*/
+
+// src/pages/Checkout/Checkout.jsx
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useCart } from "../../hooks/useCart";
+import { useAuth } from "../../hooks/useAuth";
+import { createOrderRequest } from "../../services/orders.service";
+
+import {
+  Box,
+  Button,
+  Heading,
+  Text,
+  Stack,
+  Card,
+  CardBody,
+  Flex,
+  HStack,
+  VStack,
+  Input,
+  IconButton,
+  Alert,
+  AlertIcon,
+  Divider,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalCloseButton,
+} from "@chakra-ui/react";
+
+import { DeleteIcon } from "@chakra-ui/icons";
+
+const GUEST_KEY = "guest_id";
+function getGuestId() {
+  let id = localStorage.getItem(GUEST_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(GUEST_KEY, id);
+  }
+  return id;
+}
+
+export function Checkout() {
+  const { user } = useAuth();
+  const { items, totalAmount, clearCart, updateQuantity, removeItem } = useCart();
+  const nav = useNavigate();
+
+  const [guestEmail, setGuestEmail] = useState(""); // ✅ NUEVO
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+  const [paymentMethod] = useState("card");
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pendingProduct, setPendingProduct] = useState(null);
+
+  const productNeedsCustomization = (item) => {
+    if (!item.customizable) return false;
+    if (!item.customization) return true;
+    if (item.customization.type !== "designer") return true;
+    const design = item.customization.design;
+    if (!design) return true;
+    const sides = design.elementsBySide || {};
+    const front = Array.isArray(sides.front) ? sides.front : [];
+    const back = Array.isArray(sides.back) ? sides.back : [];
+    return front.length === 0 && back.length === 0;
+  };
+
+  const handleConfirmOrder = async () => {
+    setError("");
+    setSuccessMsg("");
+
+    if (!items.length) {
+      setError("El carrito está vacío");
+      return;
+    }
+
+    if (!user && !guestEmail) {
+      setError("El email es obligatorio para invitados");
+      return;
+    }
+
+    const notCustomized = items.find((i) => productNeedsCustomization(i));
+    if (notCustomized) {
+      setPendingProduct(notCustomized);
+      setModalOpen(true);
+      return;
+    }
+
+    await processOrder();
+  };
+
+  const processOrder = async () => {
+    try {
+      setLoading(true);
+
+      const data = await createOrderRequest(items, paymentMethod, {
+        guestId: user ? null : getGuestId(),
+        email: user ? null : guestEmail,
+      });
+
+      if (!data.ok) {
+        setError(data.message || "Error al procesar pedido");
+        return;
+      }
+
+      clearCart();
+      setSuccessMsg(`Pedido nº ${data.orderId} creado correctamente.`);
+      nav("/mis-pedidos");
+    } catch (err) {
+      console.error("Error procesando pedido:", err);
+      setError("Error inesperado al procesar pedido");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box maxW="900px" mx="auto" mt={10} p={5}>
+      <Heading mb={3}>Checkout</Heading>
+
+      {!user && (
+        <Input
+          mb={4}
+          placeholder="Email para recibir el pedido"
+          value={guestEmail}
+          onChange={(e) => setGuestEmail(e.target.value)}
+        />
+      )}
+
+      <Stack spacing={4}>
+        {items.map((it) => (
+          <Card key={it.productId} boxShadow="md">
+            <CardBody>
+              <Flex
+                direction={{ base: "column", md: "row" }}
+                justify="space-between"
+                align={{ md: "center" }}
+                gap={4}
+              >
+                <HStack>
+                  <img
+                    src={it.image || "/no-image.png"}
+                    width="70"
+                    onError={(e) => (e.target.src = "/no-image.png")}
+                    style={{ borderRadius: "6px" }}
+                  />
+                  <VStack align="start" spacing={1}>
+                    <Heading size="sm">{it.name}</Heading>
+                    <Text fontSize="sm" color="gray.400">
+                      Precio: {it.price.toFixed(2)} €
+                    </Text>
+                  </VStack>
+                </HStack>
+
+                <HStack spacing={3}>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={it.quantity}
+                    onChange={(e) => updateQuantity(it.productId, e.target.value)}
+                    width="70px"
+                  />
+                  <Text fontWeight="bold">
+                    {(it.price * it.quantity).toFixed(2)} €
+                  </Text>
                   <IconButton
                     aria-label="Eliminar"
                     icon={<DeleteIcon />}

@@ -1,4 +1,4 @@
-import { Order } from "../models/Order.js";
+/*import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
 import { Customization } from "../models/Customization.js"; // ⬅ NUEVO
 import { generateCustomizationZip } from "../utils/generateCustomizationZip.js"; // ⬅ NUEVO
@@ -6,7 +6,7 @@ import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
 /**
  * 📌 CREATE ORDER — Guarda también personalizaciones avanzadas
  */
-
+/*
 
 export async function createOrder(req, res) {
   try {
@@ -171,7 +171,7 @@ export async function createOrder(req, res) {
 /**
  * 📌 PEDIDOS DEL USUARIO
  */
-export async function getOrdersByUser(req, res) {
+/*export async function getOrdersByUser(req, res) {
   try {
     const userId = req.userId;
 
@@ -195,7 +195,7 @@ export async function getOrdersByUser(req, res) {
 /**
  * 📌 ADMIN: LISTAR PEDIDOS
  */
-export async function adminGetAllOrders(req, res) {
+/*export async function adminGetAllOrders(req, res) {
   try {
     const { status } = req.query;
     const filter = {};
@@ -219,7 +219,7 @@ export async function adminGetAllOrders(req, res) {
 /**
  * 📌 ADMIN: CAMBIAR ESTADO
  */
-export async function adminUpdateOrderStatus(req, res) {
+/*export async function adminUpdateOrderStatus(req, res) {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -255,6 +255,168 @@ export async function adminUpdateOrderStatus(req, res) {
     return res.status(500).json({
       ok: false,
       message: "Error al actualizar estado del pedido",
+    });
+  }
+}
+*/
+
+// controllers/orders.controller.js
+import { Order } from "../models/Order.js";
+import { Product } from "../models/Product.js";
+import { Customization } from "../models/Customization.js";
+import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
+
+/**
+ * 📌 CREATE ORDER — Guarda también personalizaciones avanzadas
+ */
+export async function createOrder(req, res) {
+  try {
+    const userId = req.userId || null;
+    const { items, paymentMethod = "card", guestId, email: guestEmail } = req.body;
+
+    // ✅ Usuario O invitado (email obligatorio)
+    if (!userId && (!guestId || !guestEmail)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Pedido de invitado requiere email",
+      });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ ok: false, message: "El carrito está vacío" });
+    }
+
+    const productIds = items.map((i) => i.productId);
+    const products = await Product.find({
+      _id: { $in: productIds },
+      active: true,
+    });
+
+    const productsMap = new Map(products.map((p) => [p._id.toString(), p]));
+
+    const orderItems = [];
+    let total = 0;
+
+    for (const cartItem of items) {
+      const { productId, quantity } = cartItem;
+      const qty = Number(quantity) || 0;
+
+      if (!productId || qty <= 0) {
+        return res.status(400).json({ ok: false, message: "Línea de carrito inválida" });
+      }
+
+      const product = productsMap.get(productId);
+      if (!product) {
+        return res.status(400).json({
+          ok: false,
+          message: `Producto no disponible: ${productId}`,
+        });
+      }
+
+      if (product.stock < qty) {
+        return res.status(400).json({
+          ok: false,
+          message: `Stock insuficiente para: ${product.name}`,
+        });
+      }
+
+      const price = Number(product.price);
+      total += price * qty;
+
+      let customizationId = null;
+
+      // -------------------------------
+      //     PERSONALIZACIÓN
+      // -------------------------------
+      if (cartItem.customization && cartItem.customization.type === "designer") {
+        const design = cartItem.customization.design || {
+          elementsBySide: { front: [], back: [] },
+          notes: "",
+          side: "front",
+        };
+
+        const previewImage =
+          cartItem.customization.previewImageHD ||
+          cartItem.customization.previewImage ||
+          null;
+
+        const previewsBySide = cartItem.customization?.previewsBySide || null;
+
+        const record = await Customization.create({
+          userId: userId || null,
+          guestId: userId ? null : guestId,
+          productId: product._id,
+          design,
+          previewImage,
+          previewsBySide,
+          status: "pending",
+          orderId: null,
+        });
+
+        await generateCustomizationZip(record);
+
+        customizationId = record._id;
+      }
+
+      orderItems.push({
+        productId: product._id,
+        name: product.name,
+        price,
+        quantity: qty,
+        customizationId,
+      });
+    }
+
+    if (total <= 0) {
+      return res.status(400).json({
+        ok: false,
+        message: "Total de pedido inválido",
+      });
+    }
+
+    await Promise.all(
+      orderItems.map((item) =>
+        Product.updateOne(
+          { _id: item.productId, stock: { $gte: item.quantity } },
+          { $inc: { stock: -item.quantity } }
+        )
+      )
+    );
+
+    const paymentStatus =
+      paymentMethod === "card" || paymentMethod === "paypal"
+        ? "paid"
+        : "pending";
+
+    const order = await Order.create({
+      userId: userId || null,
+      guestId: userId ? null : guestId,
+      guestEmail: userId ? null : guestEmail,
+      items: orderItems,
+      total,
+      status: "pending",
+      paymentMethod,
+      paymentStatus,
+    });
+
+    // Asociar personalizaciones al pedido
+    await Customization.updateMany(
+      userId
+        ? { userId, orderId: null }
+        : { guestId, orderId: null },
+      { $set: { orderId: order._id } }
+    );
+
+    return res.status(201).json({
+      ok: true,
+      orderId: order._id,
+      order,
+    });
+  } catch (err) {
+    console.error("🔥 ERROR DETALLADO EN createOrder:", err);
+    return res.status(500).json({
+      ok: false,
+      message: "Error al crear pedido",
     });
   }
 }

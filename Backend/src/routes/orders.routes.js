@@ -1,20 +1,3 @@
-/*import { Router } from 'express';
-import {
-  createOrder,
-  getOrdersByUser,
-} from '../controllers/orders.controller.js';
-import { requireAuth } from '../middleware/auth.middleware.js';
-
-
-export const ordersRouter = Router();
-
-ordersRouter.use(requireAuth);
-
-ordersRouter.post('/', requireAuth, createOrder);
-ordersRouter.get('/mine', requireAuth, getOrdersByUser);
-*/
-
-
 // src/routes/orders.routes.js
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.middleware.js";
@@ -29,11 +12,11 @@ import {
 export const ordersRouter = Router();
 
 // todas requieren estar autenticado
-ordersRouter.use(requireAuth);
+//ordersRouter.use(requireAuth);
 
 // usuario normal
-ordersRouter.post("/", createOrder);
-ordersRouter.get("/mine", getOrdersByUser);
+ordersRouter.post("/", createOrder); // público
+ordersRouter.get("/mine", requireAuth, getOrdersByUser);
 
 // ADMIN: lista todos los pedidos
 ordersRouter.get("/", requireAuth, requireAdmin, adminGetAllOrders);

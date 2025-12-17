@@ -37,19 +37,20 @@ export async function adminUpdateOrderStatus(orderId, status) {
 // src/services/orders.service.js
 import { http } from "./http";
 
-export async function createOrderRequest(items, paymentMethod) {
+export async function createOrderRequest(items, paymentMethod, guestData = null) {
   try {
-    const { data } = await http.post("/api/orders", {
+    const payload = {
       items,
       paymentMethod,
-    });
+      ...(guestData || {}),
+    };
 
+    const { data } = await http.post("/api/orders", payload);
     return data;
   } catch (err) {
-    console.error("Error en createOrderRequest:", err.response?.data || err);
     return {
       ok: false,
-      message: err.response?.data?.message || "Error al procesar el pedido",
+      message: err.response?.data?.message || "Error al procesar pedido",
     };
   }
 }
