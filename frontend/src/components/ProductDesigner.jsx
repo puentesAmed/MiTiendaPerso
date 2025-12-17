@@ -177,9 +177,7 @@ function ExportStage({
                   fontSize={el.fontSize || 24}
                   fontFamily={el.fontFamily || "Arial"}
                   fill={el.fill || "#000000"}
-                  rotation={el.rotation || 0}
-                  scaleX={1}
-                  scaleY={1}
+                  rotation={el.rotation || 0}                  
                   listening={false}
                 />
 
@@ -239,6 +237,25 @@ export function ProductDesigner({
   const [selectedId, setSelectedId] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
 
+  // 🔹 SINCRONIZAR ESTADO INTERNO CUANDO CAMBIA `value`
+// 🔹 NECESARIO PARA QUE EL TAMAÑO DEL TEXTO NO SE RESETEE AL PREVISUALIZAR
+useEffect(() => {
+  if (!value) return;
+
+  if (value.elementsBySide) {
+    setElementsBySide(value.elementsBySide);
+  }
+
+  if (value.side) {
+    setSide(value.side);
+  }
+
+  if (typeof value.notes === "string") {
+    setNotes(value.notes);
+  }
+}, [value]);
+
+
   // Stage principal (editor)
   const internalStageRef = useRef(null);
   const effectiveStageRef = stageRef || internalStageRef;
@@ -266,6 +283,8 @@ export function ProductDesigner({
 ========================================================= */
   const DESIGN_BLOCK_WIDTH = 500; // 🔹 mismo ancho visual que ya usas
   const offsetX = (stageWidth - DESIGN_BLOCK_WIDTH) / 2; // 🔹 NUEVO
+
+  
 
   /* ======================================================
      Notificar cambios al padre (sin previews)
@@ -373,11 +392,11 @@ export function ProductDesigner({
       id,
       type: "text",
       text: "Texto aquí",
-      x: printArea.x + 20,
-      y: printArea.y + 20,
+      x: currentPrintArea.x + 20,
+      y: currentPrintArea.y + 20,
       fontSize: 24,
       fontFamily: "Arial",
-      fill: "#ffffff",
+      fill: "#000000",
       rotation: 0,
     };
 
@@ -403,16 +422,16 @@ export function ProductDesigner({
 
         // 🔹 calcular escala para que encaje en la printArea
         const scale = Math.min(
-          printArea.width / img.width,
-          printArea.height / img.height
+          currentPrintArea.width / img.width,
+          currentPrintArea.height / img.height
         );
 
         const newImg = {
           id,
           type: "image",
           url: reader.result, // dataURL
-          x: printArea.x + printArea.width / 2,
-          y: printArea.y + printArea.height / 2,
+          x: currentPrintArea.x + currentPrintArea.width / 2,
+          y: currentPrintArea.y + currentPrintArea.height / 2,
           scaleX: scale,
           scaleY: scale,
           rotation: 0,
@@ -662,77 +681,10 @@ export function ProductDesigner({
             onTouchStart={handleStageClick}
             ref={effectiveStageRef}
           >
-            {/*<Layer ref={layerRef}>
-              {productImg && (
-                <KonvaImage image={productImg} x={0} y={0} width={stageWidth} height={stageHeight} />
-              )}
-
-              <Rect
-                x={printArea.x}
-                y={printArea.y}
-                width={printArea.width}
-                height={printArea.height}
-                stroke="#00B5D8"
-                dash={[4, 4]}
-              />
-
-              {currentElements.map((el) => {
-                if (el.type === "text") {
-                  return (
-                    <KonvaText
-                      key={el.id}
-                      id={el.id}
-                      text={el.text}
-                      x={el.x}
-                      y={el.y}
-                      fontSize={el.fontSize || 24}
-                      fontFamily={el.fontFamily || "Arial"}
-                      fill={el.fill || "#000000"}
-                      rotation={el.rotation || 0}
-                      draggable
-                      onClick={() => setSelectedId(el.id)}
-                      onTap={() => setSelectedId(el.id)}
-                      onDragEnd={(e) =>
-                        updateElement(el.id, { x: e.target.x(), y: e.target.y() })
-                      }
-                      onTransformEnd={(e) => {
-                        const node = e.target;
-                        const scaleX = node.scaleX();
-                        node.scaleX(1);
-                        node.scaleY(1);
-
-                        updateElement(el.id, {
-                          x: node.x(),
-                          y: node.y(),
-                          fontSize: (el.fontSize || 24) * scaleX,
-                          rotation: node.rotation(),
-                        });
-                      }}
-                    />
-                  );
-                }
-
-                if (el.type === "image") {
-                  return (
-                    <DesignerImageElement
-                      key={el.id}
-                      el={el}
-                      isSelected={selectedId === el.id}
-                      onSelect={() => setSelectedId(el.id)}
-                      onChange={updateElement}
-                    />
-                  );
-                }
-
-                return null;
-              })}
-
-              <Transformer ref={trRef} rotateEnabled />
-            </Layer>*/}
-
+            
             <Layer ref={layerRef}>
             {/* 🔹 TODO LO VISUAL SE DESPLAZA JUNTO */}
-            <Group x={offsetX}>
+            
               {productImg && (
                 <KonvaImage
                   image={productImg}
@@ -767,9 +719,35 @@ export function ProductDesigner({
                       rotation={el.rotation || 0}
                       draggable
                       onClick={() => setSelectedId(el.id)}
+                      onTap={() => setSelectedId(el.id)}
+                      onDragEnd={(e) =>
+                        updateElement(el.id, { x: e.target.x(), y: e.target.y() })
+                      }
+                      onTransformEnd={(e) => {
+                        const node = e.target;
+
+                        const scaleX = node.scaleX();
+                        const scaleY = node.scaleY();
+
+                        // 🔹 Mantén proporción: usamos el mayor para que no “encoga” raro
+                        const scale = Math.max(scaleX, scaleY);
+
+                        // ✅ Guardar tamaño real en el estado (esto es lo que faltaba)
+                        updateElement(el.id, {
+                          x: node.x(),
+                          y: node.y(),
+                          fontSize: (el.fontSize || 24) * scale,
+                          rotation: node.rotation(),
+                        });
+
+                        // importante: reset de escala visual
+                        node.scaleX(1);
+                        node.scaleY(1);
+                      }}
                     />
                   );
                 }
+
 
                 if (el.type === "image") {
                   return (
@@ -778,14 +756,7 @@ export function ProductDesigner({
                       el={el}
                       isSelected={selectedId === el.id}
                       onSelect={() => setSelectedId(el.id)}
-                      onChange={(id, attrs) =>
-                        setElementsBySide((prev) => ({
-                          ...prev,
-                          [side]: prev[side].map((i) =>
-                            i.id === id ? { ...i, ...attrs } : i
-                          ),
-                        }))
-                      }
+                      onChange={updateElement}
                     />
                   );
                 }
@@ -793,8 +764,8 @@ export function ProductDesigner({
                 return null;
               })}
 
-              <Transformer ref={trRef} rotateEnabled />
-            </Group>
+            <Transformer ref={trRef} rotateEnabled />
+            
           </Layer>
           </Stage>
         </Box>
