@@ -50,9 +50,16 @@ const productSchema = new mongoose.Schema(
     description: { type: String },
     price: { type: Number, required: true },
     image: { type: String },
+    images: [{ type: String }],
     stock: { type: Number, default: 0 },
     active: { type: Boolean, default: true },
     category: { type: String },
+    variants: {
+      sizes: [{ type: String }],
+      colors: [{ type: String }],
+    },
+
+
 
     // NUEVO: personalización
     customizable: { type: Boolean, default: false },

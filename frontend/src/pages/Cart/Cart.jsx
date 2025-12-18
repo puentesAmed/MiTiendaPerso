@@ -79,23 +79,47 @@ export function Cart() {
 
               <VStack align="start" flex="1">
                 <Text fontWeight="bold">{item.name}</Text>
+
+                {item.selectedVariant && (
+                  <Text fontSize="xs" color="gray.500">
+                    {item.selectedVariant.size && <>Talla: {item.selectedVariant.size}</>}
+                    {item.selectedVariant.size && item.selectedVariant.color && " · "}
+                    {item.selectedVariant.color && <>Color: {item.selectedVariant.color}</>}
+                  </Text>
+                )}
+
                 <Text fontSize="sm" color="gray.500">
                   Precio: {item.price} €
                 </Text>
 
-                <HStack>
+                <HStack spacing={2}>
                   <Text fontSize="sm">Cantidad:</Text>
-                  <Input
-                    type="number"
-                    size="sm"
-                    width="70px"
-                    value={item.quantity}
-                    min={1}
-                    onChange={(e) =>
-                      updateQuantity(item.productId, Number(e.target.value))
+
+                  <Button
+                    size="xs"
+                    onClick={() =>
+                      item.quantity > 1
+                        ? updateQuantity(item.productId, item.quantity - 1)
+                        : removeItem(item.productId)
                     }
-                  />
+                  >
+                    −
+                  </Button>
+
+                  <Text minW="20px" textAlign="center">
+                    {item.quantity}
+                  </Text>
+
+                  <Button
+                    size="xs"
+                    onClick={() =>
+                      updateQuantity(item.productId, item.quantity + 1)
+                    }
+                  >
+                    +
+                  </Button>
                 </HStack>
+
               </VStack>
 
               <IconButton

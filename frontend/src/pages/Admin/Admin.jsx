@@ -890,7 +890,12 @@ export function Admin() {
   const [formStock, setFormStock] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formImage, setFormImage] = useState("");
+  const [formImages, setFormImages] = useState("");
+
   const [formActive, setFormActive] = useState(true);
+  const [formSizes, setFormSizes] = useState("");
+  const [formColors, setFormColors] = useState("");
+
 
   // Personalización
   const [formCustomizable, setFormCustomizable] = useState(false);
@@ -927,6 +932,9 @@ export function Admin() {
   // Modal detalle
   const [selectedCustomization, setSelectedCustomization] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [orderDetailOpen, setOrderDetailOpen] = useState(false);
+
   
   // Chakra UI colors
   const cardBg = useColorModeValue("white", "gray.800");
@@ -943,6 +951,10 @@ export function Admin() {
     setFormStock("");
     setFormDescription("");
     setFormImage("");
+    setFormImages("");
+    setFormSizes("");
+    setFormColors("");
+
     setFormActive(true);
 
     setFormCustomizable(false);
@@ -966,6 +978,24 @@ export function Admin() {
     setFormStock(String(p.stock ?? ""));
     setFormDescription(p.description || "");
     setFormImage(p.image || "");
+    setFormImages(
+      Array.isArray(p.images) && p.images.length
+        ? p.images.join("\n")
+        : ""
+    );
+    setFormSizes(
+      Array.isArray(p.variants?.sizes)
+        ? p.variants.sizes.join(", ")
+        : ""
+    );
+
+    setFormColors(
+      Array.isArray(p.variants?.colors)
+        ? p.variants.colors.join(", ")
+        : ""
+    );
+
+
     setFormActive(!!p.active);
 
     setFormCustomizable(!!p.customizable);
@@ -1063,13 +1093,35 @@ export function Admin() {
       }
     }
 
+    const imagesArray = formImages
+      .split("\n")
+      .map((i) => i.trim())
+      .filter(Boolean);
+
+    const sizesArray = formSizes
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const colorsArray = formColors
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+
+
     const payload = {
       name: formName.trim(),
       price: Number(formPrice),
       category: formCategory.trim(),
       stock: Number(formStock),
       description: formDescription.trim(),
-      image: formImage.trim(),
+      image: formImage.trim() || imagesArray[0] || "",
+      images: imagesArray,
+      variants: {
+        sizes: sizesArray,
+        colors: colorsArray,
+      },
+
       active: formActive,
       customizable: formCustomizable,
       customizationType: formCustomizationType,
@@ -1507,6 +1559,28 @@ const handleDownloadZip = async (customization) => {
                       </NumberInput>
                     </FormControl>
 
+                    {/* Tallas y colores */}
+                    <FormControl>
+                      <FormLabel>Tallas (separadas por coma)</FormLabel>
+                      <Input
+                        size="sm"
+                        value={formSizes}
+                        onChange={(e) => setFormSizes(e.target.value)}
+                        placeholder="S, M, L, XL"
+                      />
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel>Colores (separados por coma)</FormLabel>
+                      <Input
+                        size="sm"
+                        value={formColors}
+                        onChange={(e) => setFormColors(e.target.value)}
+                        placeholder="Negro, Blanco, Rojo"
+                      />
+                    </FormControl>
+
+
                     {/* Imagen */}
                     <FormControl>
                       <FormLabel>Imagen (URL)</FormLabel>
@@ -1517,6 +1591,18 @@ const handleDownloadZip = async (customization) => {
                         placeholder="https://..."
                       />
                     </FormControl>
+                    {/* Imágenes adicionales */}
+                    <FormControl>
+                      <FormLabel>Imágenes adicionales (una por línea)</FormLabel>
+                      <Textarea
+                        size="sm"
+                        rows={4}
+                        value={formImages}
+                        onChange={(e) => setFormImages(e.target.value)}
+                        placeholder={`https://...\nhttps://...\nhttps://...`}
+                      />
+                    </FormControl>
+
 
                     {/* Descripción */}
                     <FormControl>
@@ -1723,7 +1809,10 @@ const handleDownloadZip = async (customization) => {
                           <Button
                             size="xs"
                             variant="outline"
-                            onClick={() => console.log("Ver detalles", o._id)}
+                            onClick={() => {
+                              setSelectedOrder(o);
+                              setOrderDetailOpen(true);
+                            }}
                           >
                             Ver
                           </Button>
@@ -2023,6 +2112,74 @@ const handleDownloadZip = async (customization) => {
                 </ModalFooter>
               </ModalContent>
             </Modal>
+            <Modal
+              isOpen={orderDetailOpen}
+              onClose={() => setOrderDetailOpen(false)}
+              size="lg"
+              isCentered
+            >
+              <ModalOverlay />
+              <ModalContent>
+                <ModalHeader>Detalle del pedido</ModalHeader>
+                <ModalCloseButton />
+
+                <ModalBody>
+                  {selectedOrder ? (
+                    <Stack spacing={4}>
+                      {/* Datos generales */}
+                      <Box>
+                        <Text fontSize="sm">
+                          <strong>Pedido:</strong> {selectedOrder._id}
+                        </Text>
+                        <Text fontSize="sm">
+                          <strong>Cliente:</strong> {getOrderUserLabel(selectedOrder)}
+                        </Text>
+                        <Text fontSize="sm">
+                          <strong>Total:</strong>{" "}
+                          {(selectedOrder.total ?? 0).toFixed(2)} €
+                        </Text>
+                      </Box>
+
+                      {/* LÍNEAS DEL PEDIDO */}
+                      <Box>
+                        <Text fontWeight="bold" mb={2}>
+                          Productos
+                        </Text>
+
+                        {selectedOrder.items.map((i, idx) => (
+                          <Box key={idx} mb={2}>
+                            <Text fontSize="sm">
+                              {i.name} × {i.quantity}
+                            </Text>
+
+                            {i.selectedVariant && (
+                              <Text fontSize="xs" color="gray.500">
+                                {i.selectedVariant.size && (
+                                  <>Talla: {i.selectedVariant.size}</>
+                                )}
+                                {i.selectedVariant.size &&
+                                  i.selectedVariant.color &&
+                                  " · "}
+                                {i.selectedVariant.color && (
+                                  <>Color: {i.selectedVariant.color}</>
+                                )}
+                              </Text>
+                            )}
+                          </Box>
+                        ))}
+                      </Box>
+                    </Stack>
+                  ) : (
+                    <Text>Cargando…</Text>
+                  )}
+                </ModalBody>
+
+                <ModalFooter>
+                  <Button onClick={() => setOrderDetailOpen(false)}>Cerrar</Button>
+                </ModalFooter>
+              </ModalContent>
+            </Modal>
+
           </TabPanel>
 
         </TabPanels>

@@ -544,7 +544,7 @@ export function Checkout() {
 */
 
 // src/pages/Checkout/Checkout.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../../hooks/useCart";
 import { useAuth } from "../../hooks/useAuth";
@@ -573,11 +573,20 @@ import {
   ModalBody,
   ModalFooter,
   ModalCloseButton,
+  Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionPanel,
+  AccordionIcon,
+  Checkbox,
+  Textarea,
 } from "@chakra-ui/react";
 
 import { DeleteIcon } from "@chakra-ui/icons";
 
 const GUEST_KEY = "guest_id";
+const CHECKOUT_DRAFT_KEY = "checkout_draft_v1";
+
 function getGuestId() {
   let id = localStorage.getItem(GUEST_KEY);
   if (!id) {
@@ -597,6 +606,55 @@ export function Checkout() {
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [paymentMethod] = useState("card");
+
+  const [shippingAddress, setShippingAddress] = useState({
+    fullName: "",
+    street: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "España",
+  });
+
+  const [useSameBilling, setUseSameBilling] = useState(true);
+  const [billingAddress, setBillingAddress] = useState({ ...shippingAddress });
+  const [notes, setNotes] = useState("");
+
+  // 🔁 Restaurar borrador del checkout (volver del diseñador)
+  useEffect(() => {
+    const stored = localStorage.getItem(CHECKOUT_DRAFT_KEY);
+    if (!stored) return;
+
+    try {
+      const draft = JSON.parse(stored);
+
+      if (draft.guestEmail) setGuestEmail(draft.guestEmail);
+      if (draft.shippingAddress) setShippingAddress(draft.shippingAddress);
+      if (draft.billingAddress) setBillingAddress(draft.billingAddress);
+      if (typeof draft.useSameBilling === "boolean") {
+        setUseSameBilling(draft.useSameBilling);
+      }
+      if (draft.notes) setNotes(draft.notes);
+    } catch {
+      // ignorar borrador corrupto
+    }
+  }, []);
+
+  // 💾 Guardar borrador del checkout automáticamente
+  useEffect(() => {
+    const draft = {
+      guestEmail,
+      shippingAddress,
+      billingAddress,
+      useSameBilling,
+      notes,
+    };
+
+    localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
+  }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes]);
+
+
+
 
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingProduct, setPendingProduct] = useState(null);
@@ -644,6 +702,9 @@ export function Checkout() {
       const data = await createOrderRequest(items, paymentMethod, {
         guestId: user ? null : getGuestId(),
         email: user ? null : guestEmail,
+        shippingAddress,
+        billingAddress: useSameBilling ? null : billingAddress,
+        notes,
       });
 
       if (!data.ok) {
@@ -652,8 +713,17 @@ export function Checkout() {
       }
 
       clearCart();
+      localStorage.removeItem(CHECKOUT_DRAFT_KEY);
       setSuccessMsg(`Pedido nº ${data.orderId} creado correctamente.`);
-      nav("/mis-pedidos");
+      //nav("/mis-pedidos");
+      nav("/confirmacion-pedido", {
+        state: {
+          order: data.order,
+          orderId: data.orderId,
+          isGuest: !user,
+          email: !user ? guestEmail : null,
+        },
+      });
     } catch (err) {
       console.error("Error procesando pedido:", err);
       setError("Error inesperado al procesar pedido");
@@ -694,23 +764,55 @@ export function Checkout() {
                   />
                   <VStack align="start" spacing={1}>
                     <Heading size="sm">{it.name}</Heading>
+                    
+                    {it.selectedVariant && (
+                      <Text fontSize="xs" color="gray.500">
+                        {it.selectedVariant.size && <>Talla: {it.selectedVariant.size}</>}
+                        {it.selectedVariant.size && it.selectedVariant.color && " · "}
+                        {it.selectedVariant.color && <>Color: {it.selectedVariant.color}</>}
+                      </Text>
+                    )}
+
                     <Text fontSize="sm" color="gray.400">
                       Precio: {it.price.toFixed(2)} €
                     </Text>
                   </VStack>
                 </HStack>
 
-                <HStack spacing={3}>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={it.quantity}
-                    onChange={(e) => updateQuantity(it.productId, e.target.value)}
-                    width="70px"
-                  />
-                  <Text fontWeight="bold">
+                <HStack spacing={2}>
+                  {/* Botón menos */}
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      it.quantity > 1
+                        ? updateQuantity(it.productId, it.quantity - 1)
+                        : removeItem(it.productId)
+                    }
+                  >
+                    −
+                  </Button>
+
+                  {/* Cantidad actual */}
+                  <Text minW="24px" textAlign="center">
+                    {it.quantity}
+                  </Text>
+
+                  {/* Botón más */}
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      updateQuantity(it.productId, it.quantity + 1)
+                    }
+                  >
+                    +
+                  </Button>
+
+                  {/* Precio línea */}
+                  <Text fontWeight="bold" ml={2}>
                     {(it.price * it.quantity).toFixed(2)} €
                   </Text>
+
+                  {/* Eliminar */}
                   <IconButton
                     aria-label="Eliminar"
                     icon={<DeleteIcon />}
@@ -719,6 +821,7 @@ export function Checkout() {
                     onClick={() => removeItem(it.productId)}
                   />
                 </HStack>
+
               </Flex>
             </CardBody>
           </Card>
@@ -744,6 +847,86 @@ export function Checkout() {
           {successMsg}
         </Alert>
       )}
+
+      <Accordion allowMultiple defaultIndex={[0]}>
+        {/* DIRECCIÓN DE ENVÍO */}
+        <AccordionItem>
+          <AccordionButton>
+            <Box flex="1" textAlign="left">Dirección de envío</Box>
+            <AccordionIcon />
+          </AccordionButton>
+          <AccordionPanel>
+            <Stack spacing={3}>
+              <Input placeholder="Nombre completo"
+                value={shippingAddress.fullName}
+                onChange={(e) => setShippingAddress({ ...shippingAddress, fullName: e.target.value })}
+              />
+              <Input placeholder="Dirección"
+                value={shippingAddress.street}
+                onChange={(e) => setShippingAddress({ ...shippingAddress, street: e.target.value })}
+              />
+              <Input placeholder="Ciudad"
+                value={shippingAddress.city}
+                onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })}
+              />
+              <Input placeholder="Provincia"
+                value={shippingAddress.state}
+                onChange={(e) => setShippingAddress({ ...shippingAddress, state: e.target.value })}
+              />
+              <Input placeholder="Código postal"
+                value={shippingAddress.postalCode}
+                onChange={(e) => setShippingAddress({ ...shippingAddress, postalCode: e.target.value })}
+              />
+            </Stack>
+          </AccordionPanel>
+        </AccordionItem>
+
+        {/* FACTURACIÓN */}
+        <AccordionItem>
+          <AccordionButton>
+            <Box flex="1" textAlign="left">Dirección de facturación</Box>
+            <AccordionIcon />
+          </AccordionButton>
+          <AccordionPanel>
+            <Checkbox
+              mb={3}
+              isChecked={useSameBilling}
+              onChange={(e) => setUseSameBilling(e.target.checked)}
+            >
+              Usar la misma que envío
+            </Checkbox>
+
+            {!useSameBilling && (
+              <Stack spacing={3}>
+                <Input placeholder="Nombre completo"
+                  value={billingAddress.fullName}
+                  onChange={(e) => setBillingAddress({ ...billingAddress, fullName: e.target.value })}
+                />
+                <Input placeholder="Dirección"
+                  value={billingAddress.street}
+                  onChange={(e) => setBillingAddress({ ...billingAddress, street: e.target.value })}
+                />
+              </Stack>
+            )}
+          </AccordionPanel>
+        </AccordionItem>
+
+        {/* NOTAS */}
+        <AccordionItem>
+          <AccordionButton>
+            <Box flex="1" textAlign="left">Notas del pedido</Box>
+            <AccordionIcon />
+          </AccordionButton>
+          <AccordionPanel>
+            <Textarea
+              placeholder="Indicaciones adicionales para el pedido"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </AccordionPanel>
+        </AccordionItem>
+      </Accordion>
+
 
       <Button
         mt={6}

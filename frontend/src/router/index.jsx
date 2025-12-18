@@ -56,6 +56,8 @@ import { Checkout } from "../pages/Checkout/Checkout";
 import { MyOrders } from "../pages/MyOrders/MyOrders.jsx";
 import { ProtectedRoute } from "./ProtectedRoute.jsx";
 import { Admin } from "../pages/Admin/Admin.jsx";
+import { OrderConfirmation } from "../pages/OrderConfirmation/OrderConfirmation.jsx";
+
 
 
 
@@ -84,6 +86,8 @@ export const router = createBrowserRouter([
       { path: "mis-pedidos", element: (<MyOrders />),},
       //{ path: "/perfil", element: (<ProfilePage />)},
       //{ path: "/ayuda", element: (<HelpPage />)},
+      { path: "confirmacion-pedido", element: <OrderConfirmation /> },
+
 
       {
         path: "admin",

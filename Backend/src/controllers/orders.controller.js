@@ -265,6 +265,12 @@ import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
 import { Customization } from "../models/Customization.js";
 import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
+import { sendEmail } from "../services/email.service.js";
+import { orderClientEmail } from "../emails/templates/orderClientEmail.js";
+import { orderAdminEmail } from "../emails/templates/orderAdminEmail.js";
+import { orderStatusEmail } from "../emails/templates/orderStatusEmail.js";
+
+
 
 
 /**
@@ -273,7 +279,17 @@ import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
 export async function createOrder(req, res) {
   try {
     const userId = req.userId || null;
-    const { items, paymentMethod = "card", guestId, email: guestEmail } = req.body;
+    //const { items, paymentMethod = "card", guestId, email: guestEmail } = req.body;
+
+    const {
+      items,
+      paymentMethod = "card",
+      guestId,
+      email: guestEmail,
+      shippingAddress,
+      billingAddress,
+      notes,
+    } = req.body;
 
     // ✅ Usuario O invitado (email obligatorio)
     if (!userId && (!guestId || !guestEmail)) {
@@ -282,6 +298,14 @@ export async function createOrder(req, res) {
         message: "Pedido de invitado requiere email",
       });
     }
+
+    if (!shippingAddress) {
+      return res.status(400).json({
+        ok: false,
+        message: "La dirección de envío es obligatoria",
+      });
+    }
+
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ ok: false, message: "El carrito está vacío" });
@@ -365,7 +389,9 @@ export async function createOrder(req, res) {
         price,
         quantity: qty,
         customizationId,
+        selectedVariant: cartItem.selectedVariant || null,
       });
+
     }
 
     if (total <= 0) {
@@ -389,7 +415,7 @@ export async function createOrder(req, res) {
         ? "paid"
         : "pending";
 
-    const order = await Order.create({
+    /*const order = await Order.create({
       userId: userId || null,
       guestId: userId ? null : guestId,
       guestEmail: userId ? null : guestEmail,
@@ -398,7 +424,50 @@ export async function createOrder(req, res) {
       status: "pending",
       paymentMethod,
       paymentStatus,
+    });*/
+
+    const order = await Order.create({
+      userId: userId || null,
+      guestId: userId ? null : guestId,
+      guestEmail: userId ? null : guestEmail,
+      items: orderItems,
+      total,
+
+      // ⬇️ NUEVO (FASE 1.5)
+      shippingAddress,
+      billingAddress: billingAddress || null,
+      notes: notes || "",
+
+      status: "pending",
+      paymentMethod,
+      paymentStatus,
     });
+
+    // 📧 Email al cliente
+    try {
+      await sendEmail({
+        to: order.guestEmail || req.user?.email,
+        subject: "Confirmación de pedido",
+        html: orderClientEmail(order),
+      });
+    } catch (err) {
+      console.warn("⚠️ Error enviando email al cliente:", err.message);
+    }
+
+
+    // 📧 Email al admin
+    try {
+      await sendEmail({
+        to: process.env.ADMIN_EMAIL,
+        subject: `Nuevo pedido #${order._id}`,
+        html: orderAdminEmail(order),
+      });
+    } catch (err) {
+      console.warn("⚠️ Error enviando email al admin:", err.message);
+    }
+
+
+
 
     // Asociar personalizaciones al pedido
     await Customization.updateMany(
@@ -418,6 +487,110 @@ export async function createOrder(req, res) {
     return res.status(500).json({
       ok: false,
       message: "Error al crear pedido",
+    });
+  }
+}
+
+
+/**
+ * 📌 ADMIN: LISTAR PEDIDOS
+ */
+export async function adminGetAllOrders(req, res) {
+  try {
+    const { status } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+
+    const orders = await Order.find(filter)
+      .sort({ createdAt: -1 })
+      .populate("userId", "name email")
+      .lean();
+
+    return res.json({ ok: true, orders });
+  } catch (err) {
+    console.error("Error en adminGetAllOrders:", err);
+    return res.status(500).json({
+      ok: false,
+      message: "Error al obtener pedidos",
+    });
+  }
+}
+
+
+/**
+ * 📌 PEDIDOS DEL USUARIO
+ */
+export async function getOrdersByUser(req, res) {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({ ok: false, message: "No autenticado" });
+    }
+
+    const orders = await Order.find({ userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({ ok: true, orders });
+  } catch (err) {
+    console.error("Error en getOrdersByUser:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Error al obtener pedidos" });
+  }
+}
+
+/**
+ * 📌 ADMIN: CAMBIAR ESTADO
+ */
+export async function adminUpdateOrderStatus(req, res) {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const allowed = ["pending", "paid", "shipped", "delivered", "cancelled"];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Estado no permitido",
+      });
+    }
+
+    const order = await Order.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true, runValidators: true }
+    );
+
+    const emailData = orderStatusEmail(order);
+
+    if (emailData) {
+      await sendEmail({
+        to: order.guestEmail || order.userId?.email,
+        subject: emailData.subject,
+        html: emailData.html,
+      });
+    }
+
+
+    if (!order) {
+      return res.status(404).json({
+        ok: false,
+        message: "Pedido no encontrado",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      order,
+      message: "Estado de pedido actualizado",
+    });
+  } catch (err) {
+    console.error("Error en adminUpdateOrderStatus:", err);
+    return res.status(500).json({
+      ok: false,
+      message: "Error al actualizar estado del pedido",
     });
   }
 }

@@ -1,5 +1,17 @@
 import mongoose from "mongoose";
 
+const addressSchema = new mongoose.Schema(
+  {
+    fullName: { type: String, required: true },
+    street: { type: String, required: true },
+    city: { type: String, required: true },
+    state: { type: String, required: true },
+    postalCode: { type: String, required: true },
+    country: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const orderSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: false },
@@ -11,9 +23,14 @@ const orderSchema = new mongoose.Schema(
         name: { type: String, required: true },
         quantity: { type: Number, required: true, min: 1 },
         price: { type: Number, required: true, min: 0 },
+        selectedVariant: {
+          size: { type: String, default: null },
+          color: { type: String, default: null },
+        },
+        customizationId: { type: mongoose.Schema.Types.ObjectId, ref: "Customization" },
 
         // NUEVO: info de personalización
-        customization: {
+       /* customization: {
           enabled: { type: Boolean, default: false },
           areaCode: { type: String },       // ej: "front", "back"
           imageUrl: { type: String },       // ruta/URL de la imagen subida
@@ -21,7 +38,7 @@ const orderSchema = new mongoose.Schema(
           notes: { type: String },          // instrucciones adicionales
           widthMm: { type: Number },        // tamaño solicitado
           heightMm: { type: Number },
-        },
+        },*/
 
       },
     ],
@@ -48,14 +65,11 @@ const orderSchema = new mongoose.Schema(
 
     paidAt: { type: Date },
 
-    // Si quieres dirección más adelante, la dejas opcional:
-    shippingAddress: {
-      street: { type: String },
-      city: { type: String },
-      state: { type: String },
-      postalCode: { type: String },
-      country: { type: String },
-    },
+    shippingAddress: { type: addressSchema, required: true },
+    billingAddress: { type: addressSchema, required: false },
+
+    notes: { type: String },
+
   },
   { timestamps: true }
 );
