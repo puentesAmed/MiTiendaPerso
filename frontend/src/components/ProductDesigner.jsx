@@ -337,7 +337,7 @@ useEffect(() => {
     trRef.current.getLayer()?.batchDraw();
   }, [selectedId, side, elementsBySide]);
 
-  
+
 
   /* ======================================================
      Exponer métodos en stageRef.current (IMPORTANTE)
@@ -491,11 +491,13 @@ useEffect(() => {
      Guardar diseño (SIN CAMBIAR SIDE)
      Genera previewsBySide usando stages ocultos.
 ========================================================= */
-  const handleSaveDesign = () => {
+  const handleSaveDesign = async() => {
     const stage = effectiveStageRef.current;
     if (!stage) return;
 
-    const previewsBySide = stage.exportPreviewsBySide(2);
+    const previewsBySide = await stage.exportPreviewsBySide(2);
+
+    console.log("PREVIEWS:", previewsBySide);
 
     console.log(
       "¿FRONT === BACK?",
