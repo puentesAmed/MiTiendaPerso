@@ -20,6 +20,7 @@ import { useCart } from "../../hooks/useCart";
 import { ProductDesigner } from "../../components/ProductDesigner";
 import { ProductPreview360 } from "../../components/ProductPreview360";
 import { DESIGN_TEMPLATES } from "../../config/designTemplates";
+import { useLocation } from "react-router-dom";
 
 
 export function ProductDesignerPage() {
@@ -36,6 +37,9 @@ export function ProductDesignerPage() {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState("edit");
   const [error, setError] = useState("");
+
+  const location = useLocation();
+
 
   const bg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
@@ -62,6 +66,13 @@ export function ProductDesignerPage() {
     if (id) load();
     return () => (alive = false);
   }, [id]);
+
+  useEffect(() => {
+  if (location.state?.customization?.design) {
+    setDesign(location.state.customization.design);
+  }
+}, [location.state]);
+
 
   /* ───────────────────────────────
      PREVISUALIZAR: GENERAR LOS PREVIEWS FINALES (FRONT/BACK)
@@ -173,7 +184,11 @@ export function ProductDesignerPage() {
     };
 
     addItem(product, 1, customizationPayload);
-    navigate("/carrito");
+
+    const returnTo = location.state?.returnTo || "/carrito";
+    navigate(returnTo);
+
+    
   };
 
   /* ───────────────────────────────
