@@ -25,3 +25,28 @@ export function requireAuth(req, res, next) {
     return res.status(401).json({ message: 'Token inválido' });
   }
 }
+
+export function optionalAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const [, token] = header.split(' ');
+
+  if (!token) {
+    return next(); // invitado
+  }
+
+  try {
+    const payload = jwt.verify(token, env.JWT_SECRET);
+
+    req.userId = payload.sub;
+    req.user = {
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      name: payload.name,
+    };
+  } catch {
+    // token inválido → se trata como invitado
+  }
+
+  next();
+}

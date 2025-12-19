@@ -236,6 +236,30 @@ export function ProductDesigner({
   const [notes, setNotes] = useState(initial.notes);
   const [selectedId, setSelectedId] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
+  
+  // Stage principal (editor)
+  const internalStageRef = useRef(null);
+  const effectiveStageRef = stageRef || internalStageRef;
+  
+  const layerRef = useRef(null);
+  const trRef = useRef(null);
+  
+  // Stages ocultos para export
+  const exportFrontRef = useRef(null);
+  const exportBackRef = useRef(null);
+  
+  // Mockup del editor
+  const productImg = useImage(side === "front" ? frontImage : backImage);
+  
+  const currentElements = elementsBySide?.[side] || [];
+  const selectedElement = currentElements.find((el) => el.id === selectedId);
+  const currentPrintArea =
+  printArea?.front || printArea?.back
+    ? printArea[side] || printArea.front
+    : printArea;
+
+  // 🔑 CLAVE: evitar sobrescritura del diseño inicial
+  const hasInitializedRef = useRef(false);
 
   // 🔹 SINCRONIZAR ESTADO INTERNO CUANDO CAMBIA `value`
 // 🔹 NECESARIO PARA QUE EL TAMAÑO DEL TEXTO NO SE RESETEE AL PREVISUALIZAR
@@ -253,29 +277,27 @@ useEffect(() => {
   if (typeof value.notes === "string") {
     setNotes(value.notes);
   }
+  hasInitializedRef.current = true;
 }, [value]);
 
 
-  // Stage principal (editor)
-  const internalStageRef = useRef(null);
-  const effectiveStageRef = stageRef || internalStageRef;
+/* ======================================================
+     NOTIFICAR CAMBIOS AL PADRE
+     ⛔ NO sobrescribir el diseño inicial
+========================================================= */
+  useEffect(() => {
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      return;
+    }
 
-  const layerRef = useRef(null);
-  const trRef = useRef(null);
+    onChange?.({
+      side,
+      elementsBySide,
+      notes,
+    });
+  }, [side, elementsBySide, notes, onChange]);
 
-  // Stages ocultos para export
-  const exportFrontRef = useRef(null);
-  const exportBackRef = useRef(null);
-
-  // Mockup del editor
-  const productImg = useImage(side === "front" ? frontImage : backImage);
-
-  const currentElements = elementsBySide?.[side] || [];
-  const selectedElement = currentElements.find((el) => el.id === selectedId);
-  const currentPrintArea =
-  printArea?.front || printArea?.back
-    ? printArea[side] || printArea.front
-    : printArea;
 
 
   /* ======================================================
@@ -314,6 +336,8 @@ useEffect(() => {
     trRef.current.nodes(node ? [node] : []);
     trRef.current.getLayer()?.batchDraw();
   }, [selectedId, side, elementsBySide]);
+
+  
 
   /* ======================================================
      Exponer métodos en stageRef.current (IMPORTANTE)

@@ -1246,37 +1246,7 @@ export function Admin() {
     setSelectedCustomization(c);
     setDetailOpen(true);
   };
-
-
-  /* ---------------------------------------------------------
-   * DESCARGAR ZIP DESDE EL ADMIN
-   * --------------------------------------------------------- */
-  /*
-  const handleDownloadZip = async (customization) => {
-  if (!customization.zipUrl) return;
-
-  const BACKEND_URL = "http://localhost:3000";
-
-  const response = await fetch(
-    BACKEND_URL + customization.zipUrl,
-    { cache: "no-store" }
-  );
-
-  const blob = await response.blob();
-
-  console.log("ZIP SIZE:", blob.size); // ← debe ser ~400KB
-
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `custom_${customization._id}.zip`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  URL.revokeObjectURL(a.href);
-};
-
-*/
+ 
 
 const handleDownloadZip = async (customization) => {
   if (!customization.zipUrl) return;
@@ -2123,6 +2093,8 @@ const handleDownloadZip = async (customization) => {
                 <ModalHeader>Detalle del pedido</ModalHeader>
                 <ModalCloseButton />
 
+                
+
                 <ModalBody>
                   {selectedOrder ? (
                     <Stack spacing={4}>
@@ -2140,13 +2112,20 @@ const handleDownloadZip = async (customization) => {
                         </Text>
                       </Box>
 
+                      
+
                       {/* LÍNEAS DEL PEDIDO */}
                       <Box>
                         <Text fontWeight="bold" mb={2}>
                           Productos
-                        </Text>
+                        </Text>                 
+
 
                         {selectedOrder.items.map((i, idx) => (
+                          console.log("ITEM:", i),
+                          console.log("PEDIDO SELECCIONADO:", selectedOrder),
+                          console.log("ITEMS:", selectedOrder.items),
+
                           <Box key={idx} mb={2}>
                             <Text fontSize="sm">
                               {i.name} × {i.quantity}

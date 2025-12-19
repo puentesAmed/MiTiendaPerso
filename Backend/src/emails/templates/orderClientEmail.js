@@ -8,7 +8,13 @@ export function orderClientEmail(order) {
       ${order.items
         .map(
           (i) =>
-            `<li>${i.name} × ${i.quantity} — ${i.price.toFixed(2)} €</li>`
+            `<li>
+                ${i.name} × ${i.quantity}
+                ${i.selectedVariant?.size ? ` — Talla: ${i.selectedVariant.size}` : ""}
+                ${i.selectedVariant?.color ? ` — Color: ${i.selectedVariant.color}` : ""}
+                — ${i.price.toFixed(2)} €
+              </li>
+              `
         )
         .join("")}
     </ul>

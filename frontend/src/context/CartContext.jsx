@@ -241,7 +241,7 @@ export function CartProvider({ children }) {
   // ===============================
   // LÓGICA ORIGINAL (SIN CAMBIOS)
   // ===============================
-  const addItem = useCallback((product, quantity = 1, customization = null) => {
+  const addItem = useCallback((product, quantity = 1, customization = null, selectedVariant = null) => {
     setItems((prev) => {
       const qty = Number(quantity) || 1;
       const productId = product.id || product._id;
@@ -251,11 +251,12 @@ export function CartProvider({ children }) {
       if (idx !== -1) {
         const existing = prev[idx];
 
-        if (customization) {
+        if (customization || selectedVariant) {
           const next = [...prev];
           next[idx] = {
             ...existing,
-            customization,
+            customization: customization ?? existing.customization,
+            selectedVariant: selectedVariant ?? existing.selectedVariant,
             requiresDesign,
             quantity: existing.quantity,
           };
@@ -283,6 +284,7 @@ export function CartProvider({ children }) {
           quantity: qty,
           image: product.image || "",
           customization: product.customizable ? customization : null,
+          selectedVariant: selectedVariant || null,
           requiresDesign,
           customizable: !!product.customizable,
         },

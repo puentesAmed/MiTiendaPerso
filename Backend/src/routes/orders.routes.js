@@ -1,6 +1,6 @@
 // src/routes/orders.routes.js
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth.middleware.js";
+import { requireAuth, optionalAuth } from "../middleware/auth.middleware.js";
 import { requireAdmin } from "../middleware/admin.middleware.js";
 import {
   createOrder,
@@ -15,7 +15,7 @@ export const ordersRouter = Router();
 //ordersRouter.use(requireAuth);
 
 // usuario normal
-ordersRouter.post("/", createOrder); // público
+ordersRouter.post("/", optionalAuth, createOrder); // público
 ordersRouter.get("/mine", requireAuth, getOrdersByUser);
 
 // ADMIN: lista todos los pedidos

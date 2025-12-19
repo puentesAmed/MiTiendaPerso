@@ -103,14 +103,13 @@ export function ProductDetail() {
     }
 
     addItem(
-      {
-        ...product,
-        selectedVariant: {
-          size: selectedSize || null,
-          color: selectedColor || null,
-        },
-      },
-      qty
+      product,
+      qty,
+      null,
+      { 
+        size: selectedSize || null, 
+        color: selectedColor || null 
+      }
     );
 
   };

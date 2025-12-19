@@ -21,6 +21,7 @@ import { ProductDesigner } from "../../components/ProductDesigner";
 import { ProductPreview360 } from "../../components/ProductPreview360";
 import { DESIGN_TEMPLATES } from "../../config/designTemplates";
 
+
 export function ProductDesignerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -143,10 +144,26 @@ export function ProductDesignerPage() {
       previewsBySide = { front, back };
     }
 
+    const texts =
+      design?.elementsBySide?.front
+        ?.filter((e) => e.type === "text")
+        .map((e) => e.text) || [];
+
     const customizationPayload = {
       type: "designer",
+
       design,
       previewsBySide,
+
+      // ✅ PREVIEW DIRECTA PARA CHECKOUT
+      previewImage:
+        previewsBySide?.front ||
+        previewsBySide?.back ||
+        null,
+
+      // ✅ RESUMEN DE TEXTO (CHECKOUT)
+      textSummary: texts,
+
       mockupFront: template?.frontImage
         ? window.location.origin + template.frontImage
         : null,
