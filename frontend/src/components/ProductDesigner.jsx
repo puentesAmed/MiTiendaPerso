@@ -223,17 +223,13 @@ export function ProductDesigner({
   onChange,
   stageRef,
 }) {
-  const initial = useMemo(() => {
-    return {
-      side: value?.side || "front",
-      elementsBySide: value?.elementsBySide || { front: [], back: [] },
-      notes: value?.notes || "",
-    };
-  }, [value]);
+  
+  const [side, setSide] = useState(() => value?.side || "front");
+  const [elementsBySide, setElementsBySide] = useState(
+    () => value?.elementsBySide || { front: [], back: [] }
+  );
+  const [notes, setNotes] = useState(() => value?.notes || "");
 
-  const [side, setSide] = useState(initial.side);
-  const [elementsBySide, setElementsBySide] = useState(initial.elementsBySide);
-  const [notes, setNotes] = useState(initial.notes);
   const [selectedId, setSelectedId] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
   
@@ -263,40 +259,6 @@ export function ProductDesigner({
 
   // 🔹 SINCRONIZAR ESTADO INTERNO CUANDO CAMBIA `value`
 // 🔹 NECESARIO PARA QUE EL TAMAÑO DEL TEXTO NO SE RESETEE AL PREVISUALIZAR
-useEffect(() => {
-  if (!value) return;
-
-  if (value.elementsBySide) {
-    setElementsBySide(value.elementsBySide);
-  }
-
-  if (value.side) {
-    setSide(value.side);
-  }
-
-  if (typeof value.notes === "string") {
-    setNotes(value.notes);
-  }
-  hasInitializedRef.current = true;
-}, [value]);
-
-
-/* ======================================================
-     NOTIFICAR CAMBIOS AL PADRE
-     ⛔ NO sobrescribir el diseño inicial
-========================================================= */
-  useEffect(() => {
-    if (!hasInitializedRef.current) {
-      hasInitializedRef.current = true;
-      return;
-    }
-
-    onChange?.({
-      side,
-      elementsBySide,
-      notes,
-    });
-  }, [side, elementsBySide, notes, onChange]);
 
 
 
@@ -307,17 +269,6 @@ useEffect(() => {
   const offsetX = (stageWidth - DESIGN_BLOCK_WIDTH) / 2; // 🔹 NUEVO
 
   
-
-  /* ======================================================
-     Notificar cambios al padre (sin previews)
-========================================================= */
-  useEffect(() => {
-    onChange?.({
-      side,
-      elementsBySide,
-      notes,
-    });
-  }, [side, elementsBySide, notes]);
 
   /* ======================================================
      Transformer sync

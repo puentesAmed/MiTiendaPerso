@@ -36,12 +36,15 @@ import {
   AccordionIcon,
   Checkbox,
   Textarea,
+  Link,
 } from "@chakra-ui/react";
+import { loadGuestSession, saveGuestSession } from "../../services/guestSession.service";
+import { GuestSessionNotice } from "../../components/checkout/GuestSessionNotice";
 
 import { DeleteIcon } from "@chakra-ui/icons";
 
 const GUEST_KEY = "guest_id";
-const CHECKOUT_DRAFT_KEY = "checkout_draft_v1";
+//const CHECKOUT_DRAFT_KEY = "checkout_draft_v1";
 
 function getGuestId() {
   let id = localStorage.getItem(GUEST_KEY);
@@ -56,12 +59,17 @@ export function Checkout() {
   const { user } = useAuth();
   const { items, totalAmount, clearCart, updateQuantity, removeItem } = useCart();
   const nav = useNavigate();
+  const session = loadGuestSession();
 
   const [guestEmail, setGuestEmail] = useState(""); // ✅ NUEVO
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [paymentMethod] = useState("card");
+  const [checkoutHydrated, setCheckoutHydrated] = useState(false);
+  
+
+
 
   const [shippingAddress, setShippingAddress] = useState({
     fullName: "",
@@ -77,7 +85,7 @@ export function Checkout() {
   const [notes, setNotes] = useState("");
 
   // 🔁 Restaurar borrador del checkout (volver del diseñador)
-  useEffect(() => {
+  /*useEffect(() => {
     const stored = localStorage.getItem(CHECKOUT_DRAFT_KEY);
     if (!stored) return;
 
@@ -95,9 +103,37 @@ export function Checkout() {
       // ignorar borrador corrupto
     }
   }, []);
+*/
+  /*useEffect(() => {
+    const session = loadGuestSession();
+    if (!session?.checkoutDraft) return;
+
+    const d = session.checkoutDraft;
+    if (d.guestEmail) setGuestEmail(d.guestEmail);
+    if (d.shippingAddress) setShippingAddress(d.shippingAddress);
+    if (d.billingAddress) setBillingAddress(d.billingAddress);
+    if (typeof d.useSameBilling === "boolean") setUseSameBilling(d.useSameBilling);
+    if (d.notes) setNotes(d.notes);
+  }, []);
+*/
+  useEffect(() => {
+    const session = loadGuestSession();
+    if (session?.checkoutDraft) {
+      const d = session.checkoutDraft;
+      if (d.guestEmail) setGuestEmail(d.guestEmail);
+      if (d.shippingAddress) setShippingAddress(d.shippingAddress);
+      if (d.billingAddress) setBillingAddress(d.billingAddress);
+      if (typeof d.useSameBilling === "boolean") setUseSameBilling(d.useSameBilling);
+      if (d.notes) setNotes(d.notes);
+    }
+
+    setCheckoutHydrated(true);
+  }, []);
+
+
 
   // 💾 Guardar borrador del checkout automáticamente
-  useEffect(() => {
+ /* useEffect(() => {
     const draft = {
       guestEmail,
       shippingAddress,
@@ -108,6 +144,21 @@ export function Checkout() {
 
     localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
   }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes]);
+*/
+
+  useEffect(() => {
+    if (!checkoutHydrated) return;
+    saveGuestSession({
+      
+      checkoutDraft: {
+        guestEmail,
+        shippingAddress,
+        billingAddress,
+        useSameBilling,
+        notes,
+      },
+    });
+  }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes, checkoutHydrated]);
 
 
 
@@ -169,7 +220,8 @@ export function Checkout() {
       }
 
       clearCart();
-      localStorage.removeItem(CHECKOUT_DRAFT_KEY);
+      localStorage.removeItem("guest_session_v1");
+
       setSuccessMsg(`Pedido nº ${data.orderId} creado correctamente.`);
       //nav("/mis-pedidos");
       nav("/confirmacion-pedido", {
@@ -192,14 +244,26 @@ export function Checkout() {
     <Box maxW="900px" mx="auto" mt={10} p={5}>
       <Heading mb={3}>Checkout</Heading>
 
+     
       {!user && (
-        <Input
-          mb={4}
-          placeholder="Email para recibir el pedido"
-          value={guestEmail}
-          onChange={(e) => setGuestEmail(e.target.value)}
-        />
+        <>
+          <Input
+            mb={2}
+            placeholder="Email para recibir el pedido"
+            value={guestEmail}
+            onChange={(e) => setGuestEmail(e.target.value)}
+          />
+          <GuestSessionNotice />
+          {session?.expiresInDays !== undefined && (
+            <Text fontSize="xs" color="gray.400">
+              Sesión de invitado válida durante {session.expiresInDays} días.
+            </Text>
+          )}
+        </>
       )}
+
+
+
 
       <Stack spacing={4}>
         {items.map((it) => (
@@ -287,7 +351,7 @@ export function Checkout() {
                   onEdit={() => {
                     nav(`/personalizar/${it.productId}`, {
                       state: {
-                        customizationId: it.customization._id,
+                        customization: it.customization,
                         returnTo: "/checkout",
                       },
                     });
@@ -411,6 +475,16 @@ export function Checkout() {
       >
         Confirmar pedido y pagar
       </Button>
+
+      <Text fontSize="xs" color="gray.500" mt={2}>
+        Los datos introducidos se utilizarán únicamente para gestionar este pedido.
+        Se guardan de forma temporal en tu dispositivo y se eliminarán automáticamente
+        al finalizar el proceso o tras un periodo de inactividad.{" "}
+        <Link href="/politica-privacidad" textDecoration="underline">
+          Política de Privacidad
+        </Link>
+      </Text>
+
 
       {/* Modal de aviso */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} isCentered>

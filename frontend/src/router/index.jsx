@@ -57,6 +57,8 @@ import { MyOrders } from "../pages/MyOrders/MyOrders.jsx";
 import { ProtectedRoute } from "./ProtectedRoute.jsx";
 import { Admin } from "../pages/Admin/Admin.jsx";
 import { OrderConfirmation } from "../pages/OrderConfirmation/OrderConfirmation.jsx";
+import { PrivacyPolicy } from "../pages/Legal/PrivacyPolicy";
+
 
 
 
@@ -87,6 +89,7 @@ export const router = createBrowserRouter([
       //{ path: "/perfil", element: (<ProfilePage />)},
       //{ path: "/ayuda", element: (<HelpPage />)},
       { path: "confirmacion-pedido", element: <OrderConfirmation /> },
+      { path: "politica-privacidad", element: <PrivacyPolicy /> },
 
 
       {
