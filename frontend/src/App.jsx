@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Box,
   Flex,
@@ -17,6 +17,7 @@ import {
   MenuList,
   MenuItem,
   MenuDivider,
+  Link,
 } from "@chakra-ui/react";
 import { HamburgerIcon, CloseIcon, SunIcon, MoonIcon, ChevronDownIcon } from "@chakra-ui/icons";
 
@@ -24,6 +25,8 @@ import { HamburgerIcon, CloseIcon, SunIcon, MoonIcon, ChevronDownIcon } from "@c
 import { useAuth } from "./hooks/useAuth";
 import { useCart } from "./hooks/useCart";
 import {Logo }from "./components/common/Logo/Logo";
+import { CookieNotice } from "./components/common/CookieNotice";
+
 import { useEffect, useState } from "react";
 
 export function App() {
@@ -119,19 +122,19 @@ export function App() {
 
           {/* Navegación desktop */}
           <HStack spacing={4} ml={6} display={{ base: "none", md: "flex" }}>
-            <Button as={Link} to="/" variant="ghost" size="sm"
+            <Button as={RouterLink} to="/" variant="ghost" size="sm"
               _hover={{ color: "#6366F1", transform: "translateY(-2px)" }}>
               Inicio
             </Button>
 
-            <Button as={Link} to="/productos" variant="ghost" size="sm"
+            <Button as={RouterLink} to="/productos" variant="ghost" size="sm"
               _hover={{ color: "#6366F1", transform: "translateY(-2px)" }}>
               Productos
             </Button>
 
             
 
-            <Button as={Link} to="/carrito" variant="ghost" size="sm"
+            <Button as={RouterLink} to="/carrito" variant="ghost" size="sm"
               position="relative"
               _hover={{ color: "#6366F1", transform: "translateY(-2px)" }}
             >
@@ -150,7 +153,7 @@ export function App() {
             </Button>
 
             {user && user.role === "admin" && (
-              <Button as={Link} to="/admin" variant="ghost" size="sm"
+              <Button as={RouterLink} to="/admin" variant="ghost" size="sm"
                 _hover={{ color: "#6366F1", transform: "translateY(-2px)" }}>
                 Admin
               </Button>
@@ -191,16 +194,16 @@ export function App() {
                 </MenuButton>
 
                 <MenuList>
-                  <MenuItem as={Link} to="/perfil">Perfil</MenuItem>
-                  <MenuItem as={Link} to="/mis-pedidos">Mis pedidos</MenuItem>
-                  <MenuItem as={Link} to="/ayuda">Ayuda</MenuItem>
+                  <MenuItem as={RouterLink} to="/perfil">Perfil</MenuItem>
+                  <MenuItem as={RouterLink} to="/mis-pedidos">Mis pedidos</MenuItem>
+                  <MenuItem as={RouterLink} to="/ayuda">Ayuda</MenuItem>
                   <MenuDivider />
                   <MenuItem onClick={handleLogout} color="red.400">Cerrar sesión</MenuItem>
                 </MenuList>
               </Menu>
             ) : (
               <Button
-                as={Link}
+                as={RouterLink}
                 to="/login"
                 size="sm"
                 bg="#6366F1"
@@ -228,11 +231,11 @@ export function App() {
           bg={headerBg}
         >
           <Flex direction="column" px={4} py={2} gap={1}>
-            <Button as={Link} to="/" variant="ghost" justifyContent="flex-start" size="sm">
+            <Button as={RouterLink} to="/" variant="ghost" justifyContent="flex-start" size="sm">
               Inicio
             </Button>
             <Button
-              as={Link}
+              as={RouterLink}
               to="/productos"
               variant="ghost"
               justifyContent="flex-start"
@@ -241,7 +244,7 @@ export function App() {
               Productos
             </Button>
             <Button
-              as={Link}
+              as={RouterLink}
               to="/carrito"
               variant="ghost"
               justifyContent="flex-start"
@@ -256,7 +259,7 @@ export function App() {
             </Button>
             {user && user.role === "admin" && (
               <Button
-                as={Link}
+                as={RouterLink}
                 to="/admin"
                 variant="ghost"
                 justifyContent="flex-start"
@@ -284,8 +287,32 @@ export function App() {
         borderTop="1px solid"
         borderColor={border}
       >
-        © {new Date().getFullYear()} MiTiendaPerso
+        © {new Date().getFullYear()} MiLuGui
+        <Box mt={2} fontSize="sm">
+          <Link as={RouterLink} to="/aviso-legal">
+            Aviso Legal
+          </Link>                  
+        </Box>
+        <Box mt={2} fontSize="sm">
+          <Link as={RouterLink} to="/terminos-condiciones">
+            Términos y Condiciones
+          </Link>
+        </Box>
+        <Box mt={2} fontSize="sm">
+          <Link as={RouterLink} to="/politica-privacidad">
+            Política de Privacidad
+          </Link>
+        </Box>
+        <Box mt={2} fontSize="sm">
+          <Link as={RouterLink} to="/contacto-legal">
+            Contacto legal
+          </Link>
+        </Box>
+
+
       </Box>
+      {/* Aviso de cookies */}
+      <CookieNotice />
     </Flex>
   );
 }

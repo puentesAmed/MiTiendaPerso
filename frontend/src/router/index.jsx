@@ -58,6 +58,11 @@ import { ProtectedRoute } from "./ProtectedRoute.jsx";
 import { Admin } from "../pages/Admin/Admin.jsx";
 import { OrderConfirmation } from "../pages/OrderConfirmation/OrderConfirmation.jsx";
 import { PrivacyPolicy } from "../pages/Legal/PrivacyPolicy";
+import { AvisoLegal } from "../pages/Legal/AvisoLegal.jsx";
+import { TerminosCondiciones } from "../pages/Legal/TerminosCondiciones.jsx";
+import { CookiesPolicy } from "../pages/Legal/CookiesPolicy.jsx";
+import { ContactoLegal } from "../pages/Legal/ContactoLegal.jsx";
+
 
 
 
@@ -90,6 +95,13 @@ export const router = createBrowserRouter([
       //{ path: "/ayuda", element: (<HelpPage />)},
       { path: "confirmacion-pedido", element: <OrderConfirmation /> },
       { path: "politica-privacidad", element: <PrivacyPolicy /> },
+      { path: "aviso-legal", element: <AvisoLegal /> },
+      { path: "terminos-condiciones", element: <TerminosCondiciones /> },
+      { path: "contacto-legal", element: <ContactoLegal /> },
+      
+      { path: "politica-cookies", element: <CookiesPolicy /> },
+
+    
 
 
       {
