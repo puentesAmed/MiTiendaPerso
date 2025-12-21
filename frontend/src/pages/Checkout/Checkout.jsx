@@ -1,10 +1,11 @@
 // src/pages/Checkout/Checkout.jsx
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link as RouterLink} from "react-router-dom";
 import { useCart } from "../../hooks/useCart";
 import { useAuth } from "../../hooks/useAuth";
 import { createOrderRequest } from "../../services/orders.service";
 import { CustomizationInlineSummary } from "../../components/checkout/CustomizationInlineSummary";
+//import { createPayment } from "../../services/payments.service";
 
 import {
   Box,
@@ -40,7 +41,7 @@ import {
 } from "@chakra-ui/react";
 import { loadGuestSession, saveGuestSession } from "../../services/guestSession.service";
 import { GuestSessionNotice } from "../../components/checkout/GuestSessionNotice";
-
+import { useColorModeValue } from "@chakra-ui/react";
 import { DeleteIcon } from "@chakra-ui/icons";
 
 const GUEST_KEY = "guest_id";
@@ -65,8 +66,10 @@ export function Checkout() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [paymentMethod] = useState("card");
+  //const [paymentMethod] = useState("card");
   const [checkoutHydrated, setCheckoutHydrated] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
   
 
 
@@ -85,37 +88,7 @@ export function Checkout() {
   const [notes, setNotes] = useState("");
 
   // 🔁 Restaurar borrador del checkout (volver del diseñador)
-  /*useEffect(() => {
-    const stored = localStorage.getItem(CHECKOUT_DRAFT_KEY);
-    if (!stored) return;
-
-    try {
-      const draft = JSON.parse(stored);
-
-      if (draft.guestEmail) setGuestEmail(draft.guestEmail);
-      if (draft.shippingAddress) setShippingAddress(draft.shippingAddress);
-      if (draft.billingAddress) setBillingAddress(draft.billingAddress);
-      if (typeof draft.useSameBilling === "boolean") {
-        setUseSameBilling(draft.useSameBilling);
-      }
-      if (draft.notes) setNotes(draft.notes);
-    } catch {
-      // ignorar borrador corrupto
-    }
-  }, []);
-*/
-  /*useEffect(() => {
-    const session = loadGuestSession();
-    if (!session?.checkoutDraft) return;
-
-    const d = session.checkoutDraft;
-    if (d.guestEmail) setGuestEmail(d.guestEmail);
-    if (d.shippingAddress) setShippingAddress(d.shippingAddress);
-    if (d.billingAddress) setBillingAddress(d.billingAddress);
-    if (typeof d.useSameBilling === "boolean") setUseSameBilling(d.useSameBilling);
-    if (d.notes) setNotes(d.notes);
-  }, []);
-*/
+  
   useEffect(() => {
     const session = loadGuestSession();
     if (session?.checkoutDraft) {
@@ -133,18 +106,7 @@ export function Checkout() {
 
 
   // 💾 Guardar borrador del checkout automáticamente
- /* useEffect(() => {
-    const draft = {
-      guestEmail,
-      shippingAddress,
-      billingAddress,
-      useSameBilling,
-      notes,
-    };
-
-    localStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
-  }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes]);
-*/
+ 
 
   useEffect(() => {
     if (!checkoutHydrated) return;
@@ -192,6 +154,12 @@ export function Checkout() {
       return;
     }
 
+    if (!acceptedTerms) {
+      setError("Debes aceptar los Términos y Condiciones para continuar");
+      return;
+    }
+
+
     const notCustomized = items.find((i) => productNeedsCustomization(i));
     if (notCustomized) {
       setPendingProduct(notCustomized);
@@ -206,7 +174,7 @@ export function Checkout() {
     try {
       setLoading(true);
 
-      const data = await createOrderRequest(items, paymentMethod, {
+      const data = await createOrderRequest(items, /*paymentMethod,*/ {
         guestId: user ? null : getGuestId(),
         email: user ? null : guestEmail,
         shippingAddress,
@@ -214,10 +182,31 @@ export function Checkout() {
         notes,
       });
 
+      
+
       if (!data.ok) {
         setError(data.message || "Error al procesar pedido");
         return;
       }
+
+      // 🔴 PASO 7: INICIAR PAGO
+      /*const payment = await createPayment(data.orderId);
+
+      if (!payment?.paymentUrl) {
+        setError("No se pudo iniciar el pago");
+        return;
+      }
+
+      // 🔁 Redirigir al proveedor de pago
+      window.location.href = payment.paymentUrl;
+      return;
+*/
+
+      
+
+      
+
+      
 
       clearCart();
       localStorage.removeItem("guest_session_v1");
@@ -464,6 +453,38 @@ export function Checkout() {
         </AccordionItem>
       </Accordion>
 
+      <Stack
+        mt={6}
+        spacing={2}
+        fontSize="sm"
+        color={useColorModeValue("gray.600", "gray.400")}
+      >
+        <Text>🔒 Pago seguro: tus datos están protegidos.</Text>
+        <Text>🎨 Diseño confirmado: revisa tu personalización antes de pagar.</Text>
+        <Text>🕒 Privacidad: los datos de invitados se conservan solo para finalizar el pedido.</Text>
+      </Stack>
+
+
+
+      <Checkbox
+        mt={4}
+        isChecked={acceptedTerms}
+        onChange={(e) => setAcceptedTerms(e.target.checked)}
+        colorScheme="blue"
+      >
+        He leído y acepto los{" "}
+        <Link as={RouterLink} to="/terminos-condiciones" color="blue.500">
+          Términos y Condiciones de Venta.
+        </Link>
+      </Checkbox>
+      {!acceptedTerms && (
+        <Text fontSize="xs" color="gray.500" mt={1}>
+          Es obligatorio aceptar los términos para continuar con el pago.
+        </Text>
+      )}
+
+
+
 
       <Button
         mt={6}
@@ -472,6 +493,7 @@ export function Checkout() {
         size="lg"
         onClick={handleConfirmOrder}
         isLoading={loading}
+        isDisabled={!acceptedTerms}
       >
         Confirmar pedido y pagar
       </Button>
@@ -480,7 +502,7 @@ export function Checkout() {
         Los datos introducidos se utilizarán únicamente para gestionar este pedido.
         Se guardan de forma temporal en tu dispositivo y se eliminarán automáticamente
         al finalizar el proceso o tras un periodo de inactividad.{" "}
-        <Link href="/politica-privacidad" textDecoration="underline">
+        <Link as={RouterLink} to="/politica-privacidad" textDecoration="underline">
           Política de Privacidad
         </Link>
       </Text>

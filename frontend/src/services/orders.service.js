@@ -37,22 +37,20 @@ export async function adminUpdateOrderStatus(orderId, status) {
 // src/services/orders.service.js
 import { http } from "./http";
 
-export async function createOrderRequest(items, paymentMethod, guestData = null) {
-  try {
-    const payload = {
-      items,
-      paymentMethod,
-      ...(guestData || {}),
-    };
+export async function createOrderRequest(items, data = {}) {
+  const payload = {
+    items,
+    guestId: data.guestId ?? null,
+    email: data.email ?? null,
+    shippingAddress: data.shippingAddress,
+    billingAddress: data.billingAddress ?? null,
+    notes: data.notes ?? "",
+  };
 
-    const { data } = await http.post("/api/orders", payload);
-    return data;
-  } catch (err) {
-    return {
-      ok: false,
-      message: err.response?.data?.message || "Error al procesar pedido",
-    };
-  }
+  console.log("📦 Payload /api/orders:", payload);
+
+  const { data: response } = await http.post("/api/orders", payload);
+  return response;
 }
 
 // Pedidos del usuario autenticado
@@ -61,15 +59,13 @@ export async function getMyOrdersRequest() {
   return data; // { ok, orders }
 }
 
-
-// ADMIN: obtener pedidos
+// ADMIN: listar pedidos (con filtros opcionales)
 export async function adminGetOrders(params = {}) {
   const { data } = await http.get("/api/orders", { params });
-  return data;
+  return data; // { ok, orders }
 }
 
-// ADMIN: actualizar estado
-export async function adminUpdateOrderStatus(id, status) {
-  const { data } = await http.patch(`/api/orders/${id}/status`, { status });
-  return data;
+export async function adminUpdateOrderStatus(orderId, status) {
+  const { data } = await http.patch(`/api/orders/${orderId}/status`, { status });
+  return data; // { ok, order, message }
 }
