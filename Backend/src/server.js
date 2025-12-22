@@ -73,6 +73,7 @@ import { productsRouter } from "./routes/products.routes.js";
 import { ordersRouter } from "./routes/orders.routes.js";
 import { uploadRouter } from "./routes/uploads.routes.js";
 import { customizationRoutes } from "./routes/customizations.routes.js";
+import { shippingRoutes } from "./routes/shipping.routes.js";
 
 async function bootstrap() {
   await connectDB();
@@ -107,6 +108,7 @@ async function bootstrap() {
   app.use("/api/orders", ordersRouter);
   app.use("/api/uploads", uploadRouter);
   app.use("/api/customizations", customizationRoutes);
+  app.use("/api/shipping", shippingRoutes);
 
   /* ---------------------------------------------------------
    * HEALTHCHECK

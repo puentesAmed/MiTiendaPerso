@@ -1,4 +1,4 @@
-// src/pages/ProductDetail/ProductDetail.jsx
+/*// src/pages/ProductDetail/ProductDetail.jsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
@@ -86,12 +86,7 @@ export function ProductDetail() {
     (!requiresColor || selectedColor);
 
 
- /* const images =
-    product?.images?.length
-      ? product.images
-      : product?.image
-      ? [product.image]
-      : [];*/
+
 
   const images = product
     ? [
@@ -178,7 +173,7 @@ export function ProductDetail() {
         borderRadius="xl"
         p={4}
       >
-        {/* Imagen */}
+        
         <Box flex="1" minW={{ base: "100%", md: "320px" }}>
           {activeImage ? (
             <Image
@@ -233,7 +228,7 @@ export function ProductDetail() {
 
         </Box>
 
-        {/* Info */}
+        
         <Box flex="2">
           <Stack spacing={3}>
             <HStack justify="space-between" align="flex-start">
@@ -276,7 +271,7 @@ export function ProductDetail() {
               </Text>
             </HStack>
 
-            {/* Bloque para ir al diseñador avanzado */}
+            
             {isCustomizable && (
               <Box
                 mt={4}
@@ -304,7 +299,7 @@ export function ProductDetail() {
               </Box>
             )}
 
-            {/* Variantes */}
+            
             {(product.variants?.sizes?.length > 0 ||
               product.variants?.colors?.length > 0) && (
               <Box mt={4}>
@@ -350,7 +345,7 @@ export function ProductDetail() {
 
 
 
-            {/* Cantidad + carrito */}
+           
             <HStack mt={4} spacing={4}>
               <Box>
                 <Text mb={1} fontSize="xs" color="gray.500">
@@ -392,6 +387,294 @@ export function ProductDetail() {
           </Stack>
         </Box>
       </Box>
+    </Box>
+  );
+}
+*/
+
+// src/pages/ProductDetail/ProductDetail.jsx
+import { useEffect, useState } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import {
+  Box,
+  Heading,
+  Text,
+  Image,
+  Stack,
+  HStack,
+  Button,
+  Spinner,
+  Badge,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper,
+  FormControl,
+  FormLabel,
+  Select,
+  Divider,
+} from "@chakra-ui/react";
+import { ArrowBackIcon } from "@chakra-ui/icons";
+import { apiGetProductById } from "../../services/products.service";
+import { useCart } from "../../hooks/useCart";
+
+export function ProductDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { addItem } = useCart();
+
+  const [product, setProduct] = useState(null);
+  const [quantity, setQuantity] = useState(1);
+  const [selectedSize, setSelectedSize] = useState("");
+  const [selectedColor, setSelectedColor] = useState("");
+  const [activeImage, setActiveImage] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+
+    async function load() {
+      try {
+        setLoading(true);
+        const data = await apiGetProductById(id);
+        if (!alive) return;
+
+        setProduct(data);
+        const imgs = [
+          ...(data.image ? [data.image] : []),
+          ...(Array.isArray(data.images) ? data.images : []),
+        ];
+        setActiveImage(imgs[0] || null);
+      } catch {
+        if (alive) setError("No se pudo cargar el producto");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+
+    if (id) load();
+    return () => (alive = false);
+  }, [id]);
+
+  if (loading) {
+    return (
+      <Box minH="60vh" display="flex" alignItems="center" justifyContent="center">
+        <Spinner size="lg" />
+      </Box>
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <Box p={6}>
+        <Button
+          leftIcon={<ArrowBackIcon />}
+          size="sm"
+          mb={4}
+          variant="ghost"
+          onClick={() => navigate(-1)}
+        >
+          Volver
+        </Button>
+        <Text color="red.400">{error || "Producto no encontrado"}</Text>
+      </Box>
+    );
+  }
+
+  const requiresSize = product?.variants?.sizes?.length > 0;
+  const requiresColor = product?.variants?.colors?.length > 0;
+  const canAddToCart =
+    product.stock > 0 &&
+    (!requiresSize || selectedSize) &&
+    (!requiresColor || selectedColor);
+
+  const handleAddToCart = () => {
+    addItem(product, Number(quantity) || 1, null, {
+      size: selectedSize || null,
+      color: selectedColor || null,
+    });
+  };
+
+  return (
+    <Box>
+      <Button
+        leftIcon={<ArrowBackIcon />}
+        size="sm"
+        mb={4}
+        variant="ghost"
+        onClick={() => navigate(-1)}
+      >
+        Volver
+      </Button>
+
+      <Box
+        bg="bgSurface"
+        borderRadius="xl"
+        p={{ base: 4, md: 6 }}
+        display="grid"
+        gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }}
+        gap={8}
+      >
+        {/* GALERÍA */}
+        <Box>
+          <Image
+            src={activeImage}
+            alt={product.name}
+            borderRadius="lg"
+            w="100%"
+            h="360px"
+            objectFit="contain"
+          />
+
+          <HStack mt={3} spacing={2} justify="center">
+            {[product.image, ...(product.images || [])]
+              .filter(Boolean)
+              .map((img, idx) => (
+                <Image
+                  key={idx}
+                  src={img}
+                  boxSize="64px"
+                  objectFit="cover"
+                  borderRadius="md"
+                  cursor="pointer"
+                  border="1px solid"
+                  borderColor={
+                    activeImage === img ? "brand" : "borderSubtle"
+                  }
+                  onClick={() => setActiveImage(img)}
+                />
+              ))}
+          </HStack>
+        </Box>
+
+        {/* BUY BOX */}
+        <Stack spacing={4}>
+          <Box>
+            <Heading size="lg">{product.name}</Heading>
+            {product.category && (
+              <Badge mt={1} colorScheme="blue">
+                {product.category}
+              </Badge>
+            )}
+          </Box>
+
+          <Text fontSize="3xl" fontWeight="bold">
+            {product.price.toFixed(2)} €
+          </Text>
+
+          <Text fontSize="sm" color={product.stock > 0 ? "green.400" : "red.400"}>
+            {product.stock > 0
+              ? `Stock disponible: ${product.stock}`
+              : "Sin stock"}
+          </Text>
+
+          {(requiresSize || requiresColor) && (
+            <HStack spacing={4}>
+              {requiresSize && (
+                <FormControl>
+                  <FormLabel>Talla</FormLabel>
+                  <Select
+                    size="sm"
+                    placeholder="Selecciona"
+                    value={selectedSize}
+                    onChange={(e) => setSelectedSize(e.target.value)}
+                  >
+                    {product.variants.sizes.map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+
+              {requiresColor && (
+                <FormControl>
+                  <FormLabel>Color</FormLabel>
+                  <Select
+                    size="sm"
+                    placeholder="Selecciona"
+                    value={selectedColor}
+                    onChange={(e) => setSelectedColor(e.target.value)}
+                  >
+                    {product.variants.colors.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            </HStack>
+          )}
+
+          <HStack>
+            <NumberInput
+              size="sm"
+              min={1}
+              max={product.stock}
+              value={quantity}
+              onChange={(v) => setQuantity(v)}
+              w="100px"
+            >
+              <NumberInputField />
+              <NumberInputStepper>
+                <NumberIncrementStepper />
+                <NumberDecrementStepper />
+              </NumberInputStepper>
+            </NumberInput>
+
+            <Button
+              bg="brand"
+              color="white"
+              flex="1"
+              onClick={handleAddToCart}
+              isDisabled={!canAddToCart}
+              _hover={{ opacity: 0.9 }}
+            >
+              Añadir al carrito
+            </Button>
+          </HStack>
+
+          {/* ENVÍO */}
+          <Box
+            p={4}
+            borderRadius="lg"
+            bg="infoSurface"
+            border="1px solid"
+            borderColor="borderSubtle"
+          >
+            <Text fontWeight="semibold">🚚 Envío</Text>
+            <Text fontSize="sm">
+              El precio y el plazo de entrega se calcularán en el checkout.
+            </Text>
+            <Text fontSize="xs" color="textMuted">
+              Puede variar según la dirección de envío (Península, Islas o internacional).
+            </Text>
+          </Box>
+
+
+          {/* DEVOLUCIONES */}
+          <Box p={4} borderRadius="lg" bg="infoSurface">
+            <Text fontWeight="semibold">🔄 Devoluciones</Text>
+            <Text fontSize="xs" color="textMuted">
+              Consulta las condiciones de devolución antes de finalizar la compra.
+            </Text>
+          </Box>
+
+        </Stack>
+      </Box>
+
+      <Divider my={10} />
+
+      {product.description && (
+        <Box>
+          <Heading size="sm" mb={2}>
+            Descripción
+          </Heading>
+          <Text fontSize="sm" color="textMuted">
+            {product.description}
+          </Text>
+        </Box>
+      )}
     </Box>
   );
 }

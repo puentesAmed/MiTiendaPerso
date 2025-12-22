@@ -81,6 +81,10 @@ export function Checkout() {
   const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 
+  // --- ENVÍO ---
+  const [shippingQuote, setShippingQuote] = useState(null);
+  const [shippingLoading, setShippingLoading] = useState(false);
+  const [shippingError, setShippingError] = useState("");
 
 
   const [shippingAddress, setShippingAddress] = useState({
@@ -153,7 +157,56 @@ export function Checkout() {
     });
   }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes, checkoutHydrated]);
 
+  // --- ENVÍO ---
+  useEffect(() => {
+    if (
+      !isShippingAddressValid() ||
+      !items.length ||
+      loading // ⬅️ NUEVO
+    ) {
+      setShippingQuote(null);
+      return;
+    }
 
+
+    const controller = new AbortController();
+
+    const fetchShippingQuote = async () => {
+      try {
+        setShippingLoading(true);
+        setShippingError("");
+
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/shipping/quote`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: items.map(i => ({
+              productId: i.productId,
+              quantity: i.quantity,
+              price: i.price,
+            })),
+            shippingAddress,
+          }),
+          signal: controller.signal,
+        });
+
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.message || "Error envío");
+
+        setShippingQuote(data.quote);
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setShippingError("No se pudo calcular el envío");
+          setShippingQuote(null);
+        }
+      } finally {
+        setShippingLoading(false);
+      }
+    };
+
+    fetchShippingQuote();
+    return () => controller.abort();
+  }, [shippingAddress, items]);
 
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -263,6 +316,8 @@ export function Checkout() {
       localStorage.removeItem("guest_session_v1");
 
       setSuccessMsg(`Pedido nº ${data.orderId} creado correctamente.`);
+      setShippingQuote(null);
+
       //nav("/mis-pedidos");
       nav("/confirmacion-pedido", {
         state: {
@@ -457,9 +512,74 @@ export function Checkout() {
 
       <Divider my={6} />
 
-      <Text fontSize="lg" fontWeight="bold">
-        Total: {totalAmount.toFixed(2)} €
-      </Text>
+      <Box mt={4}>
+        <Text fontSize="lg" fontWeight="bold">
+          Subtotal productos: {totalAmount.toFixed(2)} €
+        </Text>
+
+        {!isShippingAddressValid() && (
+          <Text fontSize="sm" color="textMuted">
+            El coste de envío se calculará al completar la dirección.
+          </Text>
+        )}
+
+        {shippingLoading && (
+          <Text fontSize="sm">Calculando coste de envío…</Text>
+        )}
+
+        {shippingError && (
+          <Text fontSize="sm" color="red.400">
+            {shippingError}
+          </Text>
+        )}
+
+        {shippingQuote && (
+          <>
+            <Text fontSize="sm">
+              Envío:{" "}
+              {shippingQuote.isFree ? (
+                <strong>GRATIS</strong>
+              ) : (
+                `${shippingQuote.price.toFixed(2)} €`
+              )}
+            </Text>
+
+            <Text fontSize="xs" color="textMuted">
+              Entrega estimada: {shippingQuote.estimatedDays.min}–
+              {shippingQuote.estimatedDays.max} días laborables
+            </Text>
+
+            {/* ENVÍO GRATIS APLICADO */}
+            {shippingQuote.isFree && (
+              <Text fontSize="xs" color="green.400" mt={1}>
+                🎉 Envío gratis aplicado automáticamente a tu pedido
+              </Text>
+            )}
+
+            {/* FALTA PARA ENVÍO GRATIS */}
+            {!shippingQuote.isFree &&
+              shippingQuote.freeFrom &&
+              totalAmount < shippingQuote.freeFrom && (
+                <Text fontSize="xs" color="textMuted" mt={1}>
+                  Añade{" "}
+                  <strong>
+                    {(shippingQuote.freeFrom - totalAmount).toFixed(2)} €
+                  </strong>{" "}
+                  más para conseguir envío gratis
+                </Text>
+              )}
+
+            <Divider my={2} />
+
+            <Text fontSize="xl" fontWeight="bold">
+              Total: {(totalAmount + shippingQuote.price).toFixed(2)} €
+            </Text>
+          </>
+        )}
+
+      </Box>
+
+
 
       {error && (
         <Alert mt={4} status="error">
@@ -482,6 +602,12 @@ export function Checkout() {
             <Box flex="1" textAlign="left">Dirección de envío</Box>
             <AccordionIcon />
           </AccordionButton>
+          <Text fontSize="sm" color="textMuted" mb={3}>
+            Introduce la dirección donde deseas recibir tu pedido.  
+            El coste y el plazo de entrega se calcularán automáticamente según esta información
+            y se mostrarán antes de finalizar la compra.
+          </Text>
+
           <AccordionPanel>
             <Stack spacing={3}>
               <Input placeholder="Nombre completo *"
@@ -565,8 +691,9 @@ export function Checkout() {
         fontSize="sm"
         color={useColorModeValue("gray.600", "gray.400")}
       >
-        <Text>🔒 Pago seguro: tus datos están protegidos.</Text>
-        <Text>🎨 Diseño confirmado: revisa tu personalización antes de pagar.</Text>
+        <Text>🔒 Pago seguro: tus datos están protegidos durante todo el proceso.</Text>
+        <Text>📦 Envío: el coste y el plazo se confirmarán antes del pago.</Text>
+        <Text>🎨 Personalización: revisa tu diseño antes de confirmar el pedido.</Text>
         <Text>🕒 Privacidad: los datos de invitados se conservan solo para finalizar el pedido.</Text>
       </Stack>
 
@@ -605,7 +732,7 @@ export function Checkout() {
         size="lg"
         onClick={handleConfirmOrder}
         isLoading={loading}
-        isDisabled={!acceptedTerms}
+        isDisabled={!acceptedTerms || shippingLoading}
       >
         Confirmar pedido y pagar
       </Button>
@@ -613,7 +740,8 @@ export function Checkout() {
       <Text fontSize="xs" color="gray.500" mt={2}>
         Los datos introducidos se utilizarán únicamente para gestionar este pedido.
         Se guardan de forma temporal en tu dispositivo y se eliminarán automáticamente
-        al finalizar el proceso o tras un periodo de inactividad.{" "}
+        al finalizar el proceso o tras un periodo de inactividad. El coste total, 
+        incluyendo el envío, se mostrará antes de confirmar el pago.{" "}
         <Link as={RouterLink} to="/politica-privacidad" textDecoration="underline">
           Política de Privacidad
         </Link>
