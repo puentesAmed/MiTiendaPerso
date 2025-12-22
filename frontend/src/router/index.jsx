@@ -62,6 +62,7 @@ import { AvisoLegal } from "../pages/Legal/AvisoLegal.jsx";
 import { TerminosCondiciones } from "../pages/Legal/TerminosCondiciones.jsx";
 import { CookiesPolicy } from "../pages/Legal/CookiesPolicy.jsx";
 import { ContactoLegal } from "../pages/Legal/ContactoLegal.jsx";
+import { OrderTracking } from "../pages/OrderTracking/OrderTracking.jsx";
 
 
 
@@ -100,6 +101,9 @@ export const router = createBrowserRouter([
       { path: "contacto-legal", element: <ContactoLegal /> },
       
       { path: "politica-cookies", element: <CookiesPolicy /> },
+
+      //Pedidos
+      { path: "/seguimiento-pedido", element: <OrderTracking />},
 
     
 

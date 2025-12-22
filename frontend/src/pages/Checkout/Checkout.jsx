@@ -71,6 +71,7 @@ export function Checkout() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
 
 
@@ -140,9 +141,22 @@ export function Checkout() {
     return front.length === 0 && back.length === 0;
   };
 
+  const isShippingAddressValid = () => {
+    return (
+      shippingAddress.fullName.trim() &&
+      shippingAddress.street.trim() &&
+      shippingAddress.city.trim() &&
+      shippingAddress.state.trim() &&
+      shippingAddress.postalCode.trim()
+    );
+  };
+
+
   const handleConfirmOrder = async () => {
     setError("");
     setSuccessMsg("");
+    setAttemptedSubmit(true);
+
 
     if (!items.length) {
       setError("El carrito está vacío");
@@ -158,6 +172,12 @@ export function Checkout() {
       setError("Debes aceptar los Términos y Condiciones para continuar");
       return;
     }
+
+    if (!isShippingAddressValid()) {
+      setError("Debes completar todos los datos de la dirección de envío");
+      return;
+    }
+
 
 
     const notCustomized = items.find((i) => productNeedsCustomization(i));
@@ -383,24 +403,29 @@ export function Checkout() {
           </AccordionButton>
           <AccordionPanel>
             <Stack spacing={3}>
-              <Input placeholder="Nombre completo"
+              <Input placeholder="Nombre completo *"
                 value={shippingAddress.fullName}
+                isInvalid={attemptedSubmit && !shippingAddress.fullName}
                 onChange={(e) => setShippingAddress({ ...shippingAddress, fullName: e.target.value })}
               />
-              <Input placeholder="Dirección"
+              <Input placeholder="Dirección *"
                 value={shippingAddress.street}
+                isInvalid={attemptedSubmit && !shippingAddress.street}
                 onChange={(e) => setShippingAddress({ ...shippingAddress, street: e.target.value })}
               />
-              <Input placeholder="Ciudad"
+              <Input placeholder="Ciudad *"
                 value={shippingAddress.city}
+                isInvalid={attemptedSubmit && !shippingAddress.city}
                 onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })}
               />
-              <Input placeholder="Provincia"
+              <Input placeholder="Provincia *"
                 value={shippingAddress.state}
+                isInvalid={attemptedSubmit && !shippingAddress.state}
                 onChange={(e) => setShippingAddress({ ...shippingAddress, state: e.target.value })}
               />
-              <Input placeholder="Código postal"
+              <Input placeholder="Código postal *"
                 value={shippingAddress.postalCode}
+                isInvalid={attemptedSubmit && !shippingAddress.postalCode}
                 onChange={(e) => setShippingAddress({ ...shippingAddress, postalCode: e.target.value })}
               />
             </Stack>

@@ -1684,8 +1684,9 @@ const handleDownloadZip = async (customization) => {
                     onChange={(e) => setStatusFilter(e.target.value)}
                   >
                     <option value="">Todos</option>
-                    <option value="pending">Pendiente</option>
-                    <option value="paid">Pagado</option>
+                    <option value="created">Creado</option>
+                    <option value="processing">En preparación</option>
+                    
                     <option value="shipped">Enviado</option>
                     <option value="delivered">Entregado</option>
                     <option value="cancelled">Cancelado</option>
@@ -1759,8 +1760,8 @@ const handleDownloadZip = async (customization) => {
                               handleChangeOrderStatus(o._id, e.target.value)
                             }
                           >
-                            <option value="pending">Pendiente</option>
-                            <option value="paid">Pagado</option>
+                            <option value="created">Creado</option>
+                            <option value="processing">En preparación</option>
                             <option value="shipped">Enviado</option>
                             <option value="delivered">Entregado</option>
                             <option value="cancelled">Cancelado</option>

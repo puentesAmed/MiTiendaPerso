@@ -47,23 +47,32 @@ const orderSchema = new mongoose.Schema(
     // Estado logístico del pedido
     status: {
       type: String,
-      enum: ["pending", "shipped", "delivered", "cancelled"],
-      default: "pending",
+      enum: ["created", "processing", "shipped", "delivered", "cancelled"],
+      default: "created",
     },
 
     // Gestión de pago
-    paymentMethod: {
-      type: String,
-      enum: ["card", "paypal", "cod"], // cod = contra reembolso
-      default: "card",
-    },
-    paymentStatus: {
-      type: String,
-      enum: ["pending", "paid", "failed"],
-      default: "pending",
+    payment: {
+      method: {
+        type: String,
+        enum: ["card", "paypal", "monei", null],
+        default: null,
+      },
+      status: {
+        type: String,
+        enum: ["pending", "paid", "failed", "refunded"],
+        default: "pending",
+      },
+      paidAt: {
+        type: Date,
+        default: null,
+      },
+      transactionId: {
+        type: String,
+        default: null,
+      },
     },
 
-    paidAt: { type: Date },
 
     shippingAddress: { type: addressSchema, required: true },
     billingAddress: { type: addressSchema, required: false },

@@ -7,10 +7,13 @@ import {
   getOrdersByUser,
   adminGetAllOrders,
   adminUpdateOrderStatus,
+  trackOrderByEmail,
 } from "../controllers/orders.controller.js";
 
 export const ordersRouter = Router();
 
+//Pedidos
+ordersRouter.get("/track", trackOrderByEmail);
 // todas requieren estar autenticado
 //ordersRouter.use(requireAuth);
 

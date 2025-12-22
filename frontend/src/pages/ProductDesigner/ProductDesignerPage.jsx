@@ -101,18 +101,19 @@ export function ProductDesignerPage() {
      PREVISUALIZAR (360º)
   ──────────────────────────────── */
   const handlePreviewClick = async () => {
-    if (!stageRef.current?.exportPreviewForSide) {
-      setMode("preview");
-      return;
-    }
+    if (!stageRef.current?.exportPreviewForSide || !design) return;
 
     const front = await stageRef.current.exportPreviewForSide("front");
     const back = await stageRef.current.exportPreviewForSide("back");
 
-    setDesign((prev) => ({
-      ...prev,
+    const savedDesign = {
+      ...design,
       previewsBySide: { front, back },
-    }));
+    };
+
+    // 🔑 CLAVE: guardar diseño
+    setDesign(savedDesign);
+    setCommittedDesign(savedDesign);
 
     setMode("preview");
   };
@@ -185,17 +186,29 @@ export function ProductDesignerPage() {
   return (
     <Box p={6} bg={bg} borderRadius="xl">
       <HStack justify="space-between" mb={4}>
-        <Button
-          leftIcon={<ArrowBackIcon />}
-          variant="ghost"
-          onClick={() => navigate(-1)}
-        >
-          Volver
-        </Button>
+        {mode !== "preview" && (
+          <Button
+            leftIcon={<ArrowBackIcon />}
+            variant="ghost"
+            onClick={() => navigate(-1)}
+          >
+            Volver
+          </Button>
+        )}
+
         <Heading size="md">Personalizar: {product.name}</Heading>
       </HStack>
 
-      <Box bg={cardBg} borderRadius="xl" p={4}>
+
+      <Box
+        bg={cardBg}
+        borderRadius="xl"
+        p={{ base: 2, md: 4 }}
+        display="flex"
+        flexDirection="column"
+        minH={{ base: "auto", md: "600px" }}
+      >
+
         <Stack spacing={4}>
           {mode === "edit" ? (
             design ? (

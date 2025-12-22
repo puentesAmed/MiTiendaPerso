@@ -282,8 +282,7 @@ export async function createOrder(req, res) {
     //const { items, paymentMethod = "card", guestId, email: guestEmail } = req.body;
 
     const {
-      items,
-      paymentMethod = "card",
+      items,     
       guestId,
       email: guestEmail,
       shippingAddress,
@@ -410,10 +409,7 @@ export async function createOrder(req, res) {
       )
     );
 
-    const paymentStatus =
-      paymentMethod === "card" || paymentMethod === "paypal"
-        ? "paid"
-        : "pending";
+    
 
     /*const order = await Order.create({
       userId: userId || null,
@@ -432,15 +428,20 @@ export async function createOrder(req, res) {
       guestEmail: userId ? null : guestEmail,
       items: orderItems,
       total,
-
-      // ⬇️ NUEVO (FASE 1.5)
       shippingAddress,
       billingAddress: billingAddress || null,
       notes: notes || "",
 
-      status: "pending",
-      paymentMethod,
-      paymentStatus,
+      //Logística
+      status: "created",
+
+      //Pago
+      payment: {
+        method: null,
+        status: "pending",
+      },
+
+      
     });
 
     // 📧 Email al cliente
@@ -549,7 +550,13 @@ export async function adminUpdateOrderStatus(req, res) {
     const { id } = req.params;
     const { status } = req.body;
 
-    const allowed = ["pending", "paid", "shipped", "delivered", "cancelled"];
+    const allowed = [
+      "processing",
+      "shipped",
+      "delivered",
+      "cancelled",
+    ];
+
     if (!allowed.includes(status)) {
       return res.status(400).json({
         ok: false,
@@ -557,11 +564,17 @@ export async function adminUpdateOrderStatus(req, res) {
       });
     }
 
-    const order = await Order.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true, runValidators: true }
-    );
+    // Actualizar estado
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return res.status(404).json({ ok: false, message: "Pedido no encontrado" });
+    }
+
+    order.status = status;
+    await order.save();
+
+    // 📧 Notificar al cliente
 
     const emailData = orderStatusEmail(order);
 
@@ -572,15 +585,7 @@ export async function adminUpdateOrderStatus(req, res) {
         html: emailData.html,
       });
     }
-
-
-    if (!order) {
-      return res.status(404).json({
-        ok: false,
-        message: "Pedido no encontrado",
-      });
-    }
-
+   
     return res.json({
       ok: true,
       order,
@@ -591,6 +596,63 @@ export async function adminUpdateOrderStatus(req, res) {
     return res.status(500).json({
       ok: false,
       message: "Error al actualizar estado del pedido",
+    });
+  }
+}
+
+
+//Pedidos
+
+export async function trackOrderByEmail(req, res) {
+  try {
+    const { orderId, email } = req.query;
+
+    if (!orderId || !email) {
+      return res.status(400).json({
+        ok: false,
+        message: "Pedido y email son obligatorios",
+      });
+    }
+
+    const order = await Order.findById(orderId).lean();
+
+    if (!order) {
+      return res.status(404).json({
+        ok: false,
+        message: "Pedido no encontrado",
+      });
+    }
+
+    // Verificar email (usuario o invitado)
+    const validEmail =
+      order.guestEmail === email ||
+      order.userId?.email === email;
+
+    if (!validEmail) {
+      return res.status(403).json({
+        ok: false,
+        message: "Datos no coinciden",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      order: {
+        _id: order._id,
+        status: order.status,
+        total: order.total,
+        createdAt: order.createdAt,
+        items: order.items.map(i => ({
+          name: i.name,
+          quantity: i.quantity,
+        })),
+      },
+    });
+  } catch (err) {
+    console.error("Error en trackOrderByEmail:", err);
+    return res.status(500).json({
+      ok: false,
+      message: "Error al consultar pedido",
     });
   }
 }

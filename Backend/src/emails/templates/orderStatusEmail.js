@@ -3,24 +3,28 @@ export function orderStatusEmail(order) {
   let message = "";
 
   switch (order.status) {
-    case "paid":
-      title = "Pago recibido";
-      message = "Hemos recibido el pago de tu pedido.";
+    case "processing":
+      title = "Pedido en preparación";
+      message = "Tu pedido está siendo preparado.";
       break;
+
     case "shipped":
       title = "Pedido enviado";
       message = "Tu pedido ha sido enviado y está en camino.";
       break;
+
     case "delivered":
       title = "Pedido entregado";
       message = "Tu pedido ha sido entregado. ¡Gracias por confiar en nosotros!";
       break;
+
     case "cancelled":
       title = "Pedido cancelado";
       message = "Tu pedido ha sido cancelado. Si tienes dudas, contáctanos.";
       break;
+
     default:
-      return null; // no enviar email en otros estados
+      return null; // No enviar email en otros estados
   }
 
   return {

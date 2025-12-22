@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Stage,
-  Group,
   Layer,
   Image as KonvaImage,
   Rect,
@@ -22,7 +21,7 @@ import {
   NumberInputField,
   Text as ChakraText,
   Divider,
-  Textarea,
+  
 } from "@chakra-ui/react";
 
 /* ======================================================
@@ -69,11 +68,7 @@ function DesignerImageElement({ el, isSelected, onSelect, onChange }) {
   const img = useImage(el.url);
   const shapeRef = useRef(null);
 
-  useEffect(() => {
-    if (isSelected && shapeRef.current) {
-      shapeRef.current.moveToTop();
-    }
-  }, [isSelected]);
+  
 
   return (
     <KonvaImage
@@ -166,24 +161,28 @@ function ExportStage({
             />
           )}
 
-          {(elements || []).map((el) => {
-            if (el.type === "text") {
-              return (
-                <KonvaText
-                  key={el.id}
-                  text={el.text}
-                  x={el.x}
-                  y={el.y}
-                  fontSize={el.fontSize || 24}
-                  fontFamily={el.fontFamily || "Arial"}
-                  fill={el.fill || "#000000"}
-                  rotation={el.rotation || 0}                  
-                  listening={false}
-                />
+          {(elements || [])
+            .slice()
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+            .map((el) => {
+
+              if (el.type === "text") {
+                return (
+                  <KonvaText
+                    key={el.id}
+                    text={el.text}
+                    x={el.x}
+                    y={el.y}
+                    fontSize={el.fontSize || 24}
+                    fontFamily={el.fontFamily || "Arial"}
+                    fill={el.fill || "#000000"}
+                    rotation={el.rotation || 0}                  
+                    listening={false}
+                  />
 
 
-              );
-            }
+                );
+              }
 
             if (el.type === "image") {
               const img = imagesMap[el.id];
@@ -228,11 +227,20 @@ export function ProductDesigner({
   const [elementsBySide, setElementsBySide] = useState(
     () => value?.elementsBySide || { front: [], back: [] }
   );
-  const [notes, setNotes] = useState(() => value?.notes || "");
+  //const [notes, setNotes] = useState(() => value?.notes || "");
 
   const [selectedId, setSelectedId] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
   
+  const emitDesign = (overrides = {}) => {
+    onChange?.({
+      side,
+      elementsBySide,
+      ...overrides,
+    });
+  };
+
+
   // Stage principal (editor)
   const internalStageRef = useRef(null);
   const effectiveStageRef = stageRef || internalStageRef;
@@ -254,6 +262,7 @@ export function ProductDesigner({
     ? printArea[side] || printArea.front
     : printArea;
 
+
   // 🔑 CLAVE: evitar sobrescritura del diseño inicial
   const hasInitializedRef = useRef(false);
 
@@ -268,7 +277,17 @@ export function ProductDesigner({
   const DESIGN_BLOCK_WIDTH = 500; // 🔹 mismo ancho visual que ya usas
   const offsetX = (stageWidth - DESIGN_BLOCK_WIDTH) / 2; // 🔹 NUEVO
 
-  
+ // 🔄 Rehidratar diseñador cuando cambia el diseño externo (preview, volver, etc.)
+useEffect(() => {
+  if (!value) return;
+
+  setSide(value.side || "front");
+  setElementsBySide(value.elementsBySide || { front: [], back: [] });
+
+  // reset selección para evitar referencias inválidas
+  setSelectedId(null);
+}, [value]);
+
 
   /* ======================================================
      Transformer sync
@@ -346,20 +365,27 @@ export function ProductDesigner({
 
       
     
-  }, [effectiveStageRef, elementsBySide, notes, frontImage, backImage]);
+  }, [effectiveStageRef, elementsBySide, frontImage, backImage]);
 
   /* ======================================================
      CRUD elementos
 ========================================================= */
   const updateElement = (id, attrs) => {
     setElementsBySide((prev) => {
-      const list = prev?.[side] || [];
-      return {
+      const updated = {
         ...prev,
-        [side]: list.map((el) => (el.id === id ? { ...el, ...attrs } : el)),
+        [side]: prev[side].map((el) =>
+          el.id === id ? { ...el, ...attrs } : el
+        ),
       };
+
+      // 🔑 sincroniza con el padre
+      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
+
+      return updated;
     });
   };
+
 
   const handleAddText = () => {
     const id = crypto.randomUUID();
@@ -373,13 +399,20 @@ export function ProductDesigner({
       fontFamily: "Arial",
       fill: "#000000",
       rotation: 0,
+      order: (elementsBySide?.[side]?.length || 0),
     };
 
-    setElementsBySide((prev) => ({
-      ...prev,
-      [side]: [...(prev?.[side] || []), newText],
-    }));
-    setSelectedId(id);
+    setElementsBySide((prev) => {
+      const updated = {
+        ...prev,
+        [side]: [...(prev?.[side] || []), newText],
+      };
+
+      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
+
+      return updated;
+    });
+
   };
 
 
@@ -410,12 +443,20 @@ export function ProductDesigner({
           scaleX: scale,
           scaleY: scale,
           rotation: 0,
+          order: (elementsBySide?.[side]?.length || 0),
         };
 
-        setElementsBySide((prev) => ({
-          ...prev,
-          [side]: [...(prev?.[side] || []), newImg],
-        }));
+        setElementsBySide((prev) => {
+          const updated = {
+            ...prev,
+            [side]: [...(prev?.[side] || []), newImg],
+          };
+
+          setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
+
+          return updated;
+        });
+
 
         setSelectedId(id);
       };
@@ -427,10 +468,17 @@ export function ProductDesigner({
 
   const handleDeleteSelected = () => {
     if (!selectedId) return;
-    setElementsBySide((prev) => ({
-      ...prev,
-      [side]: (prev?.[side] || []).filter((el) => el.id !== selectedId),
-    }));
+    setElementsBySide((prev) => {
+      const updated = {
+        ...prev,
+        [side]: prev[side].filter((el) => el.id !== selectedId),
+      };
+
+      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
+
+      return updated;
+    });
+
     setSelectedId(null);
   };
 
@@ -460,9 +508,34 @@ export function ProductDesigner({
 
     onChange?.({
       side,
-      elementsBySide,
-      notes,
+      elementsBySide,      
       previewsBySide,
+    });
+  };
+
+  // Función para mover capa arriba/abajo
+  const moveLayer = (id, direction) => {
+    setElementsBySide((prev) => {
+      const list = [...(prev?.[side] || [])];
+      const index = list.findIndex((el) => el.id === id);
+      if (index === -1) return prev;
+
+      const target =
+        direction === "up" ? index + 1 : index - 1;
+
+      if (target < 0 || target >= list.length) return prev;
+
+      [list[index], list[target]] = [list[target], list[index]];
+
+      const updated = {
+        ...prev,
+        [side]: list.map((el, i) => ({ ...el, order: i })),
+      };
+
+      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
+
+      return updated;
+
     });
   };
 
@@ -489,17 +562,30 @@ export function ProductDesigner({
         elements={elementsBySide?.back || []}
       />
 
-      <HStack align="flex-start" spacing={6}>
+      <HStack
+        align="stretch"
+        spacing={6}
+        height="calc(100vh - 140px)"
+      >
         {/* PANEL LATERAL */}
-        <Stack minW="260px" spacing={4}>
+        <Stack
+          minW="280px"
+          maxW="320px"
+          spacing={4}
+          overflowY="auto"     
+          pr={2}
+        >
           <FormControl>
             <FormLabel>Lado del producto</FormLabel>
             <Select
               size="sm"
               value={side}
               onChange={(e) => {
-                setSide(e.target.value);
+                const newSide = e.target.value;
+                setSide(newSide);
                 setSelectedId(null);
+
+                emitDesign({ side: newSide });
               }}
             >
               <option value="front">Delante</option>
@@ -513,6 +599,8 @@ export function ProductDesigner({
             Añadir texto
           </Button>
 
+          <Divider />
+
           <FormControl>
             <FormLabel>Subir imagen</FormLabel>
             <Input
@@ -523,15 +611,24 @@ export function ProductDesigner({
             />
           </FormControl>
 
+          <Divider />
+
           <FormControl>
-            <FormLabel>Notas</FormLabel>
-            <Textarea
-              size="sm"
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
+            <FormLabel>Notas adicionales</FormLabel>
+            <ChakraText
+              fontSize="sm"
+              color="gray.400"
+              whiteSpace="normal"      
+              wordBreak="break-word" 
+              maxW="100%"              
+              lineHeight="1.4"
+            >
+              Las indicaciones adicionales del pedido (envío, producción, producción especial, etc.)
+              podrás añadirlas más adelante en el formulario de finalización de compra.
+            </ChakraText>
           </FormControl>
+
+          <Divider />
 
           <Button colorScheme="green" size="sm" onClick={handleSaveDesign}>
             Guardar diseño
@@ -628,6 +725,20 @@ export function ProductDesigner({
                 </NumberInput>
               </FormControl>
 
+              <Divider my={2} />
+
+              
+              <HStack>
+                <Button size="xs" onClick={() => moveLayer(selectedElement.id, "up")}>
+                  ↑ Al frente
+                </Button>
+                <Button size="xs" onClick={() => moveLayer(selectedElement.id, "down")}>
+                  ↓ Al fondo
+                </Button>
+              </HStack>
+
+
+
               <Button
                 size="xs"
                 colorScheme="red"
@@ -640,23 +751,34 @@ export function ProductDesigner({
           )}
         </Stack>
 
+        {/* CANVAS RESPONSIVE */}
+      <Box
+        flex="1"
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        overflow="hidden"
+      >
+
+
+
         {/* CANVAS EDITOR */}
-        <Box 
-          borderWidth="1px" 
-          borderRadius="md" 
-          overflow="hidden" 
-          bg="gray.100" 
-          flex="1"
-          display="flex"          
-          justifyContent="center" 
-          alignItems="center"     
+        <Box
+          width="100%"
+          maxW={`${stageWidth}px`}
+          aspectRatio={stageWidth / stageHeight}
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
         >
+
           <Stage
-            width={stageWidth}
+             width={stageWidth}
             height={stageHeight}
-            onMouseDown={handleStageClick}
-            onTouchStart={handleStageClick}
             ref={effectiveStageRef}
+            onMouseDown={(e) =>
+              e.target === e.target.getStage() && setSelectedId(null)
+            }
           >
             
             <Layer ref={layerRef}>
@@ -664,9 +786,7 @@ export function ProductDesigner({
             
               {productImg && (
                 <KonvaImage
-                  image={productImg}
-                  x={0}
-                  y={0}
+                  image={productImg}                  
                   width={stageHeight}
                   height={stageHeight}
                 />
@@ -681,49 +801,52 @@ export function ProductDesigner({
                 dash={[4, 4]}
               />
 
-              {currentElements.map((el) => {
-                if (el.type === "text") {
-                  return (
-                    <KonvaText
-                      key={el.id}
-                      id={el.id}
-                      text={el.text}
-                      x={el.x}
-                      y={el.y}
-                      fontSize={el.fontSize || 24}
-                      fontFamily={el.fontFamily || "Arial"}
-                      fill={el.fill || "#000"}
-                      rotation={el.rotation || 0}
-                      draggable
-                      onClick={() => setSelectedId(el.id)}
-                      onTap={() => setSelectedId(el.id)}
-                      onDragEnd={(e) =>
-                        updateElement(el.id, { x: e.target.x(), y: e.target.y() })
-                      }
-                      onTransformEnd={(e) => {
-                        const node = e.target;
+              {currentElements
+                .slice()
+                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                .map((el) => {
+                  if (el.type === "text") {
+                    return (
+                      <KonvaText
+                        key={el.id}
+                        id={el.id}
+                        text={el.text}
+                        x={el.x}
+                        y={el.y}
+                        fontSize={el.fontSize || 24}
+                        fontFamily={el.fontFamily || "Arial"}
+                        fill={el.fill || "#000"}
+                        rotation={el.rotation || 0}
+                        draggable
+                        onClick={() => setSelectedId(el.id)}
+                        onTap={() => setSelectedId(el.id)}
+                        onDragEnd={(e) =>
+                          updateElement(el.id, { x: e.target.x(), y: e.target.y() })
+                        }
+                        onTransformEnd={(e) => {
+                          const node = e.target;
 
-                        const scaleX = node.scaleX();
-                        const scaleY = node.scaleY();
+                          const scaleX = node.scaleX();
+                          const scaleY = node.scaleY();
 
-                        // 🔹 Mantén proporción: usamos el mayor para que no “encoga” raro
-                        const scale = Math.max(scaleX, scaleY);
+                          // 🔹 Mantén proporción: usamos el mayor para que no “encoga” raro
+                          const scale = Math.max(scaleX, scaleY);
 
-                        // ✅ Guardar tamaño real en el estado (esto es lo que faltaba)
-                        updateElement(el.id, {
-                          x: node.x(),
-                          y: node.y(),
-                          fontSize: (el.fontSize || 24) * scale,
-                          rotation: node.rotation(),
-                        });
+                          // ✅ Guardar tamaño real en el estado (esto es lo que faltaba)
+                          updateElement(el.id, {
+                            x: node.x(),
+                            y: node.y(),
+                            fontSize: (el.fontSize || 24) * scale,
+                            rotation: node.rotation(),
+                          });
 
-                        // importante: reset de escala visual
-                        node.scaleX(1);
-                        node.scaleY(1);
-                      }}
-                    />
-                  );
-                }
+                          // importante: reset de escala visual
+                          node.scaleX(1);
+                          node.scaleY(1);
+                        }}
+                      />
+                    );
+                  }
 
 
                 if (el.type === "image") {
@@ -746,7 +869,9 @@ export function ProductDesigner({
           </Layer>
           </Stage>
         </Box>
+      </Box>
       </HStack>
     </>
   );
 }
+
