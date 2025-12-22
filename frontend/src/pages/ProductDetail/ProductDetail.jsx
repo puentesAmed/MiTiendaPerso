@@ -74,6 +74,18 @@ export function ProductDetail() {
 
   const isCustomizable = !!product?.customizable;
 
+  const requiresSize =
+  product?.variants?.sizes?.length > 0;
+
+  const requiresColor =
+    product?.variants?.colors?.length > 0;
+
+  const canAddToCart =
+    product?.stock > 0 &&
+    (!requiresSize || selectedSize) &&
+    (!requiresColor || selectedColor);
+
+
  /* const images =
     product?.images?.length
       ? product.images
@@ -361,10 +373,18 @@ export function ProductDetail() {
                 </NumberInput>
               </Box>
 
+              {!canAddToCart && (requiresSize || requiresColor) && (
+                <Text fontSize="xs" color="red.400">
+                  Selecciona {requiresSize && "talla"}{requiresSize && requiresColor && " y "}
+                  {requiresColor && "color"} para continuar
+                </Text>
+              )}
+
+
               <Button
                 colorScheme="blue"
                 onClick={handleAddToCart}
-                isDisabled={product.stock <= 0}
+                isDisabled={product.stock <= 0 || !canAddToCart}
               >
                 Añadir al carrito
               </Button>

@@ -104,8 +104,7 @@ export const router = createBrowserRouter([
 
       //Pedidos
       { path: "/seguimiento-pedido", element: <OrderTracking />},
-
-    
+         
 
 
       {

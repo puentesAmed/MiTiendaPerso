@@ -2,15 +2,22 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
 import { env } from '../config/env.js';
+import { Order } from '../models/Order.js';
 
 export async function register(req, res) {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, guestId, mode } = req.body;
 
     if (!name || !email || !password) {
       return res
         .status(400)
         .json({ message: 'Name, email y password son obligatorios' });
+    }
+
+    if (mode === 'from-guest' && !guestId) {
+      return res
+        .status(400)
+        .json({ message: 'Sesión de invitado inválida o caducada' });
     }
 
     const existing = await User.findOne({ email });
@@ -32,6 +39,23 @@ export async function register(req, res) {
       passwordHash,
       role: 'user', // registro público siempre como usuario
     });
+
+    if (mode === "from-guest" && guestId) {
+      await Order.updateMany(
+        { 
+          guestEmail: u.email,
+          userId: { $exists: false }, 
+
+        },
+        {
+          $set: {
+            userId: u._id,
+            guestId: null,
+          },
+        }
+      );
+      console.log(`Pedidos vinculados al nuevo usuario ${u._id} desde sesión invitado ${guestId}`);
+    }
 
     return res.status(201).json({
       message: 'Usuario registrado correctamente',
@@ -79,5 +103,21 @@ export async function login(req, res) {
   } catch (err) {
     console.error('Error en login:', err);
     return res.status(500).json({ message: 'Error al iniciar sesión' });
+  }
+}
+
+export async function checkEmail(req, res) {
+  try {
+    const { email } = req.query;
+
+    if (!email) {
+      return res.status(400).json({ exists: false });
+    }
+
+    const user = await User.findOne({ email }).select('_id');
+    return res.json({ exists: !!user });
+  } catch (err) {
+    console.error("checkEmail error:", err);
+    return res.status(500).json({ exists: false });
   }
 }

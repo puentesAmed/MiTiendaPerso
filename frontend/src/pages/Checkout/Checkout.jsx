@@ -38,11 +38,15 @@ import {
   Checkbox,
   Textarea,
   Link,
+  FormControl,
+  FormLabel,
+  FormErrorMessage
 } from "@chakra-ui/react";
 import { loadGuestSession, saveGuestSession } from "../../services/guestSession.service";
 import { GuestSessionNotice } from "../../components/checkout/GuestSessionNotice";
 import { useColorModeValue } from "@chakra-ui/react";
 import { DeleteIcon } from "@chakra-ui/icons";
+import { checkEmailExists } from "../../services/auth.service";
 
 const GUEST_KEY = "guest_id";
 //const CHECKOUT_DRAFT_KEY = "checkout_draft_v1";
@@ -72,6 +76,10 @@ export function Checkout() {
 
   
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [emailHasAccount, setEmailHasAccount] = useState(false);
+  // Control de estructura básica de email
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 
 
 
@@ -87,6 +95,28 @@ export function Checkout() {
   const [useSameBilling, setUseSameBilling] = useState(true);
   const [billingAddress, setBillingAddress] = useState({ ...shippingAddress });
   const [notes, setNotes] = useState("");
+
+  const isGuestEmailInvalid =
+  !user &&
+  attemptedSubmit &&
+  (!guestEmail || !EMAIL_REGEX.test(guestEmail));
+
+
+  // ✅ Comprobar si el email de invitado ya tiene cuenta
+  useEffect(() => {
+    if (!guestEmail) return;
+
+    const t = setTimeout(async () => {
+      try {
+        const exists = await checkEmailExists(guestEmail);
+        setEmailHasAccount(exists);
+      } catch {
+        setEmailHasAccount(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(t);
+  }, [guestEmail]);
 
   // 🔁 Restaurar borrador del checkout (volver del diseñador)
   
@@ -163,10 +193,11 @@ export function Checkout() {
       return;
     }
 
-    if (!user && !guestEmail) {
-      setError("El email es obligatorio para invitados");
+    if (!user && !EMAIL_REGEX.test(guestEmail)) {
+      setError("El email no tiene un formato válido");
       return;
     }
+
 
     if (!acceptedTerms) {
       setError("Debes aceptar los Términos y Condiciones para continuar");
@@ -239,6 +270,7 @@ export function Checkout() {
           orderId: data.orderId,
           isGuest: !user,
           email: !user ? guestEmail : null,
+          emailHasAccount,
         },
       });
     } catch (err) {
@@ -256,18 +288,67 @@ export function Checkout() {
      
       {!user && (
         <>
-          <Input
-            mb={2}
-            placeholder="Email para recibir el pedido"
-            value={guestEmail}
-            onChange={(e) => setGuestEmail(e.target.value)}
-          />
+          <FormControl isInvalid={isGuestEmailInvalid} isRequired mb={2}>
+            <Input
+              type="email"
+              placeholder="Email para recibir el pedido"
+              value={guestEmail}
+              onChange={(e) => setGuestEmail(e.target.value.toLowerCase())}
+            />
+            {isGuestEmailInvalid && (
+              <Text fontSize="xs" color="red.400" mt={1}>
+                Introduce un email válido (ej: nombre@correo.com)
+              </Text>
+            )}
+
+          </FormControl>
+
+          {emailHasAccount && (
+            <Alert status="info" mt={2} borderRadius="md">
+              <AlertIcon />
+              Este email ya tiene una cuenta.
+              <Button
+                ml={3}
+                size="sm"
+                variant="link"
+                colorScheme="blue"
+                onClick={() =>
+                  nav("/login", {
+                    state: { email: guestEmail },
+                  })
+                }
+              >
+                Iniciar sesión
+              </Button>
+            </Alert>
+          )}
+
           <GuestSessionNotice />
           {session?.expiresInDays !== undefined && (
-            <Text fontSize="xs" color="gray.400">
-              Sesión de invitado válida durante {session.expiresInDays} días.
+            <Text
+              fontSize="xs"
+              color={
+                session.expiresInDays <= 1
+                  ? "red.400"
+                  : session.expiresInDays <= 3
+                  ? "orange.400"
+                  : "gray.400"
+              }
+            >
+              {session.expiresInDays > 1 && (
+                <>Sesión de invitado válida durante {session.expiresInDays} días.</>
+              )}
+
+              {session.expiresInDays === 1 && (
+                <>⚠️ Tu sesión de invitado caduca mañana.</>
+              )}
+
+              {session.expiresInDays === 0 && (
+                <>⚠️ Tu sesión de invitado caduca hoy.</>
+              )}
             </Text>
           )}
+
         </>
       )}
 
@@ -508,6 +589,12 @@ export function Checkout() {
         </Text>
       )}
 
+      {attemptedSubmit && !user && !EMAIL_REGEX.test(guestEmail) && (
+        <Alert status="error" borderRadius="md" mb={3}>
+          <AlertIcon />
+          No puedes continuar porque el email introducido no tiene un formato válido.
+        </Alert>
+      )}
 
 
 
