@@ -271,6 +271,12 @@ export function Checkout() {
       return;
     }
 
+    if (!shippingQuote) {
+      setError("No se ha podido calcular el envío. Revisa la dirección.");
+      return;
+    }
+
+
     await processOrder();
   };
 
@@ -284,6 +290,7 @@ export function Checkout() {
         shippingAddress,
         billingAddress: useSameBilling ? null : billingAddress,
         notes,
+        shipping: shippingQuote,
       });
 
       

@@ -8,6 +8,7 @@ import {
   adminGetAllOrders,
   adminUpdateOrderStatus,
   trackOrderByEmail,
+  adminConfirmDeliveryDate,
 } from "../controllers/orders.controller.js";
 
 export const ordersRouter = Router();
@@ -26,5 +27,9 @@ ordersRouter.get("/", requireAuth, requireAdmin, adminGetAllOrders);
 
 // ADMIN: actualizar estado de un pedido
 ordersRouter.patch("/:id/status", requireAuth, requireAdmin, adminUpdateOrderStatus);
+
+// Admin: actualizar fecha de entrega
+ordersRouter.put("/admin/:id/delivery", requireAuth, requireAdmin, adminConfirmDeliveryDate);
+
 
 
