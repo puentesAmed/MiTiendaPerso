@@ -22,6 +22,8 @@ import {
 import { useCart } from "../hooks/useCart";
 
 export function ProductCard({ product }) {
+  console.log("🧪 ProductCard product:", product);
+
   const { addItem, items } = useCart();
 
   const cardBg = useColorModeValue("white", "gray.800");
@@ -60,6 +62,23 @@ export function ProductCard({ product }) {
 
 
   const isCustomizable = !!product?.customizable;
+
+  const getDisplayPrice = (product) => {
+  // 🟢 Productos AliExpress (nuevo sistema)
+  if (product?.price && typeof product.price === "object") {
+    if (typeof product.price.final === "number") {
+      return `${product.price.final.toFixed(2)} ${product.price.currency ?? "€"}`;
+    }
+  }
+
+  // 🔵 Productos internos (sistema antiguo)
+  if (typeof product.price === "number") {
+    return `${product.price.toFixed(2)} €`;
+  }
+
+  return "Precio no disponible";
+};
+
 
   return (
     <Box
@@ -121,8 +140,10 @@ export function ProductCard({ product }) {
 
         <HStack justify="space-between" mt={2}>
           <Text fontWeight="bold" fontSize="lg">
-            {product.price?.toFixed ? product.price.toFixed(2) : product.price} €
+            {getDisplayPrice(product)}
           </Text>
+
+
           <Text
             fontSize="xs"
             color={product.stock > 0 ? "green.400" : "red.400"}

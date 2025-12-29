@@ -1,29 +1,51 @@
 import { Product } from "../models/Product.js";
+import { AffiliateProduct } from "../models/AffiliateProduct.js";
 
-// GET /api/products
+
 export async function getProducts(req, res) {
   try {
-    const { category, q, minPrice, maxPrice } = req.query;
-    const filter = {};
+    const { category, q } = req.query;
 
+    const filter = {published: true};
     if (category) filter.category = category;
     if (q) filter.name = { $regex: q, $options: "i" };
-    if (minPrice) filter.price = { ...filter.price, $gte: Number(minPrice) };
-    if (maxPrice) filter.price = { ...filter.price, $lte: Number(maxPrice) };
 
-    const products = await Product.find(filter).sort({ createdAt: -1 });
+    const [localProducts, affiliateProducts] = await Promise.all([
+      Product.find(filter).lean(),
+      AffiliateProduct.find(filter).lean(),
+    ]);
+
+    const sortedLocalProducts = localProducts.sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+    const sortedAffiliateProducts = affiliateProducts.sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+    const products = [
+      ...sortedLocalProducts,
+      ...sortedAffiliateProducts,
+    ];
+
     res.json({ ok: true, products });
   } catch (err) {
     console.error("Error en getProducts:", err);
-    res.status(500).json({ ok: false, message: "Error al obtener productos" });
+    res.status(500).json({ ok: false });
   }
 }
+
 
 // GET /api/products/:id
 export async function getProduct(req, res) {
   try {
     const { id } = req.params;
-    const product = await Product.findById(id);
+    let product = await Product.findById(id);
+
+    if (!product) {
+      product = await AffiliateProduct.findById(id);
+    }
+
 
     if (!product) {
       return res
