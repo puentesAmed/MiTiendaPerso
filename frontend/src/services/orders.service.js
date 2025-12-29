@@ -69,3 +69,11 @@ export async function adminUpdateOrderStatus(orderId, status) {
   const { data } = await http.patch(`/api/orders/${orderId}/status`, { status });
   return data; // { ok, order, message }
 }
+
+export async function adminConfirmDeliveryDate(orderId, confirmedDeliveryDate) {
+  const { data } = await http.put(
+    `/api/orders/admin/${orderId}/delivery`,
+    { confirmedDeliveryDate }
+  );
+  return data;
+}

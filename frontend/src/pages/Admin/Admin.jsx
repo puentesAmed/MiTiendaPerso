@@ -48,6 +48,7 @@ import { http } from "../../services/http";
 import {
   adminGetOrders,
   adminUpdateOrderStatus,
+  adminConfirmDeliveryDate,
 } from "../../services/orders.service";
 
 /* 🔧 Helper: nombre del usuario del pedido */
@@ -107,6 +108,11 @@ export function Admin() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [errorOrders, setErrorOrders] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+
+  // Confirmación de entrega
+  const [deliveryDateInput, setDeliveryDateInput] = useState("");
+  const [savingDeliveryDate, setSavingDeliveryDate] = useState(false);
+
 
   // ---------------------------
   //  ESTADOS: PERSONALIZACIONES
@@ -397,6 +403,52 @@ export function Admin() {
       toast({ title: "Error", status: "error" });
     }
   };
+
+  //Confirmar fecha de entrega
+  const handleConfirmDeliveryDate = async (orderId) => {
+    if (!deliveryDateInput) {
+      toast({
+        title: "Fecha requerida",
+        description: "Debes indicar una fecha de entrega",
+        status: "warning",
+      });
+      return;
+    }
+
+    try {
+      setSavingDeliveryDate(true);
+
+      const data = await adminConfirmDeliveryDate(orderId, deliveryDateInput);
+
+      if (data?.ok) {
+        toast({
+          title: "Entrega confirmada",
+          description: "La fecha de entrega ha sido notificada al cliente",
+          status: "success",
+        });
+
+        // Actualizar pedido en memoria
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === orderId ? data.order : o
+          )
+        );
+
+        setDeliveryDateInput("");
+        setOrderDetailOpen(false);
+      }
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Error",
+        description: "No se pudo confirmar la fecha de entrega",
+        status: "error",
+      });
+    } finally {
+      setSavingDeliveryDate(false);
+    }
+  };
+
 
   /* ---------------------------------------------------------
    * PERSONALIZACIONES (CUSTOMIZATIONS)
@@ -1302,6 +1354,66 @@ const handleDownloadZip = async (customization) => {
                           {(selectedOrder.total ?? 0).toFixed(2)} €
                         </Text>
                       </Box>
+
+                      <Box>
+                        <Text fontSize="sm">
+                          <strong>Entrega estimada:</strong>{" "}
+                          {selectedOrder.shipping?.estimatedDeliveryDate
+                            ? new Date(
+                                selectedOrder.shipping.estimatedDeliveryDate
+                              ).toLocaleDateString()
+                            : "—"}
+                        </Text>
+
+                        <Text fontSize="sm">
+                          <strong>Estado de entrega:</strong>{" "}
+                          <Badge colorScheme={
+                            selectedOrder.shipping?.deliveryStatus === "confirmed"
+                              ? "green"
+                              : "orange"
+                          }>
+                            {selectedOrder.shipping?.deliveryStatus || "estimada"}
+                          </Badge>
+                        </Text>
+
+                        {selectedOrder.shipping?.confirmedDeliveryDate && (
+                          <Text fontSize="sm" color="green.500">
+                            <strong>Entrega confirmada:</strong>{" "}
+                            {new Date(
+                              selectedOrder.shipping.confirmedDeliveryDate
+                            ).toLocaleDateString()}
+                          </Text>
+                        )}
+                      </Box>
+
+                      <Box borderTop="1px solid #eee" pt={3}>
+                        <FormControl>
+                          <FormLabel fontSize="sm">
+                            Confirmar fecha de entrega
+                          </FormLabel>
+
+                          <Input
+                            type="date"
+                            size="sm"
+                            value={deliveryDateInput}
+                            onChange={(e) => setDeliveryDateInput(e.target.value)}
+                          />
+                        </FormControl>
+
+                        <Button
+                          mt={3}
+                          size="sm"
+                          colorScheme="green"
+                          isLoading={savingDeliveryDate}
+                          onClick={() =>
+                            handleConfirmDeliveryDate(selectedOrder._id)
+                          }
+                        >
+                          Confirmar entrega y notificar cliente
+                        </Button>
+                      </Box>
+
+
 
                       
 

@@ -73,6 +73,51 @@ const orderSchema = new mongoose.Schema(
       },
     },
 
+    // Información logística y de entrega
+    shipping: {
+      zone: {
+        type: String,
+        enum: ["peninsula", "islands", "international"],
+        required: true,
+      },
+
+      price: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
+
+      isFree: {
+        type: Boolean,
+        default: false,
+      },
+
+      estimatedDays: {
+        min: { type: Number, required: true },
+        max: { type: Number, required: true },
+      },
+
+      // 🆕 Fecha estimada calculada automáticamente
+      estimatedDeliveryDate: {
+        type: Date,
+        required: true,
+      },
+
+      // 🆕 Fecha confirmada manualmente por admin
+      confirmedDeliveryDate: {
+        type: Date,
+        default: null,
+      },
+
+      // 🆕 Estado de la entrega
+      deliveryStatus: {
+        type: String,
+        enum: ["estimated", "confirmed", "delayed"],
+        default: "estimated",
+      },
+    },
+
+
 
     shippingAddress: { type: addressSchema, required: true },
     billingAddress: { type: addressSchema, required: false },
