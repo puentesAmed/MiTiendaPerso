@@ -2,7 +2,7 @@ import { Product } from "../models/Product.js";
 import { AffiliateProduct } from "../models/AffiliateProduct.js";
 
 
-export async function getProducts(req, res) {
+/*export async function getProducts(req, res) {
   try {
     const { category, q } = req.query;
 
@@ -32,6 +32,45 @@ export async function getProducts(req, res) {
   } catch (err) {
     console.error("Error en getProducts:", err);
     res.status(500).json({ ok: false });
+  }
+}*/
+
+export async function getProducts(req, res) {
+  try {
+    const { category, q } = req.query;
+
+    // ✅ Productos internos: usan "active"
+    const localFilter = { active: true };
+
+    // ✅ Affiliate: usan enabled + status
+    const affiliateFilter = { enabled: true, status: "active" };
+
+    if (category) {
+      localFilter.category = category;
+      affiliateFilter.category = category; // si en AffiliateProduct guardas "category"
+    }
+
+    if (q) {
+      localFilter.name = { $regex: q, $options: "i" };
+      // affiliate normalmente trae "title" o "name" según tu mapper
+      affiliateFilter.$or = [
+        { title: { $regex: q, $options: "i" } },
+        { name: { $regex: q, $options: "i" } },
+      ];
+    }
+
+    const [localProducts, affiliateProducts] = await Promise.all([
+      Product.find(localFilter).sort({ createdAt: -1 }).lean(),
+      AffiliateProduct.find(affiliateFilter).sort({ createdAt: -1 }).lean(),
+    ]);
+
+    // ✅ Internos primero
+    const products = [...localProducts, ...affiliateProducts];
+
+    res.json({ ok: true, products });
+  } catch (err) {
+    console.error("Error en getProducts:", err);
+    res.status(500).json({ ok: false, message: "Error en getProducts" });
   }
 }
 
