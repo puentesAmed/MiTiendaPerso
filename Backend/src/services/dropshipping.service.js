@@ -74,3 +74,17 @@ export async function sendToDropshipping({ order, items, shippingAddress }) {
     }
   }
 }
+
+export async function createSupplierOrder({ shopOrderId, item, customer }) {
+  return axios.post(`${DROPSHIPPING_API}/supplier-orders`, {
+    shopOrderId,
+    supplier: "aliexpress",
+    product: {
+      externalId: item.product.externalId,
+      title: item.product.name,
+      price: item.price,
+    },
+    quantity: item.quantity,
+    customer,
+  });
+}

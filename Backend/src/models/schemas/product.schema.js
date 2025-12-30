@@ -13,7 +13,17 @@ const ProductSchema = new mongoose.Schema(
           enum: ["local", "aliexpress"],
           default: "local",
           index: true,
-        },
+    },
+
+    source: {
+      type: String,
+      enum: ["internal", "dropshipping"],
+      default: "internal",
+      index: true,
+    },
+
+
+    
 
     name: { type: String, required: true },
     description: String,
