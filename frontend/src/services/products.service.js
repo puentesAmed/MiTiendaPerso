@@ -18,33 +18,6 @@ export async function apiGetProductById(id) {
   return data.product ? normalizeProduct(data.product) : null;
 }
 
-/*
-export async function apiGetProducts(params = {}) {
-  const { data } = await http.get("/api/products", { params });
-
-  const products = data.products ?? [];
-
-  // 🔹 PASO 5: normalización SOLO en frontend
-  return products.map(normalizeProduct);
-}
-
-
-/*export async function apiGetProducts(params = {}) {
-  const { data } = await http.get("/api/products", { params });
-  console.log('apiGetProducts response:', data);
-  // backend devuelve { ok, products }
-  return data.products ?? [];
-}
-
-export async function apiGetProductById(id) {
-  const { data } = await http.get(`/api/products/${id}`);
-  return data.product;
-}*/
-/*
-export async function apiGetProductById(id) {
-  const { data } = await http.get(`/api/products/${id}`);
-  return data.product ? normalizeProduct(data.product) : null;
-}*/
 
 // ADMIN: crear producto
 export async function adminCreateProduct(payload) {

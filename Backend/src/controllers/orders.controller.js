@@ -8,6 +8,9 @@ import { orderClientEmail } from "../emails/templates/orderClientEmail.js";
 import { orderAdminEmail } from "../emails/templates/orderAdminEmail.js";
 import { orderStatusEmail } from "../emails/templates/orderStatusEmail.js";
 import { calculateEstimatedDelivery } from "../utils/calculateEstimatedDelivery.js";
+import { sendToDropshipping } from "../services/dropshipping.service.js";
+
+
 
 
 
@@ -198,6 +201,16 @@ export async function createOrder(req, res) {
 
       
     });
+
+    // ================================
+    // DROPSHIPPING (AliExpress)
+    // ================================
+    sendToDropshipping({
+      order,
+      items,
+      shippingAddress,
+    });
+
 
     // 📧 Email al cliente
     try {
