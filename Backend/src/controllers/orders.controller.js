@@ -133,7 +133,12 @@ export async function createOrder(req, res) {
         quantity: qty,
         customizationId,
         selectedVariant: cartItem.selectedVariant || null,
+
+        // 🔽 CLAVE PARA DROPSHIPPING
+        provider: product.provider,
+        externalId: product.externalId || null,
       });
+
 
     }
 
