@@ -123,6 +123,10 @@ const orderSchema = new mongoose.Schema(
       },
     },
 
+    dropshipping: {
+      sent: { type: Boolean, default: false },
+      sentAt: { type: Date, default: null },
+    },
 
 
     shippingAddress: { type: addressSchema, required: true },

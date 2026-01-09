@@ -102,3 +102,44 @@ export async function createMoneiPayment(req, res) {
     return res.status(500).json({ ok: false, message: "Payment error" });
   }
 }
+
+// ⚠️ SOLO PARA TEST / DESARROLLO
+export async function markOrderAsPaidForTest(req, res) {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ ok: false, message: "Order not found" });
+    }
+
+    if (order.payment.status === "paid") {
+      return res.json({
+        ok: true,
+        message: "Order already paid",
+        order,
+      });
+    }
+
+    // 🔁 Simular pago confirmado
+    order.payment.status = "paid";
+    order.payment.method = "test";
+    order.payment.transactionId = "TEST_" + Date.now();
+    order.payment.paidAt = new Date();
+    order.status = "processing";
+
+    await order.save();
+
+    // 🚚 DROPSHIPPING (MISMO CÓDIGO QUE PRODUCCIÓN)
+    await sendToDropshipping({ order });
+
+    return res.json({
+      ok: true,
+      message: "Order marked as paid (TEST MODE)",
+      order,
+    });
+  } catch (err) {
+    console.error("🔥 TEST PAYMENT ERROR:", err);
+    return res.status(500).json({ ok: false });
+  }
+}
