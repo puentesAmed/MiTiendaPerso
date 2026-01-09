@@ -23,6 +23,12 @@ const orderSchema = new mongoose.Schema(
         name: { type: String, required: true },
         quantity: { type: Number, required: true, min: 1 },
         price: { type: Number, required: true, min: 0 },
+
+        provider: { type: String, enum: ["local", "aliexpress"], default: "local" },
+        externalId: { type: String, default: null },     // AliExpress product_id
+        providerSku: { type: String, default: null },    // AliExpress ae_sku_id (CRÍTICO)
+
+
         selectedVariant: {
           size: { type: String, default: null },
           color: { type: String, default: null },

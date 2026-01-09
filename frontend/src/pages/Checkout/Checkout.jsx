@@ -47,6 +47,8 @@ import { GuestSessionNotice } from "../../components/checkout/GuestSessionNotice
 import { useColorModeValue } from "@chakra-ui/react";
 import { DeleteIcon } from "@chakra-ui/icons";
 import { checkEmailExists } from "../../services/auth.service";
+//import { createMoneiPayment } from "../../services/payments.service";
+
 
 const GUEST_KEY = "guest_id";
 //const CHECKOUT_DRAFT_KEY = "checkout_draft_v1";
@@ -300,20 +302,20 @@ export function Checkout() {
         return;
       }
 
-      // 🔴 PASO 7: INICIAR PAGO
-      /*const payment = await createPayment(data.orderId);
+      /*// 🔴 PASO 4: INICIAR PAGO CON MONEI
+      const payment = await createMoneiPayment(data.orderId);
 
-      if (!payment?.paymentUrl) {
+      if (!payment?.ok || !payment.paymentUrl) {
         setError("No se pudo iniciar el pago");
         return;
       }
 
-      // 🔁 Redirigir al proveedor de pago
+      // 🔁 Redirigir a MONEI
       window.location.href = payment.paymentUrl;
       return;
-*/
 
-      
+
+      */
 
       
 

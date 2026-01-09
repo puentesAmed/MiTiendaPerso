@@ -133,6 +133,11 @@ export async function createOrder(req, res) {
         quantity: qty,
         customizationId,
         selectedVariant: cartItem.selectedVariant || null,
+
+        // NUEVO (mínimo para dropshipping)
+        provider: product.provider || "local",
+        externalId: product.externalId || null,
+        providerSku: cartItem?.providerSku || null, // esto debe venir del front cuando seleccione variante
       });
 
     }
@@ -205,12 +210,12 @@ export async function createOrder(req, res) {
     // ================================
     // DROPSHIPPING (AliExpress)
     // ================================
-    sendToDropshipping({
+    /*sendToDropshipping({
       order,
       items,
       shippingAddress,
     });
-
+    */
 
     // 📧 Email al cliente
     try {

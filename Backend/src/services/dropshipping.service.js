@@ -20,7 +20,7 @@ const DROPSHIPPING_API_URL =
 /**
  * Envía los productos dropshipping de un pedido
  */
-export async function sendToDropshipping({ order, items, shippingAddress }) {
+/*export async function sendToDropshipping({ order, items, shippingAddress }) {
   // 1️⃣ Filtrar solo productos AliExpress
   const dropshippingItems = items.filter(
     (item) => item.product?.provider === "aliexpress"
@@ -74,9 +74,61 @@ export async function sendToDropshipping({ order, items, shippingAddress }) {
     }
   }
 }
+*/
+
+export async function sendToDropshipping({ order }) {
+  // 0) Seguridad: solo si está pagado
+  if (order?.payment?.status !== "paid") return;
+
+  // 1) Filtrar items AliExpress desde la orden real
+  const dropshippingItems = (order.items || []).filter(
+    (i) => i.provider === "aliexpress" && i.externalId
+  );
+
+  if (dropshippingItems.length === 0) return;
+
+  const shippingAddress = order.shippingAddress;
+
+  for (const item of dropshippingItems) {
+    const payload = {
+      shopOrderId: order._id.toString(),
+      supplier: "aliexpress",
+
+      product: {
+        externalId: item.externalId,      // AliExpress product_id
+        providerSku: item.providerSku,    // AliExpress ae_sku_id (si existe)
+        title: item.name,
+        price: item.price,
+      },
+
+      quantity: item.quantity,
+
+      customer: {
+        name: shippingAddress.fullName,
+        email: order.guestEmail || null,
+        address: {
+          street: shippingAddress.street,
+          city: shippingAddress.city,
+          state: shippingAddress.state,
+          postalCode: shippingAddress.postalCode,
+          country: shippingAddress.country,
+        },
+      },
+    };
+
+    try {
+      await axios.post(`${DROPSHIPPING_API_URL}/api/supplier-orders`, payload);
+    } catch (error) {
+      console.error(
+        "❌ Error sending order to dropshipping:",
+        error.response?.data || error.message
+      );
+    }
+  }
+}
 
 export async function createSupplierOrder({ shopOrderId, item, customer }) {
-  return axios.post(`${DROPSHIPPING_API}/supplier-orders`, {
+  return axios.post(`${DROPSHIPPING_API_URL}/supplier-orders`, {
     shopOrderId,
     supplier: "aliexpress",
     product: {
