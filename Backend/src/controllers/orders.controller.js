@@ -20,7 +20,13 @@ import { sendToDropshipping } from "../services/dropshipping.service.js";
  * 📌 CREATE ORDER — Guarda también personalizaciones avanzadas
  */
 export async function createOrder(req, res) {
+  console.log("🟥 BODY /api/orders", JSON.stringify(req.body, null, 2));
+
+  console.log("📦 BODY RECIBIDO:", req.body);
   try {
+
+    
+
     const userId = req.userId || null;
     //const { items, paymentMethod = "card", guestId, email: guestEmail } = req.body;
 
@@ -57,7 +63,7 @@ export async function createOrder(req, res) {
     const productIds = items.map((i) => i.productId);
     const products = await Product.find({
       _id: { $in: productIds },
-      active: true,
+      published: true,
     });
 
     const productsMap = new Map(products.map((p) => [p._id.toString(), p]));
@@ -81,12 +87,16 @@ export async function createOrder(req, res) {
         });
       }
 
-      if (product.stock < qty) {
+      if (
+        typeof product.stock === "number" &&
+        product.stock < qty
+      ) {
         return res.status(400).json({
           ok: false,
           message: `Stock insuficiente para: ${product.name}`,
         });
       }
+
 
       const price = Number(product.price);
       total += price * qty;

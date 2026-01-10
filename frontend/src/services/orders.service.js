@@ -45,6 +45,7 @@ export async function createOrderRequest(items, data = {}) {
     shippingAddress: data.shippingAddress,
     billingAddress: data.billingAddress ?? null,
     notes: data.notes ?? "",
+    shipping: data.shipping,
   };
 
   console.log("📦 Payload /api/orders:", payload);

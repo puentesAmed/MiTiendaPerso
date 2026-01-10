@@ -75,6 +75,8 @@ export function Checkout() {
   //const [paymentMethod] = useState("card");
   const [checkoutHydrated, setCheckoutHydrated] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [orderCreated, setOrderCreated] = useState(null);
+
 
   
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
@@ -159,6 +161,15 @@ export function Checkout() {
     });
   }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes, checkoutHydrated]);
 
+  useEffect(() => {
+    if (!orderCreated) return;
+
+    nav("/confirmacion-pedido", {
+      state: orderCreated,
+    });
+  }, [orderCreated, nav]);
+
+  
   // --- ENVÍO ---
   useEffect(() => {
     if (
@@ -169,6 +180,8 @@ export function Checkout() {
       setShippingQuote(null);
       return;
     }
+
+    
 
 
     const controller = new AbortController();
@@ -283,6 +296,9 @@ export function Checkout() {
   };
 
   const processOrder = async () => {
+    console.log("🚚 shippingQuote enviado:", shippingQuote);
+    if (loading) return; // ⛔ evita doble ejecución
+
     try {
       setLoading(true);
 
@@ -321,7 +337,7 @@ export function Checkout() {
 
       
 
-      clearCart();
+      /*clearCart();
       localStorage.removeItem("guest_session_v1");
 
       setSuccessMsg(`Pedido nº ${data.orderId} creado correctamente.`);
@@ -336,7 +352,22 @@ export function Checkout() {
           email: !user ? guestEmail : null,
           emailHasAccount,
         },
+      });*/
+      setOrderCreated({
+        order: data.order,
+        orderId: data.orderId,
+        isGuest: !user,
+        email: !user ? guestEmail : null,
+        emailHasAccount,
       });
+
+      // Limpieza ligera, SIN desmontar UI crítica
+      /*setTimeout(() => {
+        clearCart();
+        localStorage.removeItem("guest_session_v1");
+      }, 0);*/
+
+
     } catch (err) {
       console.error("Error procesando pedido:", err);
       setError("Error inesperado al procesar pedido");
