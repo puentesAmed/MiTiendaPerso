@@ -26,7 +26,9 @@ export function ProductDesignerPage() {
   const { addItem } = useCart();
 
   // 🔗 Ref expuesto por ProductDesigner (exportPreviewForSide, etc.)
-  const stageRef = useRef(null);
+  //const stageRef = useRef(null);
+
+  const designerApiRef = useRef(null);
 
   const [product, setProduct] = useState(null);
   const [design, setDesign] = useState(null);               // diseño editable
@@ -101,10 +103,10 @@ export function ProductDesignerPage() {
      PREVISUALIZAR (360º)
   ──────────────────────────────── */
   const handlePreviewClick = async () => {
-    if (!stageRef.current?.exportPreviewForSide || !design) return;
+    if (!designerApiRef.current?.exportPreviewForSide || !design) return;
 
-    const front = await stageRef.current.exportPreviewForSide("front");
-    const back = await stageRef.current.exportPreviewForSide("back");
+    const front = await designerApiRef.current.exportPreviewForSide("front");
+    const back = await designerApiRef.current.exportPreviewForSide("back");
 
     const savedDesign = {
       ...design,
@@ -128,10 +130,10 @@ export function ProductDesignerPage() {
 
     if (
       (!previewsBySide?.front || !previewsBySide?.back) &&
-      stageRef.current?.exportPreviewForSide
+      designerApiRef.current?.exportPreviewForSide
     ) {
-      const front = await stageRef.current.exportPreviewForSide("front");
-      const back = await stageRef.current.exportPreviewForSide("back");
+      const front = await designerApiRef.current.exportPreviewForSide("front");
+      const back = await designerApiRef.current.exportPreviewForSide("back");
       previewsBySide = { front, back };
     }
 
@@ -213,6 +215,7 @@ export function ProductDesignerPage() {
           {mode === "edit" ? (
             design ? (
               <ProductDesigner
+                ref={designerApiRef}
                 value={design}
                 onChange={handleDesignerSave}
                 frontImage={template.frontImage}
@@ -220,7 +223,6 @@ export function ProductDesignerPage() {
                 printArea={template.printArea}
                 stageWidth={template.width}
                 stageHeight={template.height}
-                stageRef={stageRef}
               />
             ) : (
               <Spinner size="lg" />

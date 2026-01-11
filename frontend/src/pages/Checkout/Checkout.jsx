@@ -68,14 +68,14 @@ export function Checkout() {
   const nav = useNavigate();
   const session = loadGuestSession();
 
-  const [guestEmail, setGuestEmail] = useState(""); // ✅ NUEVO
+  const [guestEmail, setGuestEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   //const [paymentMethod] = useState("card");
   const [checkoutHydrated, setCheckoutHydrated] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [orderCreated, setOrderCreated] = useState(null);
+  const [orderCreated, setOrderCreated] = useState(null);// mirar
 
 
   
@@ -125,28 +125,9 @@ export function Checkout() {
 
     return () => clearTimeout(t);
   }, [guestEmail]);
-
-  // 🔁 Restaurar borrador del checkout (volver del diseñador)
   
-  useEffect(() => {
-    const session = loadGuestSession();
-    if (session?.checkoutDraft) {
-      const d = session.checkoutDraft;
-      if (d.guestEmail) setGuestEmail(d.guestEmail);
-      if (d.shippingAddress) setShippingAddress(d.shippingAddress);
-      if (d.billingAddress) setBillingAddress(d.billingAddress);
-      if (typeof d.useSameBilling === "boolean") setUseSameBilling(d.useSameBilling);
-      if (d.notes) setNotes(d.notes);
-    }
-
-    setCheckoutHydrated(true);
-  }, []);
-
-
-
   // 💾 Guardar borrador del checkout automáticamente
  
-
   useEffect(() => {
     if (!checkoutHydrated) return;
     saveGuestSession({
@@ -161,6 +142,23 @@ export function Checkout() {
     });
   }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes, checkoutHydrated]);
 
+  
+  // 🔁 Restaurar borrador del checkout (volver del diseñador)
+  
+  useEffect(() => {
+    const session = loadGuestSession();
+    if (session?.checkoutDraft) {
+      const d = session.checkoutDraft;
+      if (d.guestEmail) setGuestEmail(d.guestEmail);
+      if (d.shippingAddress) setShippingAddress(d.shippingAddress);
+      if (d.billingAddress) setBillingAddress(d.billingAddress);
+      if (typeof d.useSameBilling === "boolean") setUseSameBilling(d.useSameBilling);
+      if (d.notes) setNotes(d.notes);
+    }
+    
+    setCheckoutHydrated(true);
+  }, []);
+  
   useEffect(() => {
     if (!orderCreated) return;
 
@@ -168,6 +166,8 @@ export function Checkout() {
       state: orderCreated,
     });
   }, [orderCreated, nav]);
+
+
 
   
   // --- ENVÍO ---
@@ -302,13 +302,16 @@ export function Checkout() {
     try {
       setLoading(true);
 
+      const orderTotal = totalAmount + (shippingQuote.price || 0);
+
       const data = await createOrderRequest(items, /*paymentMethod,*/ {
         guestId: user ? null : getGuestId(),
         email: user ? null : guestEmail,
         shippingAddress,
-        billingAddress: useSameBilling ? null : billingAddress,
+        billingAddress: useSameBilling ? shippingAddress : billingAddress,
         notes,
         shipping: shippingQuote,
+        total: orderTotal,
       });
 
       
@@ -352,7 +355,7 @@ export function Checkout() {
           email: !user ? guestEmail : null,
           emailHasAccount,
         },
-      });*/
+      });
       setOrderCreated({
         order: data.order,
         orderId: data.orderId,
@@ -360,13 +363,32 @@ export function Checkout() {
         email: !user ? guestEmail : null,
         emailHasAccount,
       });
-
+      
       // Limpieza ligera, SIN desmontar UI crítica
       /*setTimeout(() => {
         clearCart();
         localStorage.removeItem("guest_session_v1");
       }, 0);*/
 
+    // 1️ ⃣ Navega PRIMERO 
+    setSuccessMsg(`Pedido nº ${data.orderId} creado correctamente.`); 
+    nav("/confirmacion-pedido", { 
+      replace: true, 
+      state: { 
+        order: data.order, 
+        orderId: data.orderId, 
+        isGuest: !user,
+        email: !user ? guestEmail : null, 
+        emailHasAccount, 
+      }, 
+    }); 
+    
+    // 2️ ⃣ Limpia el carrito DESPUÉS (fuera del ciclo de render) 
+    
+    setTimeout(() => { 
+      clearCart(); 
+      localStorage.removeItem("guest_session_v1"); 
+    }, 0);
 
     } catch (err) {
       console.error("Error procesando pedido:", err);
@@ -765,17 +787,16 @@ export function Checkout() {
 
 
 
-      <Button
-        mt={6}
-        width="100%"
-        colorScheme="blue"
-        size="lg"
-        onClick={handleConfirmOrder}
-        isLoading={loading}
-        isDisabled={!acceptedTerms || shippingLoading}
-      >
-        Confirmar pedido y pagar
-      </Button>
+      <Button 
+        mt={6} 
+        width="100%" 
+        colorScheme="blue" 
+        size="lg" 
+        onClick={handleConfirmOrder} 
+        isDisabled={loading || !acceptedTerms} 
+        > 
+          {loading ? "Procesando pedido…" : "Confirmar pedido y pagar"} 
+        </Button>
 
       <Text fontSize="xs" color="gray.500" mt={2}>
         Los datos introducidos se utilizarán únicamente para gestionar este pedido.

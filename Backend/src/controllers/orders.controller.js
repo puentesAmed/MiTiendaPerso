@@ -8,6 +8,7 @@ import { orderClientEmail } from "../emails/templates/orderClientEmail.js";
 import { orderAdminEmail } from "../emails/templates/orderAdminEmail.js";
 import { orderStatusEmail } from "../emails/templates/orderStatusEmail.js";
 import { calculateEstimatedDelivery } from "../utils/calculateEstimatedDelivery.js";
+import { AffiliateProduct } from "../models/AffiliateProduct.js";
 import { sendToDropshipping } from "../services/dropshipping.service.js";
 
 
@@ -38,7 +39,11 @@ export async function createOrder(req, res) {
       billingAddress,
       notes,
       shipping,
+      total: clientTotal,
     } = req.body;
+
+    
+    let productsTotal = 0;
 
     // ✅ Usuario O invitado (email obligatorio)
     if (!userId && (!guestId || !guestEmail)) {
@@ -61,15 +66,32 @@ export async function createOrder(req, res) {
     }
 
     const productIds = items.map((i) => i.productId);
-    const products = await Product.find({
+    /*const products = await Product.find({
+      _id: { $in: productIds },
+      published: true,
+    });*/
+
+    const localProducts = await Product.find({
       _id: { $in: productIds },
       published: true,
     });
 
-    const productsMap = new Map(products.map((p) => [p._id.toString(), p]));
+    const affiliateProducts = await AffiliateProduct.find({
+      _id: { $in: productIds },
+      published: true,
+    });
+
+    const productsMap = new Map([
+      ...localProducts.map(p => [p._id.toString(), p]),
+      ...affiliateProducts.map(p => [p._id.toString(), p]),
+    ]);
+
+
+    //const productsMap = new Map(products.map((p) => [p._id.toString(), p]));
 
     const orderItems = [];
-    let total = 0;
+    //let total = 0;
+    let productTotal = 0;
 
     for (const cartItem of items) {
       const { productId, quantity } = cartItem;
@@ -79,13 +101,35 @@ export async function createOrder(req, res) {
         return res.status(400).json({ ok: false, message: "Línea de carrito inválida" });
       }
 
-      const product = productsMap.get(productId);
+      /*const product = productsMap.get(productId);
       if (!product) {
         return res.status(400).json({
           ok: false,
           message: `Producto no disponible: ${productId}`,
         });
+      }*/
+
+      const product = productsMap.get(productId);
+
+      // 👉 SI NO ES PRODUCTO LOCAL (AliExpress / afiliado)
+      if (!product) {
+        orderItems.push({
+          productId,
+          name: cartItem.name,
+          price: Number(cartItem.price),
+          quantity: qty,
+          customizationId: null,
+          selectedVariant: cartItem.selectedVariant || null,
+
+          provider: "aliexpress",
+          externalId: cartItem.externalId || productId,
+          providerSku: cartItem.providerSku || null,
+        });
+
+        productsTotal += Number(cartItem.price) * qty;
+        continue; // ⬅️ CRÍTICO
       }
+
 
       if (
         typeof product.stock === "number" &&
@@ -98,8 +142,9 @@ export async function createOrder(req, res) {
       }
 
 
-      const price = Number(product.price);
-      total += price * qty;
+      const price = Number(cartItem.price ?? product.price);
+      //total += price * qty;
+      productsTotal += price * qty;
 
       let customizationId = null;
 
@@ -152,12 +197,30 @@ export async function createOrder(req, res) {
 
     }
 
+    if (typeof clientTotal !== "number") {
+      return res.status(400).json({
+        ok: false,
+        message: "Total del pedido no recibido",
+      });
+    }
+
+    const shippingPrice = shipping?.price || 0;
+    const calculatedTotal = productsTotal + shippingPrice;
+
+    if (Math.abs(calculatedTotal - clientTotal) > 0.01) {
+      return res.status(400).json({
+        ok: false,
+        message: "El total del pedido no es válido",
+      });
+    }
+
+/*
     if (total <= 0) {
       return res.status(400).json({
         ok: false,
         message: "Total de pedido inválido",
       });
-    }
+    }*/
 
     if (!shipping || !shipping.estimatedDays) {
       return res.status(400).json({
@@ -174,16 +237,29 @@ export async function createOrder(req, res) {
     });
 
 
-    await Promise.all(
+    /*await Promise.all(
       orderItems.map((item) =>
         Product.updateOne(
           { _id: item.productId, stock: { $gte: item.quantity } },
           { $inc: { stock: -item.quantity } }
         )
       )
+    );*/
+
+    await Promise.all(
+      orderItems
+        .filter(item => item.provider === "local")
+        .map(item =>
+          Product.updateOne(
+            { _id: item.productId, stock: { $gte: item.quantity } },
+            { $inc: { stock: -item.quantity } }
+          )
+        )
     );
 
-    
+
+    const finalBillingAddress = billingAddress || shippingAddress;
+
 
     
     const order = await Order.create({
@@ -191,9 +267,9 @@ export async function createOrder(req, res) {
       guestId: userId ? null : guestId,
       guestEmail: userId ? null : guestEmail,
       items: orderItems,
-      total,
+      total: calculatedTotal,
       shippingAddress,
-      billingAddress: billingAddress || null,
+      billingAddress: finalBillingAddress,
       notes: notes || "",
 
       //Logística
@@ -496,6 +572,50 @@ export async function trackOrderByEmail(req, res) {
     return res.status(500).json({
       ok: false,
       message: "Error al consultar pedido",
+    });
+  }
+}
+
+
+/**
+ * 🧪 TEST — Marcar pedido como pagado y enviar a dropshipping
+ * (Simula webhook de MONEI)
+ */
+export async function markOrderAsPaid(req, res) {
+  try {
+    const { id } = req.params;
+
+    // 1️⃣ Buscar pedido
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({
+        ok: false,
+        message: "Pedido no encontrado",
+      });
+    }
+
+    // 2️⃣ Marcar pago como realizado
+    order.payment.status = "paid";
+    order.status = "processing";
+
+    await order.save();
+
+    // 3️⃣ Enviar a dropshipping
+    await sendToDropshipping({
+      order,
+      items: order.items,
+      shippingAddress: order.shippingAddress,
+    });
+
+    return res.json({
+      ok: true,
+      message: "Pedido marcado como pagado y enviado a dropshipping",
+    });
+  } catch (err) {
+    console.error("🔥 Error en markOrderAsPaid:", err);
+    return res.status(500).json({
+      ok: false,
+      message: "Error interno al marcar pedido como pagado",
     });
   }
 }

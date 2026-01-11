@@ -1,3 +1,13 @@
+function formatDate(date) {
+  if (!date) return "";
+  return new Date(date).toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+
 export function orderClientEmail(order) {
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 

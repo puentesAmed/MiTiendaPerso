@@ -2,74 +2,7 @@
 import axios from "axios";
 import { Order } from "../models/Order.js";  
 
-/**
- * ======================================================
- * DROPSHIPPING SERVICE
- * ======================================================
- * Envía productos AliExpress al microservicio
- * ApiDropshipping sin afectar el flujo principal
- * de la tienda.
- *
- * - NO lanza errores críticos
- * - NO expone AliExpress al cliente
- * ======================================================
- */
 
-/*const DROPSHIPPING_API_URL =
-  process.env.DROPSHIPPING_API_URL || "http://localhost:4001";
-
-
-export async function sendToDropshipping({ order }) {
-  // 0) Seguridad: solo si está pagado
-  if (order?.payment?.status !== "paid") return;
-
-  // 1) Filtrar items AliExpress desde la orden real
-  const dropshippingItems = (order.items || []).filter(
-    (i) => i.provider === "aliexpress" && i.externalId
-  );
-
-  if (dropshippingItems.length === 0) return;
-
-  const shippingAddress = order.shippingAddress;
-
-  for (const item of dropshippingItems) {
-    const payload = {
-      shopOrderId: order._id.toString(),
-      supplier: "aliexpress",
-
-      product: {
-        externalId: item.externalId,      // AliExpress product_id
-        providerSku: item.providerSku,    // AliExpress ae_sku_id (si existe)
-        title: item.name,
-        price: item.price,
-      },
-
-      quantity: item.quantity,
-
-      customer: {
-        name: shippingAddress.fullName,
-        email: order.guestEmail || null,
-        address: {
-          street: shippingAddress.street,
-          city: shippingAddress.city,
-          state: shippingAddress.state,
-          postalCode: shippingAddress.postalCode,
-          country: shippingAddress.country,
-        },
-      },
-    };
-
-    try {
-      await axios.post(`${DROPSHIPPING_API_URL}/api/supplier-orders`, payload);
-    } catch (error) {
-      console.error(
-        "❌ Error sending order to dropshipping:",
-        error.response?.data || error.message
-      );
-    }
-  }
-}
-*/
 
 const DROPSHIPPING_API_URL =
   process.env.DROPSHIPPING_API_URL || "http://localhost:4001";

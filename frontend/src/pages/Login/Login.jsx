@@ -210,16 +210,15 @@ export function Login() {
             <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
           </FormControl>
 
-          <Button
-            type="submit"
-            bg={btnBg}
-            color={border}
-            _hover={{ bg: btnHover }}
-            isLoading={isSubmitting}
-            loadingText="Accediendo"
-            width="full"
-          >
-            Entrar
+          <Button 
+            type="submit" 
+            bg={btnBg} 
+            color={border} 
+            _hover={{ bg: btnHover }} 
+            isDisabled={isSubmitting} 
+            width="full" 
+            > 
+              {isSubmitting ? "Accediendo…" : "Entrar"} 
           </Button>
 
           <HStack justify="center" mt={4} spacing={1}>

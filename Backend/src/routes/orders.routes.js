@@ -9,6 +9,7 @@ import {
   adminUpdateOrderStatus,
   trackOrderByEmail,
   adminConfirmDeliveryDate,
+  markOrderAsPaid,
 } from "../controllers/orders.controller.js";
 
 export const ordersRouter = Router();
@@ -21,6 +22,7 @@ ordersRouter.get("/track", trackOrderByEmail);
 // usuario normal
 ordersRouter.post("/", optionalAuth, createOrder); // público
 ordersRouter.get("/mine", requireAuth, getOrdersByUser);
+ordersRouter.post("/:id/mark-paid", markOrderAsPaid);
 
 // ADMIN: lista todos los pedidos
 ordersRouter.get("/", requireAuth, requireAdmin, adminGetAllOrders);
