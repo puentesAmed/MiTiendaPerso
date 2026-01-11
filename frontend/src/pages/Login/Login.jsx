@@ -215,12 +215,12 @@ export function Login() {
             bg={btnBg}
             color={border}
             _hover={{ bg: btnHover }}
-            isLoading={isSubmitting}
-            loadingText="Accediendo"
+            isDisabled={isSubmitting}
             width="full"
           >
-            Entrar
+            {isSubmitting ? "Accediendo…" : "Entrar"}
           </Button>
+
 
           <HStack justify="center" mt={4} spacing={1}>
             <Text fontSize="sm" color="gray.400">

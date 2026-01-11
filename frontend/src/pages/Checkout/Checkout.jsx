@@ -259,10 +259,9 @@ export function Checkout() {
 
       
 
-      clearCart();
+      /*clearCart();
       localStorage.removeItem("guest_session_v1");
 
-      setSuccessMsg(`Pedido nº ${data.orderId} creado correctamente.`);
       //nav("/mis-pedidos");
       nav("/confirmacion-pedido", {
         state: {
@@ -271,8 +270,28 @@ export function Checkout() {
           isGuest: !user,
           email: !user ? guestEmail : null,
           emailHasAccount,
-        },
-      });
+          },
+          });*/
+          
+          // 1️⃣ Navega PRIMERO
+    setSuccessMsg(`Pedido nº ${data.orderId} creado correctamente.`);
+    nav("/confirmacion-pedido", {
+      replace: true,
+      state: {
+        order: data.order,
+        orderId: data.orderId,
+        isGuest: !user,
+        email: !user ? guestEmail : null,
+        emailHasAccount,
+      },
+    });
+
+    // 2️⃣ Limpia el carrito DESPUÉS (fuera del ciclo de render)
+    setTimeout(() => {
+      clearCart();
+      localStorage.removeItem("guest_session_v1");
+    }, 0);
+
     } catch (err) {
       console.error("Error procesando pedido:", err);
       setError("Error inesperado al procesar pedido");
@@ -604,11 +623,11 @@ export function Checkout() {
         colorScheme="blue"
         size="lg"
         onClick={handleConfirmOrder}
-        isLoading={loading}
-        isDisabled={!acceptedTerms}
+        isDisabled={loading || !acceptedTerms}
       >
-        Confirmar pedido y pagar
+        {loading ? "Procesando pedido…" : "Confirmar pedido y pagar"}
       </Button>
+
 
       <Text fontSize="xs" color="gray.500" mt={2}>
         Los datos introducidos se utilizarán únicamente para gestionar este pedido.

@@ -24,6 +24,8 @@ import {
   
 } from "@chakra-ui/react";
 
+import { forwardRef, useImperativeHandle } from "react";
+
 /* ======================================================
    HOOK PARA CARGAR IMÁGENES (HTMLImageElement)
 ========================================================= */
@@ -212,16 +214,23 @@ function ExportStage({
 /* ======================================================
    COMPONENTE PRINCIPAL
 ========================================================= */
-export function ProductDesigner({
-  frontImage,
-  backImage,
-  printArea = { x: 100, y: 40, width: 260, height: 360 },
-  stageWidth = 500,
-  stageHeight = 500,
-  value,
-  onChange,
-  stageRef,
-}) {
+export const ProductDesigner = forwardRef(function ProductDesigner(
+  {
+    frontImage,
+    backImage,
+    printArea,
+    stageWidth,
+    stageHeight,
+    value,
+    onChange,
+  },
+  apiRef
+) {
+
+  const stageKonvaRef = useRef(null);
+  const exportFrontRef = useRef(null);
+  const exportBackRef = useRef(null);
+
   
   const [side, setSide] = useState(() => value?.side || "front");
   const [elementsBySide, setElementsBySide] = useState(
@@ -242,15 +251,15 @@ export function ProductDesigner({
 
 
   // Stage principal (editor)
-  const internalStageRef = useRef(null);
-  const effectiveStageRef = stageRef || internalStageRef;
+  //const internalStageRef = useRef(null);
+  //const effectiveStageRef = stageRef || internalStageRef;
   
   const layerRef = useRef(null);
   const trRef = useRef(null);
   
   // Stages ocultos para export
-  const exportFrontRef = useRef(null);
-  const exportBackRef = useRef(null);
+  //const exportFrontRef = useRef(null);
+  //const exportBackRef = useRef(null);
   
   // Mockup del editor
   const productImg = useImage(side === "front" ? frontImage : backImage);
@@ -269,6 +278,29 @@ export function ProductDesigner({
   // 🔹 SINCRONIZAR ESTADO INTERNO CUANDO CAMBIA `value`
 // 🔹 NECESARIO PARA QUE EL TAMAÑO DEL TEXTO NO SE RESETEE AL PREVISUALIZAR
 
+  useImperativeHandle(apiRef, () => ({
+  exportPreviewForSide: async (side = "front", pixelRatio = 2) => {
+    const ref = side === "back" ? exportBackRef : exportFrontRef;
+    const stage = ref.current;
+    if (!stage) return null;
+
+    await new Promise((r) => requestAnimationFrame(r));
+    stage.batchDraw();
+
+    try {
+      return stage.toDataURL({ pixelRatio });
+    } catch {
+      return null;
+    }
+  },
+
+  exportPreviewsBySide: async (pixelRatio = 2) => {
+    return {
+      front: await apiRef.current.exportPreviewForSide("front", pixelRatio),
+      back: await apiRef.current.exportPreviewForSide("back", pixelRatio),
+    };
+  },
+}));
 
 
   /* ======================================================
@@ -313,7 +345,7 @@ useEffect(() => {
      Exponer métodos en stageRef.current (IMPORTANTE)
      Para que ProductDesignerPage pueda llamarlos.
 ========================================================= */
-  useEffect(() => {
+  /*useEffect(() => {
     const stage = effectiveStageRef.current;
     if (!stage) return;
 
@@ -328,7 +360,7 @@ useEffect(() => {
         return null;
       }
     };*/
-
+/*
     stage.exportPreviewForSide = async (sideName = "front", pixelRatio = 2) => {
       const ref = sideName === "back" ? exportBackRef : exportFrontRef;
       const s = ref.current;
@@ -354,7 +386,7 @@ useEffect(() => {
         back: stage.exportPreviewForSide("back", pixelRatio),
         };
       };*/
-
+/*
     stage.exportPreviewsBySide = async (pixelRatio = 2) => {
       return {
         front: await stage.exportPreviewForSide("front", pixelRatio),
@@ -365,7 +397,48 @@ useEffect(() => {
 
       
     
-  }, [effectiveStageRef, elementsBySide, frontImage, backImage]);
+  }, [effectiveStageRef, elementsBySide, frontImage, backImage]);*/
+
+ /* useEffect(() => {
+  const stage = effectiveStageRef.current;
+  if (!stage) return;
+
+  const exportPreviewForSide = async (sideName = "front", pixelRatio = 2) => {
+    const ref = sideName === "back" ? exportBackRef : exportFrontRef;
+    const s = ref.current;
+    if (!s) return null;
+
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    s.batchDraw();
+
+    try {
+      return s.toDataURL({ pixelRatio });
+    } catch {
+      return null;
+    }
+  };
+
+  const exportPreviewsBySide = async (pixelRatio = 2) => {
+    return {
+      front: await exportPreviewForSide("front", pixelRatio),
+      back: await exportPreviewForSide("back", pixelRatio),
+    };
+  };
+
+  stage.exportPreviewForSide = exportPreviewForSide;
+  stage.exportPreviewsBySide = exportPreviewsBySide;
+
+  return () => {
+    // importante: evitar referencias colgantes
+    if (stage.exportPreviewForSide === exportPreviewForSide) {
+      delete stage.exportPreviewForSide;
+    }
+    if (stage.exportPreviewsBySide === exportPreviewsBySide) {
+      delete stage.exportPreviewsBySide;
+    }
+  };
+}, [effectiveStageRef]);
+*/
 
   /* ======================================================
      CRUD elementos
@@ -775,7 +848,7 @@ useEffect(() => {
           <Stage
              width={stageWidth}
             height={stageHeight}
-            ref={effectiveStageRef}
+            ref={stageKonvaRef}
             onMouseDown={(e) =>
               e.target === e.target.getStage() && setSelectedId(null)
             }
@@ -875,3 +948,4 @@ useEffect(() => {
   );
 }
 
+)
