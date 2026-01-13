@@ -2,39 +2,50 @@ import { Product } from "../models/Product.js";
 import { AffiliateProduct } from "../models/AffiliateProduct.js";
 
 
-/*export async function getProducts(req, res) {
-  try {
-    const { category, q } = req.query;
+function mapProductToCatalogView(product) {
+  const isAliExpress = product.provider === "aliexpress";
 
-    const filter = {published: true};
-    if (category) filter.category = category;
-    if (q) filter.name = { $regex: q, $options: "i" };
+  // 🔹 Variantes
+  const variants = isAliExpress
+    ? product.variants?.map(v => ({
+        id: v.skuId,
+        label: Object.values(v.attributes || {}).join(" · "),
+        price: v.price?.final,
+        available: v.enabled !== false,
+        providerSku: v.skuId,
+      })) || []
+    : [
+        {
+          id: "default",
+          label: "Única",
+          price: product.price,
+          available: product.stock > 0,
+        },
+      ];
 
-    const [localProducts, affiliateProducts] = await Promise.all([
-      Product.find(filter).lean(),
-      AffiliateProduct.find(filter).lean(),
-    ]);
+  const prices = variants.map(v => v.price).filter(Boolean);
 
-    const sortedLocalProducts = localProducts.sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-    );
+  return {
+    id: product._id,
+    name: product.name || product.title,
+    description: product.description,
+    images: product.images?.length ? product.images : [product.image],
+    provider: product.provider || "local",
 
-    const sortedAffiliateProducts = affiliateProducts.sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-    );
+    price: {
+      from: Math.min(...prices),
+      to: Math.max(...prices),
+    },
 
-    const products = [
-      ...sortedLocalProducts,
-      ...sortedAffiliateProducts,
-    ];
+    variants,
 
-    res.json({ ok: true, products });
-  } catch (err) {
-    console.error("Error en getProducts:", err);
-    res.status(500).json({ ok: false });
-  }
-}*/
+    customizable: product.customizable || false,
+    customizationAreas: product.customizationAreas || [],
+  };
+}
 
+
+// GET /api/products
 export async function getProducts(req, res) {
   try {
     const { category, q } = req.query;
@@ -65,9 +76,11 @@ export async function getProducts(req, res) {
     ]);
 
     // ✅ Internos primero
-    const products = [...localProducts, ...affiliateProducts];
+    const products = [...localProducts, ...affiliateProducts]
+      .map(mapProductToCatalogView);
 
     res.json({ ok: true, products });
+
   } catch (err) {
     console.error("Error en getProducts:", err);
     res.status(500).json({ ok: false, message: "Error en getProducts" });
@@ -92,7 +105,11 @@ export async function getProduct(req, res) {
         .json({ ok: false, message: "Producto no encontrado" });
     }
 
-    res.json({ ok: true, product });
+    res.json({
+      ok: true,
+      product: mapProductToCatalogView(product),
+    });
+
   } catch (err) {
     console.error("Error en getProduct:", err);
     res.status(500).json({ ok: false, message: "Error al obtener el producto" });
