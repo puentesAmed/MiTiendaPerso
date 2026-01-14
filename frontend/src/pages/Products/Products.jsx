@@ -33,7 +33,7 @@ export function Products() {
     setLoading(true);
     setError("");
     const data = await apiGetProducts(params);
-    console.log('Products for UI:', data);
+    console.log('Products for UI (count):', data.length);
     setProducts(data);
   } catch (err) {
     console.error(err);
@@ -168,7 +168,7 @@ export function Products() {
 
       <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={4}>
         {products.map((p) => (
-          <ProductCard key={p._id} product={p} />
+          <ProductCard key={p.id || p._id} product={p} />
         ))}
       </SimpleGrid>
     </Box>
