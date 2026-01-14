@@ -158,7 +158,7 @@ export function CartProvider({ children }) {
       if (idx !== -1) {
         const existing = prev[idx];
 
-        if (customization || selectedVariant) {
+        /*if (customization || selectedVariant) {
           const next = [...prev];
           next[idx] = {
             ...existing,
@@ -168,7 +168,25 @@ export function CartProvider({ children }) {
             quantity: existing.quantity,
           };
           return next;
-        }
+        }*/
+
+          if (customization || selectedVariant) {
+            const next = [...prev];
+            next[idx] = {
+              ...existing,
+              customization: customization
+                ? {
+                    ...customization,
+                    type: "designer", // 🔑 BLINDAJE TOTAL
+                  }
+                : existing.customization,
+              selectedVariant: selectedVariant ?? existing.selectedVariant,
+              requiresDesign: true,
+              quantity: existing.quantity,
+            };
+            return next;
+          }
+
 
         const next = [...prev];
         next[idx] = {

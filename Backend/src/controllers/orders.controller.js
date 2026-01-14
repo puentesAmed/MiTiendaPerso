@@ -21,6 +21,9 @@ import { sendToDropshipping } from "../services/dropshipping.service.js";
  * 📌 CREATE ORDER — Guarda también personalizaciones avanzadas
  */
 export async function createOrder(req, res) {
+  console.log("🧪 BACKEND items (FULL):", JSON.stringify(req.body.items, null, 2));
+  console.log("🧪 BACKEND item[0].customization:", req.body.items?.[0]?.customization);
+
   console.log("🟥 BODY /api/orders", JSON.stringify(req.body, null, 2));
 
   console.log("📦 BODY RECIBIDO:", req.body);
@@ -93,6 +96,9 @@ export async function createOrder(req, res) {
     //let total = 0;
     let productTotal = 0;
 
+    console.log("🧪 ITEMS RECIBIDOS EN BACKEND:", JSON.stringify(items, null, 2));
+
+
     for (const cartItem of items) {
       const { productId, quantity } = cartItem;
       const qty = Number(quantity) || 0;
@@ -151,19 +157,36 @@ export async function createOrder(req, res) {
       // -------------------------------
       //     PERSONALIZACIÓN
       // -------------------------------
-      if (cartItem.customization && cartItem.customization.type === "designer") {
+      if (
+        cartItem.customization &&
+        cartItem.customization.design &&
+        cartItem.customization.previewsBySide
+      ) {
         const design = cartItem.customization.design || {
           elementsBySide: { front: [], back: [] },
           notes: "",
           side: "front",
         };
 
-        const previewImage =
+        /*const previewImage =
           cartItem.customization.previewImageHD ||
           cartItem.customization.previewImage ||
           null;
 
+        
+
         const previewsBySide = cartItem.customization?.previewsBySide || null;
+*/
+        const previewsBySide =
+          cartItem.customization.previewsBySide ||
+          cartItem.customization.design?.previewsBySide ||
+          null;
+
+        const previewImage =
+          cartItem.customization.previewImage ||
+          previewsBySide?.front ||
+          previewsBySide?.back ||
+          null;
 
         const record = await Customization.create({
           userId: userId || null,

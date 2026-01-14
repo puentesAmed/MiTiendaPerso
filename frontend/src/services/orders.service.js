@@ -49,7 +49,11 @@ export async function createOrderRequest(items, data = {}) {
     total: data.total ?? 0,
   };
 
-  console.log("📦 Payload /api/orders:", payload);
+  //console.log("📦 Payload /api/orders:", payload);
+
+  console.log("📦 Payload /api/orders (FULL):", JSON.stringify(payload, null, 2));
+  console.log("📦 Payload item[0].customization:", payload.items?.[0]?.customization);
+
 
   const { data: response } = await http.post("/api/orders", payload);
   return response;

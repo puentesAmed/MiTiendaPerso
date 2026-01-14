@@ -62,6 +62,13 @@ function getOrderUserLabel(order) {
   return "—";
 }
 
+
+function getNumericPrice(price) {
+  if (typeof price === "number") return price;
+  if (price && typeof price.final === "number") return price.final;
+  return 0;
+}
+
 export function Admin() {
   const toast = useToast();
 
@@ -637,7 +644,7 @@ const handleDownloadZip = async (customization) => {
                             <Text noOfLines={1} title={p.name}>{p.name}</Text>
                           </Td>
 
-                          <Td>{(p.price ?? 0).toFixed(2)} €</Td>
+                          <Td>{getNumericPrice(p.price).toFixed(2)} €</Td>
 
                           <Td>{p.stock ?? 0}</Td>
 

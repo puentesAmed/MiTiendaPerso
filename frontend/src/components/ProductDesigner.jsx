@@ -518,7 +518,7 @@ useEffect(() => {
      Guardar diseño (SIN CAMBIAR SIDE)
      Genera previewsBySide usando stages ocultos.
 ========================================================= */
-  const handleSaveDesign = async() => {
+ /* const handleSaveDesign = async() => {
     const stage = effectiveStageRef.current;
     if (!stage) return;
 
@@ -540,6 +540,23 @@ useEffect(() => {
       previewsBySide,
     });
   };
+*/
+  const handleSaveDesign = async () => {
+    if (!apiRef?.current) return;
+
+    const previewsBySide = await apiRef.current.exportPreviewsBySide(2);
+
+    console.log("PREVIEWS:", previewsBySide);
+
+    setSavedAt(new Date().toISOString());
+
+    onChange?.({
+      side,
+      elementsBySide,
+      previewsBySide,
+    });
+  };
+
 
   // Función para mover capa arriba/abajo
   const moveLayer = (id, direction) => {
