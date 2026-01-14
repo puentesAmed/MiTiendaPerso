@@ -209,7 +209,7 @@ import { AffiliateProduct } from "../models/AffiliateProduct.js";
  * - AliExpress: price.final YA calculado
  * ⚠️ Si un producto llega aquí sin precio válido → ERROR
  */
-function normalizePrice(product) {
+/*function normalizePrice(product) {
   // Producto interno
   if (typeof product.price === "number") {
     return {
@@ -231,7 +231,44 @@ function normalizePrice(product) {
   }
 
   throw new Error(`Producto sin precio válido (_id: ${product._id})`);
+}*/
+
+function normalizePrice(product, variant = null) {
+  // 🔹 Si hay variante (AliExpress)
+  if (variant?.price?.final) {
+    return {
+      final: variant.price.final,
+      currency: "EUR",
+      breakdown: {
+        cost: variant.price.cost,
+        margin: variant.price.margin,
+      },
+    };
+  }
+
+  // 🔹 Producto interno
+  if (typeof product.price === "number") {
+    return {
+      final: product.price,
+      currency: "EUR",
+    };
+  }
+
+  // 🔹 Producto AliExpress SIN variantes (edge case)
+  if (product.price?.final && typeof product.price.final === "number") {
+    return {
+      final: product.price.final,
+      currency: "EUR",
+      breakdown: {
+        cost: product.price.cost,
+        margin: product.price.margin,
+      },
+    };
+  }
+
+  throw new Error(`Producto sin precio válido (_id: ${product._id})`);
 }
+
 
 /**
  * 🧩 MAPEO PARA CATÁLOGO Y DETALLE
@@ -240,7 +277,27 @@ function normalizePrice(product) {
 function mapToCatalogProduct(product) {
   const isAliExpress = product.provider === "aliexpress";
 
-  const price = normalizePrice(product);
+  //const price = normalizePrice(product);
+
+  let price;
+
+  if (
+    isAliExpress &&
+    Array.isArray(product.variants) &&
+    product.variants.length > 0
+  ) {
+    // 👉 Usamos el precio MÁS BARATO de las variantes (para catálogo)
+    const cheapestVariant = product.variants.reduce((min, v) =>
+      v.price.final < min.price.final ? v : min
+    );
+
+    price = normalizePrice(product, cheapestVariant);
+
+  } else {
+    // 👉 Productos internos o AliExpress sin variantes
+    price = normalizePrice(product);
+  }
+
 
   return {
     _id: product._id,
