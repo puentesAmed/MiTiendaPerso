@@ -304,14 +304,21 @@ export function Checkout() {
 
       const orderTotal = totalAmount + (shippingQuote.price || 0);
 
-      const data = await createOrderRequest(items, /*paymentMethod,*/ {
-        guestId: user ? null : getGuestId(),
-        email: user ? null : guestEmail,
+      const resolvedEmail = user ? user.email : guestEmail;
+      const resolvedGuestId = user ? null : getGuestId();
+
+      if (!resolvedEmail) {
+        throw new Error("No se ha podido resolver el email del pedido");
+      }
+
+      const data = await createOrderRequest(items, {
+        guestId: resolvedGuestId,
+        email: resolvedEmail,
         shippingAddress,
         billingAddress: useSameBilling ? shippingAddress : billingAddress,
         notes,
         shipping: shippingQuote,
-        total: orderTotal,
+        total: Number(orderTotal.toFixed(2)),
       });
 
       

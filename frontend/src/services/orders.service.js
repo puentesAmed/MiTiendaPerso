@@ -36,7 +36,7 @@ export async function adminUpdateOrderStatus(orderId, status) {
 
 // src/services/orders.service.js
 import { http } from "./http";
-
+/*
 export async function createOrderRequest(items, data = {}) {
   const payload = {
     items,
@@ -57,7 +57,40 @@ export async function createOrderRequest(items, data = {}) {
 
   const { data: response } = await http.post("/api/orders", payload);
   return response;
+}*/
+
+export async function createOrderRequest(items, data = {}) {
+  const normalizedItems = items.map(i => ({
+    productId: i.productId || i._id,
+    name: i.name,
+    price: Number(i.price),
+    quantity: Number(i.quantity),
+
+    provider: i.provider || "local",          // 🔴 CLAVE
+    isExternal: i.isExternal ?? false,         // 🔴 CLAVE
+
+    customization: i.customization || null,
+    selectedVariant: i.selectedVariant || null,
+    customizable: Boolean(i.customizable),
+  }));
+
+  const payload = {
+    items: normalizedItems,
+    guestId: data.guestId ?? null,
+    email: data.email ?? null,
+    shippingAddress: data.shippingAddress,
+    billingAddress: data.billingAddress ?? null,
+    notes: data.notes ?? "",
+    shipping: data.shipping,
+    total: Number(data.total ?? 0),
+  };
+
+  console.log("📦 Payload /api/orders (FULL):", JSON.stringify(payload, null, 2));
+
+  const { data: response } = await http.post("/api/orders", payload);
+  return response;
 }
+
 
 // Pedidos del usuario autenticado
 export async function getMyOrdersRequest() {
