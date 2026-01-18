@@ -770,10 +770,15 @@ export async function createOrder(req, res) {
     const orderItems = [];
     let productsTotal = 0;
 
-    for (const cartItem of items) {
+    /*for (const cartItem of items) {
       const { productId, quantity } = cartItem;
       const qty = Number(quantity) || 0;
-      const provider = cartItem.provider || "local";
+      //const provider = cartItem.provider || "local";
+      const provider =
+        product instanceof Product
+          ? "local"
+          : "aliexpress";
+
 
       if (!productId || qty <= 0) {
         return res.status(400).json({
@@ -784,12 +789,57 @@ export async function createOrder(req, res) {
 
       const product = productsMap.get(productId);
 
+      console.log("🧪 PROVIDER RESOLUTION CHECK", {
+        productId,
+        cartProvider: cartItem.provider,
+        model: product.constructor.modelName,
+        resolvedProvider:
+          product instanceof Product ? "local" : "aliexpress",
+      });
+
+
       if (!product) {
         return res.status(400).json({
           ok: false,
           message: `Producto no disponible (${provider})`,
         });
-      }
+      }*/
+
+      for (const cartItem of items) {
+        const { productId, quantity } = cartItem;
+        const qty = Number(quantity) || 0;
+
+        if (!productId || qty <= 0) {
+          return res.status(400).json({
+            ok: false,
+            message: "Línea de carrito inválida",
+          });
+        }
+
+        // ✅ 1. Resolver producto PRIMERO
+        const product = productsMap.get(productId);
+
+        if (!product) {
+          return res.status(400).json({
+            ok: false,
+            message: "Producto no disponible",
+          });
+        }
+
+        // ✅ 2. Resolver provider SOLO en backend
+        const provider =
+          product instanceof Product
+            ? "local"
+            : "aliexpress";
+
+        // 🧪 DEBUG (ahora sí es fiable)
+        console.log("🧪 PROVIDER RESOLUTION CHECK", {
+          productId,
+          cartProvider: cartItem.provider,
+          model: product.constructor.modelName,
+          resolvedProvider: provider,
+        });
+
 
       /* -------------------------
        * STOCK (SOLO LOCAL)

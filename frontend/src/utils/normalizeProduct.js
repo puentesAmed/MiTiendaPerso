@@ -121,8 +121,15 @@ export function normalizeProduct(product) {
   }
 
   // ===== PROVIDER / TIPO (CLAVE ABSOLUTA) =====
-  p.provider = p.provider || "local";
-  p.isExternal = p.provider !== "local"; // 🔴 CLAVE
+  //p.provider = p.provider || "local";
+  //p.isExternal = p.provider !== "local"; // 🔴 CLAVE
+
+  // ===== PROVIDER / TIPO =====
+  const rawProvider = String(p.provider || "local").toLowerCase();
+
+  p.provider = rawProvider === "aliexpress" ? "aliexpress" : "local";
+  p.isExternal = p.provider === "aliexpress";
+
 
   // ===== STOCK =====
   if (p.isExternal) {
