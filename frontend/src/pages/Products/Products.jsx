@@ -239,6 +239,37 @@ export function Products() {
     loadProducts();
   }, []);
 
+  useEffect(() => {
+  console.log("Products MOUNT");
+  return () => {
+    console.log("Products UNMOUNT");
+  };
+}, []);
+
+  // GUARDA SCROLL AL SALIR
+useEffect(() => {
+  return () => {
+    console.log("Scroll Y saved");
+    sessionStorage.setItem(
+      "productsScrollY",
+      String(window.scrollY)
+    );
+  };
+}, []);
+
+// RESTAURA SCROLL AL ENTRAR
+useEffect(() => {
+  const savedY = sessionStorage.getItem("productsScrollY");
+  console.log("Restoring scroll Y:", savedY);
+  if (savedY !== null) {
+    requestAnimationFrame(() => {
+      window.scrollTo(0, Number(savedY));
+    });
+  }
+}, []);
+
+
+
   const handleSearch = () => {
     const params = {};
     if (q) params.q = q;

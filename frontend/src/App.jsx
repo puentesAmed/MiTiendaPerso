@@ -1,4 +1,4 @@
-import { Outlet, Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, Link as RouterLink, useLocation, useNavigate, ScrollRestoration } from "react-router-dom";
 import {
   Box,
   Flex,
@@ -33,7 +33,12 @@ import { CookieNotice } from "./components/common/CookieNotice";
 
 import { useEffect, useState } from "react";
 
+ console.log("App render", location.pathname);
+
 export function App() {
+
+ 
+
   // hooks (orden intacto)
   const { user, logout } = useAuth();
   const { items } = useCart();
@@ -270,9 +275,28 @@ export function App() {
       )}
 
       {/* CONTENIDO */}
-      <Box as="main" flex="1" px={{ base: 4, md: 6 }} py={6}>
+      {/*<Box as="main" flex="1" px={{ base: 4, md: 6 }} py={6}>
+        <ScrollRestoration
+          getKey={(location) =>
+            location.pathname.startsWith("/productos")
+              ? "productos"
+              : location.key
+          }
+        />
+
+        <Outlet />
+      </Box>*/}
+
+      <Box
+        as="main"
+        id="main-scroll"
+        flex="1"
+        px={{ base: 4, md: 6 }}
+        py={6}
+      >
         <Outlet />
       </Box>
+
 
       {/* FOOTER */}
       <Box

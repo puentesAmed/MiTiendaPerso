@@ -132,7 +132,7 @@ export function ProductDetail() {
           size="sm"
           mb={4}
           variant="ghost"
-          onClick={() => navigate(-1)}
+         onClick={() => navigate("/productos", { preventScrollReset: true })}
         >
           Volver
         </Button>
@@ -174,7 +174,7 @@ export function ProductDetail() {
         size="sm"
         mb={4}
         variant="ghost"
-        onClick={() => navigate(-1)}
+        onClick={() => navigate("/productos", { preventScrollReset: true })}
       >
         Volver
       </Button>

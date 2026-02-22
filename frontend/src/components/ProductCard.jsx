@@ -114,7 +114,7 @@ export function ProductCard({ product }) {
   const handleAddToCart = () => {
     // 🔴 Si tiene variantes → ir al detalle para elegir variante
     if (hasRealVariants) {
-      navigate(`/productos/${productId}`);
+      navigate(`/productos/${productId}`, { preventScrollReset: true });
       return;
     }
 
@@ -136,7 +136,7 @@ export function ProductCard({ product }) {
       _hover={{ boxShadow: "md", transform: "translateY(-2px)" }}
       transition="all 0.15s ease"
     >
-      <Link as={RouterLink} to={`/productos/${productId}`}>
+      <Link as={RouterLink} to={`/productos/${productId}`} preventScrollReset>
         {mainImage && (
           <Image
             src={mainImage}
@@ -156,6 +156,7 @@ export function ProductCard({ product }) {
           <Link
             as={RouterLink}
             to={`/productos/${productId}`}
+            preventScrollReset
             _hover={{ textDecoration: "none", color: "blue.400" }}
           >
             <Heading as="h3" fontSize="lg">
