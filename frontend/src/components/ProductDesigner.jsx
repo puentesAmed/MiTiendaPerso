@@ -513,13 +513,11 @@ useEffect(() => {
 
     const previewsBySide = await stage.exportPreviewsBySide(2);
 
-    console.log("PREVIEWS:", previewsBySide);
 
     console.log(
       "¿FRONT === BACK?",
       previewsBySide.front === previewsBySide.back
     );
-    console.log("PREVIEWS:", previewsBySide);
 
     setSavedAt(new Date().toISOString());
 
@@ -535,7 +533,6 @@ useEffect(() => {
 
     const previewsBySide = await apiRef.current.exportPreviewsBySide(2);
 
-    console.log("PREVIEWS:", previewsBySide);
 
     setSavedAt(new Date().toISOString());
 

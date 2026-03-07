@@ -33,7 +33,6 @@ export function Products() {
     setLoading(true);
     setError("");
     const data = await apiGetProducts(params);
-    console.log('Products for UI (count):', data.length);
     setProducts(data);
   } catch (err) {
     console.error(err);

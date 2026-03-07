@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { v4 as uuid } from "uuid";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const CartContext = createContext(null);
@@ -22,7 +21,7 @@ const GUEST_SESSION_TTL_DAYS = 7;
 function getGuestId() {
   let id = localStorage.getItem(GUEST_KEY);
   if (!id) {
-    id = uuid();
+    id = crypto.randomUUID();
     localStorage.setItem(GUEST_KEY, id);
   }
   return id;

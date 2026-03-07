@@ -157,19 +157,26 @@ export function Checkout() {
   }, []);
   
 
+  const isShippingAddressValid = useCallback(() => {
+    return (
+      shippingAddress.fullName.trim() &&
+      shippingAddress.street.trim() &&
+      shippingAddress.city.trim() &&
+      shippingAddress.state.trim() &&
+      shippingAddress.postalCode.trim()
+    );
+  }, [shippingAddress]);
+
   // --- ENVÍO ---
   useEffect(() => {
     if (
       !isShippingAddressValid() ||
       !items.length ||
-      loading // ⬅️ NUEVO
+      loading
     ) {
       setShippingQuote(null);
       return;
     }
-
-    
-
 
     const controller = new AbortController();
 
@@ -225,17 +232,6 @@ export function Checkout() {
     const back = Array.isArray(sides.back) ? sides.back : [];
     return front.length === 0 && back.length === 0;
   };
-
-  const isShippingAddressValid = useCallback(() => {
-    return (
-      shippingAddress.fullName.trim() &&
-      shippingAddress.street.trim() &&
-      shippingAddress.city.trim() &&
-      shippingAddress.state.trim() &&
-      shippingAddress.postalCode.trim()
-    );
-  }, [shippingAddress]);
-
 
   const handleConfirmOrder = async () => {
     setError("");

@@ -514,7 +514,6 @@ const handleDownloadZip = async (customization) => {
 
     const blob = await response.blob();
 
-    console.log("ZIP SIZE:", blob.size); // debe ser ~400KB
 
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -1432,9 +1431,6 @@ const handleDownloadZip = async (customization) => {
 
 
                         {selectedOrder.items.map((i, idx) => (
-                          console.log("ITEM:", i),
-                          console.log("PEDIDO SELECCIONADO:", selectedOrder),
-                          console.log("ITEMS:", selectedOrder.items),
 
                           <Box key={idx} mb={2}>
                             <Text fontSize="sm">
