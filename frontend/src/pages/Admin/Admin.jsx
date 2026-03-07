@@ -284,7 +284,7 @@ export function Admin() {
     if (formCustomizable && formCustomizationConfig.trim()) {
       try {
         customizationConfigObj = JSON.parse(formCustomizationConfig);
-      } catch (err) {
+      } catch {
         toast({
           title: "JSON inválido",
           description: "Revisa la configuración de personalización.",

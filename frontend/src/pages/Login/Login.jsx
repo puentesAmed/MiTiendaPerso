@@ -132,7 +132,6 @@ export function Login() {
   const border = useColorModeValue("neutral.200", "neutral.700");
   const btnBg = useColorModeValue("brand.500", "accent.500");
   const btnHover = useColorModeValue("brand.600", "accent.600");
-  const btnColor = useColorModeValue("white", "black");
 
   const {
     register,

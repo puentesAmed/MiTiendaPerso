@@ -51,8 +51,6 @@ export function ProductDetail() {
 
   const isCustomizable = !!product?.customizable;
 
-  const bg = useColorModeValue("gray.50", "gray.900");
-  const cardBg = useColorModeValue("white", "gray.800");
   const customBoxBg = useColorModeValue("purple.50", "purple.900Alpha.200");
 
   useEffect(() => {

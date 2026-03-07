@@ -8,6 +8,7 @@
 import { apiLogin, apiRegister } from "../services/auth.service";
 
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext(null);
 const KEY = "auth_user";
 
@@ -82,6 +83,7 @@ import {
 } from "react";
 import { apiLogin, apiRegister } from "../services/auth.service";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext(null);
 
 const KEY = "auth_user";

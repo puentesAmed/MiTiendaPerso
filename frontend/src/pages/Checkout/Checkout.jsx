@@ -1,5 +1,5 @@
 // src/pages/Checkout/Checkout.jsx
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, Link as RouterLink} from "react-router-dom";
 import { useCart } from "../../hooks/useCart";
 import { useAuth } from "../../hooks/useAuth";
@@ -75,10 +75,7 @@ export function Checkout() {
   //const [paymentMethod] = useState("card");
   const [checkoutHydrated, setCheckoutHydrated] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [orderCreated, setOrderCreated] = useState(null);// mirar
 
-
-  
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [emailHasAccount, setEmailHasAccount] = useState(false);
   // Control de estructura básica de email
@@ -159,17 +156,7 @@ export function Checkout() {
     setCheckoutHydrated(true);
   }, []);
   
-  useEffect(() => {
-    if (!orderCreated) return;
 
-    nav("/confirmacion-pedido", {
-      state: orderCreated,
-    });
-  }, [orderCreated, nav]);
-
-
-
-  
   // --- ENVÍO ---
   useEffect(() => {
     if (
@@ -221,7 +208,7 @@ export function Checkout() {
 
     fetchShippingQuote();
     return () => controller.abort();
-  }, [shippingAddress, items]);
+  }, [shippingAddress, items, isShippingAddressValid, loading]);
 
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -239,7 +226,7 @@ export function Checkout() {
     return front.length === 0 && back.length === 0;
   };
 
-  const isShippingAddressValid = () => {
+  const isShippingAddressValid = useCallback(() => {
     return (
       shippingAddress.fullName.trim() &&
       shippingAddress.street.trim() &&
@@ -247,7 +234,7 @@ export function Checkout() {
       shippingAddress.state.trim() &&
       shippingAddress.postalCode.trim()
     );
-  };
+  }, [shippingAddress]);
 
 
   const handleConfirmOrder = async () => {

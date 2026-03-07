@@ -9,6 +9,7 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { v4 as uuid } from "uuid";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const CartContext = createContext(null);
 
 const getCartStorageKey = (userId) => `miTienda_cart_v1_${userId}`;
@@ -81,28 +82,25 @@ export function CartProvider({ children }) {
   
 
   useEffect(() => {
+    let nextItems = [];
+
     if (user?.id) {
       try {
         const raw = localStorage.getItem(getCartStorageKey(user.id));
-        if (!raw) {
-          setItems([]);
-          return;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          nextItems = Array.isArray(parsed.items) ? parsed.items : [];
         }
-        const parsed = JSON.parse(raw);
-        setItems(Array.isArray(parsed.items) ? parsed.items : []);
       } catch {
-        setItems([]);
+        nextItems = [];
       }
-      return;
+    } else {
+      const guestSession = loadGuestSession();
+      nextItems = guestSession?.cart || [];
     }
 
-    // 👇 INVITADO
-    const guestSession = loadGuestSession();
-    if (guestSession?.cart) {
-      setItems(guestSession.cart);
-    } else {
-      setItems([]);
-    }
+    const syncTimer = setTimeout(() => setItems(nextItems), 0);
+    return () => clearTimeout(syncTimer);
   }, [user]);
 
 

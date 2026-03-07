@@ -59,7 +59,9 @@ export function App() {
 
   // cerrar menú móvil al cambiar de ruta
   useEffect(() => {
-    if (mobileOpen) setMobileOpen(false);
+    if (!mobileOpen) return;
+    const closeMenu = setTimeout(() => setMobileOpen(false), 0);
+    return () => clearTimeout(closeMenu);
   }, [location.pathname, mobileOpen]);
 
   const cartCount = items?.reduce((acc, item) => acc + (item.quantity || 0), 0) ?? 0;
@@ -376,7 +378,9 @@ export function App() {
 
   // cerrar menú móvil al cambiar de ruta
   useEffect(() => {
-    if (mobileOpen) setMobileOpen(false);
+    if (!mobileOpen) return;
+    const closeMenu = setTimeout(() => setMobileOpen(false), 0);
+    return () => clearTimeout(closeMenu);
   }, [location.pathname, mobileOpen]);
 
   const cartCount =

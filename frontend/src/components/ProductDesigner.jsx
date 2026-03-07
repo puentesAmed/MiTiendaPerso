@@ -45,9 +45,7 @@ function useImage(url) {
 
 
 function useImagesMap(elements = []) {
-  const [images, setImages] = useState({});
-
-  useEffect(() => {
+  return useMemo(() => {
     const imgs = {};
     elements.forEach((el) => {
       if (el.type === "image" && el.url) {
@@ -57,16 +55,14 @@ function useImagesMap(elements = []) {
         imgs[el.id] = img;
       }
     });
-    setImages(imgs);
+    return imgs;
   }, [elements]);
-
-  return images;
 }
 
 /* ======================================================
    ELEMENTO IMAGEN EDITABLE
 ========================================================= */
-function DesignerImageElement({ el, isSelected, onSelect, onChange }) {
+function DesignerImageElement({ el, onSelect, onChange }) {
   const img = useImage(el.url);
   const shapeRef = useRef(null);
 
@@ -270,8 +266,6 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
     : printArea;
 
 
-  // 🔑 CLAVE: evitar sobrescritura del diseño inicial
-  const hasInitializedRef = useRef(false);
 
   // 🔹 SINCRONIZAR ESTADO INTERNO CUANDO CAMBIA `value`
 // 🔹 NECESARIO PARA QUE EL TAMAÑO DEL TEXTO NO SE RESETEE AL PREVISUALIZAR
@@ -298,21 +292,19 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
     }));  
 
 
-  /* ======================================================
-     🔹 OFFSET PARA CENTRAR BLOQUE VISUAL
-========================================================= */
-  const DESIGN_BLOCK_WIDTH = 500; // 🔹 mismo ancho visual que ya usas
-  const offsetX = (stageWidth - DESIGN_BLOCK_WIDTH) / 2; // 🔹 NUEVO
-
  // 🔄 Rehidratar diseñador cuando cambia el diseño externo (preview, volver, etc.)
 useEffect(() => {
   if (!value) return;
 
-  setSide(value.side || "front");
-  setElementsBySide(value.elementsBySide || { front: [], back: [] });
+  const rehydrateTimer = setTimeout(() => {
+    setSide(value.side || "front");
+    setElementsBySide(value.elementsBySide || { front: [], back: [] });
 
-  // reset selección para evitar referencias inválidas
-  setSelectedId(null);
+    // reset selección para evitar referencias inválidas
+    setSelectedId(null);
+  }, 0);
+
+  return () => clearTimeout(rehydrateTimer);
 }, [value]);
 
 
@@ -510,9 +502,6 @@ useEffect(() => {
     setSelectedId(null);
   };
 
-  const handleStageClick = (e) => {
-    if (e.target === e.target.getStage()) setSelectedId(null);
-  };
 
   /* ======================================================
      Guardar diseño (SIN CAMBIAR SIDE)
