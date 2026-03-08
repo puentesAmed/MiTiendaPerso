@@ -21,6 +21,8 @@ import {
 } from "@chakra-ui/react";
 import { useCart } from "../hooks/useCart";
 
+const PRODUCTS_SCROLL_KEY = "products_scroll_y";
+
 export function ProductCard({ product }) {
   console.log("🧪 ProductCard product:", product);
 
@@ -28,6 +30,10 @@ export function ProductCard({ product }) {
 
   const cardBg = useColorModeValue("white", "gray.800");
   const cardBorder = useColorModeValue("gray.200", "gray.700");
+
+  const rememberProductsScroll = () => {
+    sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
+  };
 
   const { isOpen, onOpen, onClose } = useDisclosure();
   const navigate = useNavigate();
@@ -228,6 +234,8 @@ import {
 } from "@chakra-ui/react";
 import { useCart } from "../hooks/useCart";
 
+const PRODUCTS_SCROLL_KEY = "products_scroll_y";
+
 export function ProductCard({ product }) {
   // console.log("🧪 ProductCard product:", product);
 
@@ -237,6 +245,10 @@ export function ProductCard({ product }) {
 
   const cardBg = useColorModeValue("white", "gray.800");
   const cardBorder = useColorModeValue("gray.200", "gray.700");
+
+  const rememberProductsScroll = () => {
+    sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
+  };
 
   // ✅ ID único compatible (backend viejo y nuevo)
   const productId = product?.id || product?._id;
@@ -314,6 +326,7 @@ export function ProductCard({ product }) {
   const handleAddToCart = () => {
     // 🔴 Si tiene variantes → ir al detalle para elegir variante
     if (hasVariants) {
+      rememberProductsScroll();
       navigate(`/productos/${productId}`);
       return;
     }
@@ -336,7 +349,7 @@ export function ProductCard({ product }) {
       _hover={{ boxShadow: "md", transform: "translateY(-2px)" }}
       transition="all 0.15s ease"
     >
-      <Link as={RouterLink} to={`/productos/${productId}`}>
+      <Link as={RouterLink} to={`/productos/${productId}`} onClick={rememberProductsScroll}>
         {mainImage && (
           <Image
             src={mainImage}
@@ -356,6 +369,7 @@ export function ProductCard({ product }) {
           <Link
             as={RouterLink}
             to={`/productos/${productId}`}
+            onClick={rememberProductsScroll}
             _hover={{ textDecoration: "none", color: "blue.400" }}
           >
             <Heading as="h3" fontSize="lg">

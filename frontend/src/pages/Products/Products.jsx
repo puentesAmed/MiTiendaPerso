@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   Box,
@@ -35,6 +35,7 @@ export function Products() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const hasRestoredScrollRef = useRef(false);
 
   // filtros
   const [q, setQ] = useState("");
@@ -64,20 +65,29 @@ export function Products() {
     loadProducts();
   }, []);
 
-  // restaurar scroll al volver desde detalle
+  // restaurar scroll al volver desde detalle (cuando el listado ya esté pintado)
   useEffect(() => {
+    if (hasRestoredScrollRef.current || loading) return;
+
     const raw = sessionStorage.getItem(PRODUCTS_SCROLL_KEY);
-    if (!raw) return;
+    if (!raw) {
+      hasRestoredScrollRef.current = true;
+      return;
+    }
 
     const y = Number(raw);
-    if (!Number.isFinite(y) || y < 0) return;
+    if (!Number.isFinite(y) || y < 0) {
+      hasRestoredScrollRef.current = true;
+      return;
+    }
 
     const timer = setTimeout(() => {
       window.scrollTo({ top: y, behavior: "auto" });
+      hasRestoredScrollRef.current = true;
     }, 0);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [loading, products.length]);
 
   // guardar scroll al salir de la página de productos
   useEffect(() => {
