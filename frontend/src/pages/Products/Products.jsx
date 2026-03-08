@@ -18,6 +18,8 @@ import { apiGetProducts } from "../../services/products.service";
 import { ProductCard } from "../../components/ProductCard";
 
 const PRODUCTS_SCROLL_KEY = "products_scroll_y";
+const MAX_SCROLL_RESTORE_ATTEMPTS = 30;
+const SCROLL_RESTORE_DELAY_MS = 80;
 
 function sortOutOfStockLast(list = []) {
   return list
@@ -82,17 +84,43 @@ export function Products() {
       return;
     }
 
-    const timer = setTimeout(() => {
-      window.scrollTo({ top: target, behavior: "auto" });
-      hasRestoredScrollRef.current = true;
+    let attempts = 0;
+    let timer;
 
-      if (location.state?.restoreScrollY != null) {
-        navigate(location.pathname, { replace: true, state: null });
+    const restoreWithRetry = () => {
+      const maxScrollableY = document.documentElement.scrollHeight - window.innerHeight;
+      const canReachTarget = maxScrollableY >= target;
+
+      window.scrollTo({ top: target, behavior: "auto" });
+      const closeEnough = Math.abs(window.scrollY - target) <= 2;
+
+      if (canReachTarget || closeEnough || attempts >= MAX_SCROLL_RESTORE_ATTEMPTS) {
+        hasRestoredScrollRef.current = true;
+
+        if (location.state?.restoreScrollY != null) {
+          navigate(location.pathname, { replace: true, state: null });
+        }
+        return;
       }
-    }, 0);
+
+      attempts += 1;
+      timer = setTimeout(restoreWithRetry, SCROLL_RESTORE_DELAY_MS);
+    };
+
+    timer = setTimeout(restoreWithRetry, 0);
 
     return () => clearTimeout(timer);
   }, [loading, products.length, location.state, location.pathname, navigate]);
+
+  // guardar scroll de forma continua mientras se navega el listado
+  useEffect(() => {
+    const onScrollSave = () => {
+      sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
+    };
+
+    window.addEventListener("scroll", onScrollSave, { passive: true });
+    return () => window.removeEventListener("scroll", onScrollSave);
+  }, []);
 
   // guardar scroll al salir de la página de productos
   useEffect(() => {
