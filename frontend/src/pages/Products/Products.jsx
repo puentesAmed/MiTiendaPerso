@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import {
   Box,
   Heading,
@@ -14,6 +15,8 @@ import {
 import { RepeatIcon } from "@chakra-ui/icons";
 import { apiGetProducts } from "../../services/products.service";
 import { ProductCard } from "../../components/ProductCard";
+
+const PRODUCTS_SCROLL_KEY = "products_scroll_y";
 
 function sortOutOfStockLast(list = []) {
   return list
@@ -42,23 +45,45 @@ export function Products() {
   const bg = useColorModeValue("gray.50", "gray.900");
 
   async function loadProducts(params = {}) {
-  try {
-    setLoading(true);
-    setError("");
-    const data = await apiGetProducts(params);
-    setProducts(sortOutOfStockLast(data));
-  } catch (err) {
-    console.error(err);
-    setError("No se pudieron cargar los productos");
-  } finally {
-    setLoading(false);
+    try {
+      setLoading(true);
+      setError("");
+      const data = await apiGetProducts(params);
+      setProducts(sortOutOfStockLast(data));
+    } catch (err) {
+      console.error(err);
+      setError("No se pudieron cargar los productos");
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
 
   // primer load
   useEffect(() => {
     loadProducts();
+  }, []);
+
+  // restaurar scroll al volver desde detalle
+  useEffect(() => {
+    const raw = sessionStorage.getItem(PRODUCTS_SCROLL_KEY);
+    if (!raw) return;
+
+    const y = Number(raw);
+    if (!Number.isFinite(y) || y < 0) return;
+
+    const timer = setTimeout(() => {
+      window.scrollTo({ top: y, behavior: "auto" });
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // guardar scroll al salir de la página de productos
+  useEffect(() => {
+    return () => {
+      sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
+    };
   }, []);
 
   const handleSearch = () => {
