@@ -15,6 +15,19 @@ import { RepeatIcon } from "@chakra-ui/icons";
 import { apiGetProducts } from "../../services/products.service";
 import { ProductCard } from "../../components/ProductCard";
 
+function sortOutOfStockLast(list = []) {
+  return list
+    .map((product, index) => ({ product, index }))
+    .sort((a, b) => {
+      const aOutOfStock = Number(a.product?.stock ?? 0) <= 0;
+      const bOutOfStock = Number(b.product?.stock ?? 0) <= 0;
+
+      if (aOutOfStock === bOutOfStock) return a.index - b.index;
+      return aOutOfStock ? 1 : -1;
+    })
+    .map(({ product }) => product);
+}
+
 export function Products() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -33,7 +46,7 @@ export function Products() {
     setLoading(true);
     setError("");
     const data = await apiGetProducts(params);
-    setProducts(data);
+    setProducts(sortOutOfStockLast(data));
   } catch (err) {
     console.error(err);
     setError("No se pudieron cargar los productos");
