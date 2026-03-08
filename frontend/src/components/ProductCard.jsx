@@ -35,6 +35,11 @@ export function ProductCard({ product }) {
     sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
   };
 
+  const getProductsReturnState = () => ({
+    fromProducts: true,
+    scrollY: window.scrollY || 0,
+  });
+
   const { isOpen, onOpen, onClose } = useDisclosure();
   const navigate = useNavigate();
 
@@ -250,6 +255,11 @@ export function ProductCard({ product }) {
     sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
   };
 
+  const getProductsReturnState = () => ({
+    fromProducts: true,
+    scrollY: window.scrollY || 0,
+  });
+
   // ✅ ID único compatible (backend viejo y nuevo)
   const productId = product?.id || product?._id;
 
@@ -327,7 +337,7 @@ export function ProductCard({ product }) {
     // 🔴 Si tiene variantes → ir al detalle para elegir variante
     if (hasVariants) {
       rememberProductsScroll();
-      navigate(`/productos/${productId}`);
+      navigate(`/productos/${productId}`, { state: getProductsReturnState() });
       return;
     }
 
@@ -349,7 +359,12 @@ export function ProductCard({ product }) {
       _hover={{ boxShadow: "md", transform: "translateY(-2px)" }}
       transition="all 0.15s ease"
     >
-      <Link as={RouterLink} to={`/productos/${productId}`} onClick={rememberProductsScroll}>
+      <Link
+        as={RouterLink}
+        to={`/productos/${productId}`}
+        state={getProductsReturnState()}
+        onClick={rememberProductsScroll}
+      >
         {mainImage && (
           <Image
             src={mainImage}
@@ -369,6 +384,7 @@ export function ProductCard({ product }) {
           <Link
             as={RouterLink}
             to={`/productos/${productId}`}
+            state={getProductsReturnState()}
             onClick={rememberProductsScroll}
             _hover={{ textDecoration: "none", color: "blue.400" }}
           >

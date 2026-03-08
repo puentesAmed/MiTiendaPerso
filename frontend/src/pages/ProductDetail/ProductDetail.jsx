@@ -1,6 +1,6 @@
 // src/pages/ProductDetail/ProductDetail.jsx
 import { useEffect, useState, useMemo } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import {
   Box,
   Heading,
@@ -29,6 +29,7 @@ import { useCart } from "../../hooks/useCart";
 export function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { addItem } = useCart();
 
   const [product, setProduct] = useState(null);
@@ -52,6 +53,17 @@ export function ProductDetail() {
   const isCustomizable = !!product?.customizable;
 
   const customBoxBg = useColorModeValue("purple.50", "purple.900Alpha.200");
+
+  const handleBackToProducts = () => {
+    if (location.state?.fromProducts) {
+      navigate("/productos", {
+        state: { restoreScrollY: location.state.scrollY ?? 0 },
+      });
+      return;
+    }
+
+    navigate(-1);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -130,7 +142,7 @@ export function ProductDetail() {
           size="sm"
           mb={4}
           variant="ghost"
-          onClick={() => navigate(-1)}
+          onClick={handleBackToProducts}
         >
           Volver
         </Button>
@@ -172,7 +184,7 @@ export function ProductDetail() {
         size="sm"
         mb={4}
         variant="ghost"
-        onClick={() => navigate(-1)}
+        onClick={handleBackToProducts}
       >
         Volver
       </Button>

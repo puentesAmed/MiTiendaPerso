@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import {
   Box,
@@ -37,6 +38,9 @@ export function Products() {
   const [error, setError] = useState("");
   const hasRestoredScrollRef = useRef(false);
 
+  const location = useLocation();
+  const navigate = useNavigate();
+
   // filtros
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("");
@@ -69,25 +73,26 @@ export function Products() {
   useEffect(() => {
     if (hasRestoredScrollRef.current || loading) return;
 
+    const stateY = location.state?.restoreScrollY;
     const raw = sessionStorage.getItem(PRODUCTS_SCROLL_KEY);
-    if (!raw) {
-      hasRestoredScrollRef.current = true;
-      return;
-    }
+    const target = stateY ?? (raw == null ? null : Number(raw));
 
-    const y = Number(raw);
-    if (!Number.isFinite(y) || y < 0) {
+    if (!Number.isFinite(target) || target < 0) {
       hasRestoredScrollRef.current = true;
       return;
     }
 
     const timer = setTimeout(() => {
-      window.scrollTo({ top: y, behavior: "auto" });
+      window.scrollTo({ top: target, behavior: "auto" });
       hasRestoredScrollRef.current = true;
+
+      if (location.state?.restoreScrollY != null) {
+        navigate(location.pathname, { replace: true, state: null });
+      }
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [loading, products.length]);
+  }, [loading, products.length, location.state, location.pathname, navigate]);
 
   // guardar scroll al salir de la página de productos
   useEffect(() => {
