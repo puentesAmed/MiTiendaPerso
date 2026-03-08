@@ -76,10 +76,14 @@ export function Products() {
     if (hasRestoredScrollRef.current || loading) return;
 
     const stateY = location.state?.restoreScrollY;
+    const stateProductId = location.state?.restoreProductId;
     const raw = sessionStorage.getItem(PRODUCTS_SCROLL_KEY);
     const target = stateY ?? (raw == null ? null : Number(raw));
 
-    if (!Number.isFinite(target) || target < 0) {
+    const hasNumericTarget = Number.isFinite(target) && target >= 0;
+    const hasProductTarget = !!stateProductId;
+
+    if (!hasNumericTarget && !hasProductTarget) {
       hasRestoredScrollRef.current = true;
       return;
     }
@@ -88,16 +92,30 @@ export function Products() {
     let timer;
 
     const restoreWithRetry = () => {
-      const maxScrollableY = document.documentElement.scrollHeight - window.innerHeight;
-      const canReachTarget = maxScrollableY >= target;
+      let restored = false;
 
-      window.scrollTo({ top: target, behavior: "auto" });
-      const closeEnough = Math.abs(window.scrollY - target) <= 2;
+      if (hasProductTarget) {
+        const selector = `[data-product-id="${stateProductId}"]`;
+        const card = document.querySelector(selector);
+        if (card) {
+          card.scrollIntoView({ block: "center", behavior: "auto" });
+          restored = true;
+        }
+      }
 
-      if (canReachTarget || closeEnough || attempts >= MAX_SCROLL_RESTORE_ATTEMPTS) {
+      if (!restored && hasNumericTarget) {
+        const maxScrollableY = document.documentElement.scrollHeight - window.innerHeight;
+        const canReachTarget = maxScrollableY >= target;
+
+        window.scrollTo({ top: target, behavior: "auto" });
+        const closeEnough = Math.abs(window.scrollY - target) <= 2;
+        restored = canReachTarget || closeEnough;
+      }
+
+      if (restored || attempts >= MAX_SCROLL_RESTORE_ATTEMPTS) {
         hasRestoredScrollRef.current = true;
 
-        if (location.state?.restoreScrollY != null) {
+        if (location.state?.restoreScrollY != null || location.state?.restoreProductId != null) {
           navigate(location.pathname, { replace: true, state: null });
         }
         return;

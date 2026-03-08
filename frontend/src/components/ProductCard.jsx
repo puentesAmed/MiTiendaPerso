@@ -38,6 +38,7 @@ export function ProductCard({ product }) {
   const getProductsReturnState = () => ({
     fromProducts: true,
     scrollY: window.scrollY || 0,
+    productId,
   });
 
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -94,6 +95,7 @@ export function ProductCard({ product }) {
 
   return (
     <Box
+      data-product-id={productId}
       borderWidth="1px"
       borderRadius="xl"
       overflow="hidden"
@@ -258,6 +260,7 @@ export function ProductCard({ product }) {
   const getProductsReturnState = () => ({
     fromProducts: true,
     scrollY: window.scrollY || 0,
+    productId,
   });
 
   // ✅ ID único compatible (backend viejo y nuevo)
@@ -350,6 +353,7 @@ export function ProductCard({ product }) {
 
   return (
     <Box
+      data-product-id={productId}
       borderWidth="1px"
       borderRadius="xl"
       overflow="hidden"

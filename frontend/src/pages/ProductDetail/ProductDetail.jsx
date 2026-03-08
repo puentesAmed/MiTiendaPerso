@@ -57,7 +57,10 @@ export function ProductDetail() {
   const handleBackToProducts = () => {
     if (location.state?.fromProducts) {
       navigate("/productos", {
-        state: { restoreScrollY: location.state.scrollY ?? 0 },
+        state: {
+          restoreScrollY: location.state.scrollY ?? 0,
+          restoreProductId: location.state.productId ?? null,
+        },
       });
       return;
     }
