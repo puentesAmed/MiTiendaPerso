@@ -12,6 +12,7 @@ import { ordersRouter } from "./routes/orders.routes.js";
 import { uploadRouter } from "./routes/uploads.routes.js";
 import { customizationRoutes } from "./routes/customizations.routes.js";
 import { shippingRoutes } from "./routes/shipping.routes.js";
+import checkoutRoutes from "./routes/checkout.routes.js";
 import paymentsRouter from "./routes/payments.routes.js";
 
 async function bootstrap() {
@@ -49,6 +50,7 @@ async function bootstrap() {
   app.use("/api/customizations", customizationRoutes);
   app.use("/api/shipping", shippingRoutes);
   app.use("/api/payments", paymentsRouter);
+  app.use("/api/checkout", checkoutRoutes);
 
   /* ---------------------------------------------------------
    * HEALTHCHECK
