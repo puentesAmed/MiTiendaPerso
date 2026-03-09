@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+
 import {
   Box,
   Heading,
@@ -15,10 +17,31 @@ import { RepeatIcon } from "@chakra-ui/icons";
 import { apiGetProducts } from "../../services/products.service";
 import { ProductCard } from "../../components/ProductCard";
 
+const PRODUCTS_SCROLL_KEY = "products_scroll_y";
+const MAX_SCROLL_RESTORE_ATTEMPTS = 30;
+const SCROLL_RESTORE_DELAY_MS = 80;
+
+function sortOutOfStockLast(list = []) {
+  return list
+    .map((product, index) => ({ product, index }))
+    .sort((a, b) => {
+      const aOutOfStock = Number(a.product?.stock ?? 0) <= 0;
+      const bOutOfStock = Number(b.product?.stock ?? 0) <= 0;
+
+      if (aOutOfStock === bOutOfStock) return a.index - b.index;
+      return aOutOfStock ? 1 : -1;
+    })
+    .map(({ product }) => product);
+}
+
 export function Products() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const hasRestoredScrollRef = useRef(false);
+
+  const location = useLocation();
+  const navigate = useNavigate();
 
   // filtros
   const [q, setQ] = useState("");
@@ -29,24 +52,99 @@ export function Products() {
   const bg = useColorModeValue("gray.50", "gray.900");
 
   async function loadProducts(params = {}) {
-  try {
-    setLoading(true);
-    setError("");
-    const data = await apiGetProducts(params);
-    console.log('Products for UI (count):', data.length);
-    setProducts(data);
-  } catch (err) {
-    console.error(err);
-    setError("No se pudieron cargar los productos");
-  } finally {
-    setLoading(false);
+    try {
+      setLoading(true);
+      setError("");
+      const data = await apiGetProducts(params);
+      setProducts(sortOutOfStockLast(data));
+    } catch (err) {
+      console.error(err);
+      setError("No se pudieron cargar los productos");
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
 
   // primer load
   useEffect(() => {
     loadProducts();
+  }, []);
+
+  // restaurar scroll al volver desde detalle (cuando el listado ya esté pintado)
+  useEffect(() => {
+    if (hasRestoredScrollRef.current || loading) return;
+
+    const stateY = location.state?.restoreScrollY;
+    const stateProductId = location.state?.restoreProductId;
+    const raw = sessionStorage.getItem(PRODUCTS_SCROLL_KEY);
+    const target = stateY ?? (raw == null ? null : Number(raw));
+
+    const hasNumericTarget = Number.isFinite(target) && target >= 0;
+    const hasProductTarget = !!stateProductId;
+
+    if (!hasNumericTarget && !hasProductTarget) {
+      hasRestoredScrollRef.current = true;
+      return;
+    }
+
+    let attempts = 0;
+    let timer;
+
+    const restoreWithRetry = () => {
+      let restored = false;
+
+      if (hasProductTarget) {
+        const selector = `[data-product-id="${stateProductId}"]`;
+        const card = document.querySelector(selector);
+        if (card) {
+          card.scrollIntoView({ block: "center", behavior: "auto" });
+          restored = true;
+        }
+      }
+
+      if (!restored && hasNumericTarget) {
+        const maxScrollableY = document.documentElement.scrollHeight - window.innerHeight;
+        const canReachTarget = maxScrollableY >= target;
+
+        window.scrollTo({ top: target, behavior: "auto" });
+        const closeEnough = Math.abs(window.scrollY - target) <= 2;
+        restored = canReachTarget || closeEnough;
+      }
+
+      if (restored || attempts >= MAX_SCROLL_RESTORE_ATTEMPTS) {
+        hasRestoredScrollRef.current = true;
+
+        if (location.state?.restoreScrollY != null || location.state?.restoreProductId != null) {
+          navigate(location.pathname, { replace: true, state: null });
+        }
+        return;
+      }
+
+      attempts += 1;
+      timer = setTimeout(restoreWithRetry, SCROLL_RESTORE_DELAY_MS);
+    };
+
+    timer = setTimeout(restoreWithRetry, 0);
+
+    return () => clearTimeout(timer);
+  }, [loading, products.length, location.state, location.pathname, navigate]);
+
+  // guardar scroll de forma continua mientras se navega el listado
+  useEffect(() => {
+    const onScrollSave = () => {
+      sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
+    };
+
+    window.addEventListener("scroll", onScrollSave, { passive: true });
+    return () => window.removeEventListener("scroll", onScrollSave);
+  }, []);
+
+  // guardar scroll al salir de la página de productos
+  useEffect(() => {
+    return () => {
+      sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
+    };
   }, []);
 
   const handleSearch = () => {

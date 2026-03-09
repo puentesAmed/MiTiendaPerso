@@ -1,3 +1,4 @@
+//src/pages/Cart/Cart.jsx
 import {
   Box,
   Heading,
@@ -13,39 +14,14 @@ import {
 } from "@chakra-ui/react";
 import { DeleteIcon } from "@chakra-ui/icons";
 import { useCart } from "../../hooks/useCart";
-import { createOrderRequest } from "../../services/orders.service";
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export function Cart() {
   const { items, updateQuantity, removeItem, clearCart, totalAmount } = useCart();
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
   const bg = useColorModeValue("gray.50", "gray.800");
   const cardBg = useColorModeValue("white", "gray.700");
-
-  const handleCheckout = async () => {
-    try {
-      setLoading(true);
-      setMessage("");
-
-      const response = await createOrderRequest(items);
-
-      if (response.ok) {
-        clearCart();
-        navigate("/mis-pedidos");
-      } else {
-        setMessage("No se pudo completar el pedido.");
-      }
-    } catch (err) {
-      console.error(err);
-      setMessage("Error al enviar pedido. Intenta más tarde.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <Box p={{ base: 3, md: 6 }} bg={bg} borderRadius="xl" boxShadow="md">
@@ -147,18 +123,11 @@ export function Cart() {
               </Text>
             </HStack>
 
-            {message && (
-              <Text color="red.400" mt={2} fontSize="sm">
-                {message}
-              </Text>
-            )}
-
             <Button
               mt={4}
               colorScheme="blue"
               width="100%"
               onClick={() => navigate("/checkout")}
-              isLoading={loading}
             >
               Finalizar pedido
             </Button>

@@ -7,8 +7,8 @@ import {
   useState,
 } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { v4 as uuid } from "uuid";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const CartContext = createContext(null);
 
 const getCartStorageKey = (userId) => `miTienda_cart_v1_${userId}`;
@@ -21,7 +21,7 @@ const GUEST_SESSION_TTL_DAYS = 7;
 function getGuestId() {
   let id = localStorage.getItem(GUEST_KEY);
   if (!id) {
-    id = uuid();
+    id = crypto.randomUUID();
     localStorage.setItem(GUEST_KEY, id);
   }
   return id;
@@ -81,28 +81,25 @@ export function CartProvider({ children }) {
   
 
   useEffect(() => {
+    let nextItems = [];
+
     if (user?.id) {
       try {
         const raw = localStorage.getItem(getCartStorageKey(user.id));
-        if (!raw) {
-          setItems([]);
-          return;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          nextItems = Array.isArray(parsed.items) ? parsed.items : [];
         }
-        const parsed = JSON.parse(raw);
-        setItems(Array.isArray(parsed.items) ? parsed.items : []);
       } catch {
-        setItems([]);
+        nextItems = [];
       }
-      return;
+    } else {
+      const guestSession = loadGuestSession();
+      nextItems = guestSession?.cart || [];
     }
 
-    // 👇 INVITADO
-    const guestSession = loadGuestSession();
-    if (guestSession?.cart) {
-      setItems(guestSession.cart);
-    } else {
-      setItems([]);
-    }
+    const syncTimer = setTimeout(() => setItems(nextItems), 0);
+    return () => clearTimeout(syncTimer);
   }, [user]);
 
 
@@ -148,11 +145,17 @@ export function CartProvider({ children }) {
   // ===============================
   // LÓGICA ORIGINAL (SIN CAMBIOS) API
   // ===============================
-  const addItem = useCallback((product, quantity = 1, customization = null, selectedVariant = null) => {
+ // const addItem = useCallback((product, quantity = 1, customization = null, selectedVariant = null) => {
+  const addItem = useCallback((product, quantity = 1, variant = null, customization = null) => {
     setItems((prev) => {
       const qty = Number(quantity) || 1;
       const productId = product.id || product._id;
-      const idx = prev.findIndex((i) => i.productId === productId);
+      //const idx = prev.findIndex((i) => i.productId === productId);
+      const idx = prev.findIndex(
+        (i) =>
+          i.productId === productId &&
+          (i.skuId || null) === (variant?.skuId || null)
+      );
       const requiresDesign = !!product.customizable;
 
       if (idx !== -1) {
@@ -170,17 +173,20 @@ export function CartProvider({ children }) {
           return next;
         }*/
 
-          if (customization || selectedVariant) {
+          if (customization || variant) {
             const next = [...prev];
             next[idx] = {
               ...existing,
               customization: customization
                 ? {
                     ...customization,
-                    type: "designer", // 🔑 BLINDAJE TOTAL
+                    type: "designer",
                   }
                 : existing.customization,
-              selectedVariant: selectedVariant ?? existing.selectedVariant,
+
+              skuId: variant?.skuId ?? existing.skuId,
+              variantAttributes: variant?.attributes ?? existing.variantAttributes,
+
               requiresDesign: true,
               quantity: existing.quantity,
             };
@@ -200,7 +206,7 @@ export function CartProvider({ children }) {
         return next;
       }
 
-      return [
+      /*return [
         ...prev,
         {
           productId,
@@ -210,6 +216,28 @@ export function CartProvider({ children }) {
           image: product.image || "",
           customization: product.customizable ? customization : null,
           selectedVariant: selectedVariant || null,
+          requiresDesign,
+          customizable: !!product.customizable,
+        },
+      ];*/
+      return [
+        ...prev,
+        {
+          productId,
+          externalId: product.externalId || null,
+          provider: product.provider || "internal",
+          supplierId: product.supplierId || null,
+
+          name: product.name,
+          price: variant?.price?.final ?? Number(product.price || 0),
+          quantity: qty,
+          image: product.image || "",
+
+          skuId: variant?.skuId || null,
+          variantAttributes: variant?.attributes || null,
+
+          customization: product.customizable ? customization : null,
+
           requiresDesign,
           customizable: !!product.customizable,
         },

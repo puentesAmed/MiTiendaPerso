@@ -4,11 +4,6 @@ import { normalizeProduct } from "../utils/normalizeProduct";
 export async function apiGetProducts(params = {}) {
   const { data } = await http.get("/api/products", { params });
 
-   const first = (data.products ?? [])[0];
-    console.log("[RAW first product]", first);
-    console.log("[RAW price]", first?.price, "type:", typeof first?.price);
-    console.log("[RAW price.value]", first?.price?.value, "type:", typeof first?.price?.value);
-    console.log("[RAW stock]", first?.stock, "type:", typeof first?.stock);
 
   return (data.products ?? []).map(normalizeProduct);
 }
