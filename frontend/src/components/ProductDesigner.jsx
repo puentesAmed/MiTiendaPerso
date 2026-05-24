@@ -22,6 +22,8 @@ import {
   Text as ChakraText,
   Divider,
   Badge,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
 
 import { forwardRef, useImperativeHandle } from "react";
@@ -106,6 +108,36 @@ function DesignerImageElement({ el, onSelect, onChange }) {
         node.scaleY(1);
       }}
     />
+  );
+}
+
+function getElementBounds(el) {
+  if (!el) return null;
+  if (el.type === "text") {
+    const fontSize = el.fontSize || 24;
+    const textLength = (el.text || "").length || 1;
+    const approxWidth = Math.max(fontSize * 0.6 * textLength, fontSize * 0.8);
+    const approxHeight = fontSize * 1.2;
+    return { x: el.x || 0, y: el.y || 0, width: approxWidth, height: approxHeight };
+  }
+  if (el.type === "image") {
+    return {
+      x: el.x || 0,
+      y: el.y || 0,
+      width: 120 * Math.abs(el.scaleX ?? 1),
+      height: 120 * Math.abs(el.scaleY ?? 1),
+    };
+  }
+  return null;
+}
+
+function isBoundsInsidePrintArea(bounds, area) {
+  if (!bounds || !area) return true;
+  return (
+    bounds.x >= area.x &&
+    bounds.y >= area.y &&
+    bounds.x + bounds.width <= area.x + area.width &&
+    bounds.y + bounds.height <= area.y + area.height
   );
 }
 
@@ -260,6 +292,13 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
   printArea?.front || printArea?.back
     ? printArea[side] || printArea.front
     : printArea;
+  const selectedBounds = getElementBounds(selectedElement);
+  const selectedOutsideSafeArea = selectedElement
+    ? !isBoundsInsidePrintArea(selectedBounds, currentPrintArea)
+    : false;
+  const hasOutOfAreaElements = currentElements.some(
+    (el) => !isBoundsInsidePrintArea(getElementBounds(el), currentPrintArea)
+  );
 
 
 
@@ -439,6 +478,15 @@ useEffect(() => {
     setSelectedId(null);
   };
 
+  const handleFitSelectedInPrintArea = () => {
+    if (!selectedElement || !currentPrintArea || !selectedBounds) return;
+    const maxX = currentPrintArea.x + currentPrintArea.width - selectedBounds.width;
+    const maxY = currentPrintArea.y + currentPrintArea.height - selectedBounds.height;
+    const nextX = Math.min(Math.max(selectedBounds.x, currentPrintArea.x), maxX);
+    const nextY = Math.min(Math.max(selectedBounds.y, currentPrintArea.y), maxY);
+    updateElement(selectedElement.id, { x: nextX, y: nextY });
+  };
+
 
   /* ======================================================
      Guardar diseño (SIN CAMBIAR SIDE)
@@ -560,6 +608,7 @@ useEffect(() => {
                 width={currentPrintArea.width}
                 height={currentPrintArea.height}
                 stroke="#00B5D8"
+                strokeWidth={2}
                 dash={[4, 4]}
               />
 
@@ -657,6 +706,19 @@ useEffect(() => {
               {selectedElement ? "Elemento seleccionado" : "Sin selección"}
             </Badge>
           </HStack>
+          <Alert
+            status={hasOutOfAreaElements ? "warning" : "success"}
+            borderRadius="md"
+            py={2}
+            px={3}
+          >
+            <AlertIcon />
+            <ChakraText fontSize="xs">
+              {hasOutOfAreaElements
+                ? "Hay elementos fuera del área imprimible."
+                : "Diseño correcto dentro del área imprimible."}
+            </ChakraText>
+          </Alert>
 
           <ChakraText fontSize="xs" color="gray.600">
             Añade texto o imagen y arrastra los elementos sobre el área imprimible.
@@ -724,6 +786,14 @@ useEffect(() => {
               <ChakraText fontWeight="bold" fontSize="sm">
                 Elemento seleccionado
               </ChakraText>
+              {selectedOutsideSafeArea && (
+                <Alert status="warning" borderRadius="md" py={2}>
+                  <AlertIcon />
+                  <ChakraText fontSize="xs">
+                    Este elemento está fuera del área imprimible.
+                  </ChakraText>
+                </Alert>
+              )}
 
               {selectedElement.type === "text" && (
                 <>
@@ -837,6 +907,16 @@ useEffect(() => {
               >
                 Eliminar elemento
               </Button>
+              {selectedOutsideSafeArea && (
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  colorScheme="blue"
+                  variant="ghost"
+                  onClick={handleFitSelectedInPrintArea}
+                >
+                  Ajustar dentro del área
+                </Button>
+              )}
             </>
           )}
 
