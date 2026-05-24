@@ -58,14 +58,24 @@ after(async () => {
 test("crear pedido nuevo inicializa status, payment.status y paymentStatus", async () => {
   const product = await Product.create({
     name: "Producto Test",
-    price: 20,
+    price: { value: 20, currency: "EUR" },
     stock: 10,
-    active: true,
   });
+
+  // createOrder filtra por { active: true } en producto local.
+  // ProductSchema actual no define "active", por eso se fuerza vía colección.
+  await Product.collection.updateOne(
+    { _id: product._id },
+    { $set: { active: true } }
+  );
 
   const res = await request(app).post("/api/orders").send(validOrderPayload(product._id.toString()));
 
-  assert.equal(res.status, 201);
+  assert.equal(
+    res.status,
+    201,
+    `Esperado 201, recibido ${res.status}. Body: ${JSON.stringify(res.body)}`
+  );
   assert.equal(res.body.order.status, "created");
   assert.equal(res.body.order.payment?.status, "pending");
   assert.equal(res.body.order.paymentStatus, "pending");
@@ -192,4 +202,3 @@ function baseOrder(overrides = {}) {
     ...overrides,
   };
 }
-
