@@ -61,13 +61,34 @@ const orderSchema = new mongoose.Schema(
     payment: {
       method: {
         type: String,
-        enum: ["card", "paypal", "monei", null],
+        enum: ["manual", "cash", "transfer", "bizum", "card", "paypal", "monei", null],
+        default: null,
+      },
+      provider: {
+        type: String,
         default: null,
       },
       status: {
         type: String,
         enum: ["pending", "paid", "failed", "refunded"],
         default: "pending",
+      },
+      confirmedAt: {
+        type: Date,
+        default: null,
+      },
+      confirmedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+      providerPaymentId: {
+        type: String,
+        default: null,
+      },
+      metadata: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {},
       },
       paidAt: {
         type: Date,

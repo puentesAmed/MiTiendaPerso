@@ -645,22 +645,44 @@ export async function markOrderAsPaid(req, res) {
       });
     }
 
-    // 2️⃣ Marcar pago como realizado
+    if (order.status === "cancelled") {
+      return res.status(409).json({
+        ok: false,
+        message: "No se puede confirmar el pago de un pedido cancelado.",
+      });
+    }
+
+    const currentPaymentStatus = order.payment?.status || order.paymentStatus;
+    if (currentPaymentStatus === "paid") {
+      return res.status(409).json({
+        ok: false,
+        message: "El pedido ya está marcado como pagado.",
+      });
+    }
+
+    // 2️⃣ Marcar pago como realizado (sin cambiar estado operativo)
+    order.payment = order.payment || {};
     order.payment.status = "paid";
-    order.status = "processing";
+    order.payment.method = order.payment.method || "manual";
+    order.payment.provider = "manual";
+    order.payment.paidAt = new Date();
+    order.payment.confirmedAt = new Date();
+    order.payment.confirmedBy = req.user?.id || null;
+    order.payment.providerPaymentId = null;
+    order.payment.metadata = {
+      ...(order.payment.metadata || {}),
+      manualConfirmation: true,
+    };
+
+    // Compatibilidad legacy
+    order.paymentStatus = "paid";
+    order.paymentConfirmedAt = order.payment.confirmedAt;
 
     await order.save();
 
-    // 3️⃣ Enviar a dropshipping
-    await sendToDropshipping({
-      order,
-      items: order.items,
-      shippingAddress: order.shippingAddress,
-    });
-
     return res.json({
       ok: true,
-      message: "Pedido marcado como pagado y enviado a dropshipping",
+      message: "Pago confirmado manualmente",
     });
   } catch (err) {
     console.error("🔥 Error en markOrderAsPaid:", err);
@@ -1234,22 +1256,44 @@ export async function markOrderAsPaid(req, res) {
       });
     }
 
-    // 2️⃣ Marcar pago como realizado
+    if (order.status === "cancelled") {
+      return res.status(409).json({
+        ok: false,
+        message: "No se puede confirmar el pago de un pedido cancelado.",
+      });
+    }
+
+    const currentPaymentStatus = order.payment?.status || order.paymentStatus;
+    if (currentPaymentStatus === "paid") {
+      return res.status(409).json({
+        ok: false,
+        message: "El pedido ya está marcado como pagado.",
+      });
+    }
+
+    // 2️⃣ Marcar pago como realizado (sin cambiar estado operativo)
+    order.payment = order.payment || {};
     order.payment.status = "paid";
-    order.status = "processing";
+    order.payment.method = order.payment.method || "manual";
+    order.payment.provider = "manual";
+    order.payment.paidAt = new Date();
+    order.payment.confirmedAt = new Date();
+    order.payment.confirmedBy = req.user?.id || null;
+    order.payment.providerPaymentId = null;
+    order.payment.metadata = {
+      ...(order.payment.metadata || {}),
+      manualConfirmation: true,
+    };
+
+    // Compatibilidad legacy
+    order.paymentStatus = "paid";
+    order.paymentConfirmedAt = order.payment.confirmedAt;
 
     await order.save();
 
-    // 3️⃣ Enviar a dropshipping
-    await sendToDropshipping({
-      order,
-      items: order.items,
-      shippingAddress: order.shippingAddress,
-    });
-
     return res.json({
       ok: true,
-      message: "Pedido marcado como pagado y enviado a dropshipping",
+      message: "Pago confirmado manualmente",
     });
   } catch (err) {
     console.error("🔥 Error en markOrderAsPaid:", err);

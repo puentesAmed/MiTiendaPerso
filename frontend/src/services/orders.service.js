@@ -85,3 +85,8 @@ export async function adminConfirmDeliveryDate(orderId, confirmedDeliveryDate) {
   );
   return data;
 }
+
+export async function confirmOrderPayment(orderId) {
+  const { data } = await http.post(`/api/orders/${orderId}/mark-paid`);
+  return data;
+}
