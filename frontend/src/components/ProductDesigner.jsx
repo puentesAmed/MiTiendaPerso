@@ -231,7 +231,6 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
   const [elementsBySide, setElementsBySide] = useState(
     () => value?.elementsBySide || { front: [], back: [] }
   );
-  //const [notes, setNotes] = useState(() => value?.notes || "");
 
   const [selectedId, setSelectedId] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
@@ -245,9 +244,6 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
   };
 
 
-  // Stage principal (editor)
-  //const internalStageRef = useRef(null);
-  //const effectiveStageRef = stageRef || internalStageRef;
   
   const layerRef = useRef(null);
   const trRef = useRef(null);
@@ -328,65 +324,6 @@ useEffect(() => {
 
 
 
-  /* ======================================================
-     Exponer métodos en stageRef.current (IMPORTANTE)
-     Para que ProductDesignerPage pueda llamarlos.
-========================================================= */
-  /*useEffect(() => {
-    const stage = effectiveStageRef.current;
-    if (!stage) return;
-
-    /*stage.exportPreviewForSide = (sideName = "front", pixelRatio = 2) => {
-      const ref = sideName === "back" ? exportBackRef : exportFrontRef;
-      const s = ref.current;
-      if (!s) return null;
-
-      try {
-        return s.toDataURL({ pixelRatio });
-      } catch {
-        return null;
-      }
-    };*/
-    /*
-
-    stage.exportPreviewForSide = async (sideName = "front", pixelRatio = 2) => {
-      const ref = sideName === "back" ? exportBackRef : exportFrontRef;
-      const s = ref.current;
-      if (!s) return null;
-
-      // ⏱️ esperar a que React + Konva rendericen el texto
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-
-      s.batchDraw();
-
-      try {
-        return s.toDataURL({ pixelRatio });
-      } catch {
-        return null;
-      }
-    };
-*/
-
-
-    /*stage.exportPreviewsBySide = (pixelRatio = 2) => {
-      return {
-        front: stage.exportPreviewForSide("front", pixelRatio),
-        back: stage.exportPreviewForSide("back", pixelRatio),
-        };
-      };*/
-/*
-    stage.exportPreviewsBySide = async (pixelRatio = 2) => {
-      return {
-        front: await stage.exportPreviewForSide("front", pixelRatio),
-        back: await stage.exportPreviewForSide("back", pixelRatio),
-      };
-    };
-  
-
-      
-    
-  }, [effectiveStageRef, elementsBySide, frontImage, backImage]);
-*/
   /* ======================================================
      CRUD elementos
 ========================================================= */
@@ -507,27 +444,6 @@ useEffect(() => {
      Guardar diseño (SIN CAMBIAR SIDE)
      Genera previewsBySide usando stages ocultos.
 ========================================================= */
- /* const handleSaveDesign = async() => {
-    const stage = effectiveStageRef.current;
-    if (!stage) return;
-
-    const previewsBySide = await stage.exportPreviewsBySide(2);
-
-
-    console.log(
-      "¿FRONT === BACK?",
-      previewsBySide.front === previewsBySide.back
-    );
-
-    setSavedAt(new Date().toISOString());
-
-    onChange?.({
-      side,
-      elementsBySide,      
-      previewsBySide,
-    });
-  };
-*/
   const handleSaveDesign = async () => {
     if (!apiRef?.current) return;
 
