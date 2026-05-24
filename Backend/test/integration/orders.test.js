@@ -58,7 +58,7 @@ after(async () => {
 test("crear pedido nuevo inicializa status, payment.status y paymentStatus", async () => {
   const product = await Product.create({
     name: "Producto Test",
-    price: { value: 20, currency: "EUR" },
+    price: 20,
     stock: 10,
   });
 
