@@ -100,6 +100,17 @@ const orderSchema = new mongoose.Schema(
       },
     },
 
+    // Legacy de compatibilidad (lectura en algunas vistas)
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "failed", "refunded"],
+      default: "pending",
+    },
+    paymentConfirmedAt: {
+      type: Date,
+      default: null,
+    },
+
     // Información logística y de entrega
     shipping: {
       zone: {

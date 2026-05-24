@@ -944,8 +944,12 @@ export async function createOrder(req, res) {
 
       payment: {
         method: null,
+        provider: null,
         status: "pending",
+        providerPaymentId: null,
+        metadata: {},
       },
+      paymentStatus: "pending",
 
       shipping: {
         zone: shipping.zone,
