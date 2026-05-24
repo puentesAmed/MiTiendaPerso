@@ -30,7 +30,8 @@ function localProductFixture(overrides = {}) {
     name: "Producto Local Test",
     description: "Descripción test",
     category: "test",
-    price: { value: 19.99, currency: "EUR", cost: 10, margin: 9.99 },
+    // Para productos locales, normalizePrice exige number en product.price
+    price: 19.99,
     stock: 7,
     image: "https://example.com/producto.jpg",
     published: true,
@@ -44,7 +45,7 @@ test("GET /api/products devuelve listado e incluye producto local activo", async
 
   const res = await request(app).get("/api/products");
 
-  assert.equal(res.status, 200);
+  assert.equal(res.status, 200, `Esperado 200, recibido ${res.status}. Body: ${JSON.stringify(res.body)}`);
   assert.equal(res.body.ok, true);
   assert.ok(Array.isArray(res.body.products));
 
@@ -53,7 +54,7 @@ test("GET /api/products devuelve listado e incluye producto local activo", async
   assert.equal(found.name, created.name);
   assert.equal(found.provider, "local");
   assert.ok(found.price);
-  assert.equal(found.price.final, created.price.value);
+  assert.equal(found.price.final, created.price);
   assert.equal(found.stock, created.stock);
 });
 
@@ -62,7 +63,7 @@ test("GET /api/products/:id (local) devuelve estructura mínima esperada", async
 
   const res = await request(app).get(`/api/products/${created._id}`);
 
-  assert.equal(res.status, 200);
+  assert.equal(res.status, 200, `Esperado 200, recibido ${res.status}. Body: ${JSON.stringify(res.body)}`);
   assert.equal(res.body.ok, true);
   assert.ok(res.body.product);
   assert.equal(String(res.body.product._id), String(created._id));
@@ -116,7 +117,7 @@ test("PUT /api/products/:id con admin actualiza nombre/precio/stock", async () =
   const updatePayload = {
     name: "Después",
     stock: 11,
-    price: { value: 44.5, currency: "EUR", cost: 20, margin: 24.5 },
+    price: 44.5,
   };
 
   const res = await request(app)
@@ -131,7 +132,7 @@ test("PUT /api/products/:id con admin actualiza nombre/precio/stock", async () =
   const updated = await Product.findById(created._id).lean();
   assert.equal(updated.name, "Después");
   assert.equal(updated.stock, 11);
-  assert.equal(updated.price.value, 44.5);
+  assert.equal(updated.price, 44.5);
 });
 
 test("DELETE /api/products/:id con admin elimina físicamente el producto", async () => {
