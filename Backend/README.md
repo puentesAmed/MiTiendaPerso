@@ -88,6 +88,18 @@ Reglas:
 
 ---
 
+## Nomenclatura de estados de pedido
+
+- Valor interno canónico en backend: `processing`.
+- Etiqueta mostrada en UI en español: **“En preparación”**.
+- No usar `preparing` como valor interno salvo migración planificada.
+- `order.status` representa estado operativo/logístico del pedido.
+- `order.payment.status` representa estado de pago.
+- Cambiar estado operativo **no** cambia estado de pago.
+- Confirmar pago manual **no** cambia estado operativo.
+
+---
+
 ## Checklist pre-producción
 
 1. Configurar `NODE_ENV=production`.
