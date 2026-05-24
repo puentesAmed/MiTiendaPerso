@@ -509,249 +509,31 @@ useEffect(() => {
         elements={elementsBySide?.back || []}
       />
 
-      <HStack
+      <Stack
+        direction={{ base: "column", lg: "row" }}
         align="stretch"
-        spacing={6}
-        height="calc(100vh - 140px)"
+        spacing={{ base: 4, lg: 6 }}
+        minH={{ base: "auto", lg: "calc(100vh - 140px)" }}
       >
-        {/* PANEL LATERAL */}
-        <Stack
-          minW="280px"
-          maxW="320px"
-          spacing={4}
-          overflowY="auto"
-          pr={2}
-          bg="gray.50"
-          borderWidth="1px"
-          borderColor="gray.200"
-          borderRadius="lg"
-          p={3}
-        >
-          <HStack justify="space-between" align="center">
-            <ChakraText fontWeight="bold" fontSize="sm">
-              Editor de diseño
-            </ChakraText>
-            <Badge colorScheme={selectedElement ? "green" : "gray"} variant="subtle">
-              {selectedElement ? "Elemento seleccionado" : "Sin selección"}
-            </Badge>
-          </HStack>
-
-          <ChakraText fontSize="xs" color="gray.600">
-            Añade texto o imagen y arrastra los elementos sobre el área imprimible.
-          </ChakraText>
-
-          <Divider />
-
-          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
-            Contenido
-          </ChakraText>
-          <FormControl>
-            <FormLabel>Lado del producto</FormLabel>
-            <Select
-              size="sm"
-              value={side}
-              onChange={(e) => {
-                const newSide = e.target.value;
-                setSide(newSide);
-                setSelectedId(null);
-
-                emitDesign({ side: newSide });
-              }}
-            >
-              <option value="front">Delante</option>
-              <option value="back">Detrás</option>
-            </Select>
-          </FormControl>
-
-          <Button size="sm" onClick={handleAddText}>
-            Añadir texto
-          </Button>
-
-          <FormControl>
-            <FormLabel>Subir imagen</FormLabel>
-            <Input
-              type="file"
-              accept="image/*"
-              size="sm"
-              onChange={(e) => handleAddImage(e.target.files?.[0])}
-            />
-          </FormControl>
-
-          <Divider />
-          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
-            Acciones
-          </ChakraText>
-
-          <Button colorScheme="green" size="sm" onClick={handleSaveDesign}>
-            Guardar diseño
-          </Button>
-
-          {savedAt && (
-            <ChakraText fontSize="xs" color="gray.500">
-              Guardado: {new Date(savedAt).toLocaleString()}
-            </ChakraText>
-          )}
-
-          <Divider />
-          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
-            Inspector
-          </ChakraText>
-
-          {selectedElement && (
-            <>
-              <ChakraText fontWeight="bold" fontSize="sm">
-                Elemento seleccionado
-              </ChakraText>
-
-              {selectedElement.type === "text" && (
-                <>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Texto</FormLabel>
-                    <Input
-                      size="sm"
-                      value={selectedElement.text || ""}
-                      onChange={(e) =>
-                        updateElement(selectedElement.id, { text: e.target.value })
-                      }
-                    />
-                  </FormControl>
-
-                  <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase" mt={1}>
-                    Estilo
-                  </ChakraText>
-
-                  <FormControl>
-                    <FormLabel fontSize="sm">Fuente</FormLabel>
-                    <Select
-                      size="sm"
-                      value={selectedElement.fontFamily || "Arial"}
-                      onChange={(e) =>
-                        updateElement(selectedElement.id, {
-                          fontFamily: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="Arial">Arial</option>
-                      <option value="Helvetica">Helvetica</option>
-                      <option value="Times New Roman">Times New Roman</option>
-                      <option value="Courier New">Courier New</option>
-                      <option value="Comic Sans MS">Comic Sans MS</option>
-                      <option value="Impact">Impact</option>
-                    </Select>
-                  </FormControl>
-
-                  <FormControl>
-                    <FormLabel fontSize="sm">Tamaño</FormLabel>
-                    <NumberInput
-                      size="sm"
-                      min={8}
-                      max={120}
-                      value={selectedElement.fontSize || 24}
-                      onChange={(v) =>
-                        updateElement(selectedElement.id, { fontSize: Number(v) || 24 })
-                      }
-                    >
-                      <NumberInputField />
-                    </NumberInput>
-                  </FormControl>
-
-                  <FormControl>
-                    <FormLabel fontSize="sm">Color</FormLabel>
-                    <Input
-                      size="sm"
-                      type="color"
-                      value={selectedElement.fill || "#ffffff"}
-                      onChange={(e) =>
-                        updateElement(selectedElement.id, { fill: e.target.value })
-                      }
-                    />
-                  </FormControl>
-                </>
-              )}
-
-              <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase" mt={1}>
-                Posición / Tamaño
-              </ChakraText>
-
-              <FormControl>
-                <FormLabel fontSize="sm">Rotación</FormLabel>
-                <NumberInput
-                  size="sm"
-                  min={-180}
-                  max={180}
-                  value={selectedElement.rotation || 0}
-                  onChange={(v) =>
-                    updateElement(selectedElement.id, { rotation: Number(v) || 0 })
-                  }
-                >
-                  <NumberInputField />
-                </NumberInput>
-              </FormControl>
-
-              <Divider my={2} />
-              <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
-                Capas
-              </ChakraText>
-
-              
-              <HStack>
-                <Button size="xs" onClick={() => moveLayer(selectedElement.id, "up")}>
-                  ↑ Al frente
-                </Button>
-                <Button size="xs" onClick={() => moveLayer(selectedElement.id, "down")}>
-                  ↓ Al fondo
-                </Button>
-              </HStack>
-
-              <ChakraText fontSize="xs" color="gray.500">
-                Consejo: arrastra directamente en el canvas para mover elementos.
-              </ChakraText>
-
-              <Button
-                size="xs"
-                colorScheme="red"
-                variant="outline"
-                onClick={handleDeleteSelected}
-              >
-                Eliminar elemento
-              </Button>
-            </>
-          )}
-
-          {!selectedElement && (
-            <ChakraText fontSize="xs" color="gray.500">
-              Selecciona un elemento del diseño para editar su contenido, estilo y capas.
-            </ChakraText>
-          )}
-
-          <Divider />
-          <ChakraText fontSize="sm" color="gray.500" lineHeight="1.4">
-            Las indicaciones adicionales del pedido (envío, producción especial, etc.) podrás añadirlas
-            más adelante en el formulario de finalización de compra.
-          </ChakraText>
-        </Stack>
-
         {/* CANVAS RESPONSIVE */}
       <Box
+        order={{ base: 1, lg: 2 }}
         flex="1"
         display="flex"
         justifyContent="center"
         alignItems="center"
         overflow="hidden"
       >
-
-
-
         {/* CANVAS EDITOR */}
         <Box
           width="100%"
-          maxW={`${stageWidth}px`}
-          aspectRatio={stageWidth / stageHeight}
+          maxW={{ base: "100%", lg: `${stageWidth}px` }}
           display="flex"
           justifyContent="center"
           alignItems="center"
+          overflowX="auto"
         >
-
+          <Box minW={`${stageWidth}px`}>
           <Stage
              width={stageWidth}
             height={stageHeight}
@@ -848,9 +630,229 @@ useEffect(() => {
             
           </Layer>
           </Stage>
+          </Box>
         </Box>
       </Box>
-      </HStack>
+
+        {/* PANEL LATERAL */}
+        <Stack
+          order={{ base: 2, lg: 1 }}
+          minW={{ base: "100%", lg: "280px" }}
+          maxW={{ base: "100%", lg: "320px" }}
+          spacing={{ base: 3, lg: 4 }}
+          overflowY="auto"
+          maxH={{ base: "none", lg: "calc(100vh - 140px)" }}
+          pr={{ base: 0, lg: 2 }}
+          bg="gray.50"
+          borderWidth="1px"
+          borderColor="gray.200"
+          borderRadius="lg"
+          p={{ base: 3, lg: 3 }}
+        >
+          <HStack justify="space-between" align="center">
+            <ChakraText fontWeight="bold" fontSize="sm">
+              Editor de diseño
+            </ChakraText>
+            <Badge colorScheme={selectedElement ? "green" : "gray"} variant="subtle">
+              {selectedElement ? "Elemento seleccionado" : "Sin selección"}
+            </Badge>
+          </HStack>
+
+          <ChakraText fontSize="xs" color="gray.600">
+            Añade texto o imagen y arrastra los elementos sobre el área imprimible.
+          </ChakraText>
+
+          <Divider />
+
+          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+            Contenido
+          </ChakraText>
+          <FormControl>
+            <FormLabel>Lado del producto</FormLabel>
+            <Select
+              size={{ base: "md", lg: "sm" }}
+              value={side}
+              onChange={(e) => {
+                const newSide = e.target.value;
+                setSide(newSide);
+                setSelectedId(null);
+
+                emitDesign({ side: newSide });
+              }}
+            >
+              <option value="front">Delante</option>
+              <option value="back">Detrás</option>
+            </Select>
+          </FormControl>
+
+          <Button size={{ base: "md", lg: "sm" }} onClick={handleAddText}>
+            Añadir texto
+          </Button>
+
+          <FormControl>
+            <FormLabel>Subir imagen</FormLabel>
+            <Input
+              type="file"
+              accept="image/*"
+              size={{ base: "md", lg: "sm" }}
+              onChange={(e) => handleAddImage(e.target.files?.[0])}
+            />
+          </FormControl>
+
+          <Divider />
+          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+            Acciones
+          </ChakraText>
+
+          <Button colorScheme="green" size={{ base: "md", lg: "sm" }} onClick={handleSaveDesign}>
+            Guardar diseño
+          </Button>
+
+          {savedAt && (
+            <ChakraText fontSize="xs" color="gray.500">
+              Guardado: {new Date(savedAt).toLocaleString()}
+            </ChakraText>
+          )}
+
+          <Divider />
+          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+            Inspector
+          </ChakraText>
+
+          {selectedElement && (
+            <>
+              <ChakraText fontWeight="bold" fontSize="sm">
+                Elemento seleccionado
+              </ChakraText>
+
+              {selectedElement.type === "text" && (
+                <>
+                  <FormControl>
+                    <FormLabel fontSize="sm">Texto</FormLabel>
+                    <Input
+                      size={{ base: "md", lg: "sm" }}
+                      value={selectedElement.text || ""}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, { text: e.target.value })
+                      }
+                    />
+                  </FormControl>
+
+                  <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase" mt={1}>
+                    Estilo
+                  </ChakraText>
+
+                  <FormControl>
+                    <FormLabel fontSize="sm">Fuente</FormLabel>
+                    <Select
+                      size={{ base: "md", lg: "sm" }}
+                      value={selectedElement.fontFamily || "Arial"}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, {
+                          fontFamily: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="Arial">Arial</option>
+                      <option value="Helvetica">Helvetica</option>
+                      <option value="Times New Roman">Times New Roman</option>
+                      <option value="Courier New">Courier New</option>
+                      <option value="Comic Sans MS">Comic Sans MS</option>
+                      <option value="Impact">Impact</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="sm">Tamaño</FormLabel>
+                    <NumberInput
+                      size={{ base: "md", lg: "sm" }}
+                      min={8}
+                      max={120}
+                      value={selectedElement.fontSize || 24}
+                      onChange={(v) =>
+                        updateElement(selectedElement.id, { fontSize: Number(v) || 24 })
+                      }
+                    >
+                      <NumberInputField />
+                    </NumberInput>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="sm">Color</FormLabel>
+                    <Input
+                      size={{ base: "md", lg: "sm" }}
+                      type="color"
+                      value={selectedElement.fill || "#ffffff"}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, { fill: e.target.value })
+                      }
+                    />
+                  </FormControl>
+                </>
+              )}
+
+              <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase" mt={1}>
+                Posición / Tamaño
+              </ChakraText>
+
+              <FormControl>
+                <FormLabel fontSize="sm">Rotación</FormLabel>
+                <NumberInput
+                  size={{ base: "md", lg: "sm" }}
+                  min={-180}
+                  max={180}
+                  value={selectedElement.rotation || 0}
+                  onChange={(v) =>
+                    updateElement(selectedElement.id, { rotation: Number(v) || 0 })
+                  }
+                >
+                  <NumberInputField />
+                </NumberInput>
+              </FormControl>
+
+              <Divider my={2} />
+              <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+                Capas
+              </ChakraText>
+
+              
+              <HStack flexWrap="wrap">
+                <Button size={{ base: "sm", lg: "xs" }} onClick={() => moveLayer(selectedElement.id, "up")}>
+                  ↑ Al frente
+                </Button>
+                <Button size={{ base: "sm", lg: "xs" }} onClick={() => moveLayer(selectedElement.id, "down")}>
+                  ↓ Al fondo
+                </Button>
+              </HStack>
+
+              <ChakraText fontSize="xs" color="gray.500">
+                Consejo: arrastra directamente en el canvas para mover elementos.
+              </ChakraText>
+
+              <Button
+                size={{ base: "sm", lg: "xs" }}
+                colorScheme="red"
+                variant="outline"
+                onClick={handleDeleteSelected}
+              >
+                Eliminar elemento
+              </Button>
+            </>
+          )}
+
+          {!selectedElement && (
+            <ChakraText fontSize="xs" color="gray.500">
+              Selecciona un elemento del diseño para editar su contenido, estilo y capas.
+            </ChakraText>
+          )}
+
+          <Divider />
+          <ChakraText fontSize="sm" color="gray.500" lineHeight="1.4">
+            Las indicaciones adicionales del pedido (envío, producción especial, etc.) podrás añadirlas
+            más adelante en el formulario de finalización de compra.
+          </ChakraText>
+        </Stack>
+      </Stack>
     </>
   );
 }
