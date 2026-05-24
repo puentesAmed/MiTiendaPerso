@@ -72,6 +72,16 @@ export async function createMoneiPayment(req, res) {
       return res.status(404).json({ ok: false, message: "Order not found" });
     }
 
+    const normalizedPaymentStatus = order.payment?.status || order.paymentStatus;
+    const blockedStatuses = new Set(["cancelled", "delivered", "completed"]);
+
+    if (normalizedPaymentStatus === "paid" || blockedStatuses.has(order.status)) {
+      return res.status(409).json({
+        ok: false,
+        message: "Este pedido ya tiene el pago confirmado o no admite un nuevo intento de pago.",
+      });
+    }
+
     const response = await axios.post(
       "https://api.monei.com/v1/payments",
       {

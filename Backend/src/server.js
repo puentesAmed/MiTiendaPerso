@@ -25,7 +25,12 @@ async function bootstrap() {
    * --------------------------------------------------------- */
   app.use(
     cors({
-      origin: env.CORS_ORIGINS.length > 0 ? env.CORS_ORIGINS : "*",
+      origin:
+        env.CORS_ORIGINS.length > 0
+          ? env.CORS_ORIGINS
+          : env.NODE_ENV === "production"
+            ? false
+            : true,
     })
   );
 
