@@ -5,6 +5,7 @@ import request from "supertest";
 import { createApp } from "../../src/app.js";
 import { Product } from "../../src/models/Product.js";
 import { Order } from "../../src/models/Order.js";
+import { Customization } from "../../src/models/Customization.js";
 import { setupTestDB, clearTestDB, teardownTestDB } from "../setup/test-db.js";
 import { createAdminAuthHeader } from "../setup/test-auth.js";
 
@@ -38,6 +39,34 @@ function validOrderPayload(productId) {
       estimatedDays: { min: 2, max: 3 },
     },
     total: 25.99,
+  };
+}
+
+function validDesignerCustomizationV1() {
+  return {
+    type: "designer",
+    design: {
+      side: "front",
+      notes: "",
+      elementsBySide: {
+        front: [
+          {
+            id: "txt-1",
+            type: "text",
+            text: "Hola",
+            x: 120,
+            y: 140,
+            fontSize: 24,
+            fontFamily: "Arial",
+            fill: "#000000",
+            rotation: 0,
+          },
+        ],
+        back: [],
+      },
+    },
+    previewsBySide: { front: "data:image/png;base64,AAA", back: null },
+    previewImage: "data:image/png;base64,AAA",
   };
 }
 
@@ -79,6 +108,45 @@ test("crear pedido nuevo inicializa status, payment.status y paymentStatus", asy
   assert.equal(res.body.order.status, "created");
   assert.equal(res.body.order.payment?.status, "pending");
   assert.equal(res.body.order.paymentStatus, "pending");
+});
+
+test("createOrder con customization v1 (designer) sigue creando Customization", async () => {
+  const product = await Product.create({
+    name: "Producto Custom Test",
+    price: 20,
+    stock: 10,
+    customizable: true,
+  });
+
+  await Product.collection.updateOne(
+    { _id: product._id },
+    { $set: { active: true } }
+  );
+
+  const payload = validOrderPayload(product._id.toString());
+  payload.items = [
+    {
+      productId: product._id.toString(),
+      quantity: 1,
+      provider: "local",
+      price: 20,
+      customization: validDesignerCustomizationV1(),
+    },
+  ];
+
+  const res = await request(app).post("/api/orders").send(payload);
+
+  assert.equal(
+    res.status,
+    201,
+    `Esperado 201, recibido ${res.status}. Body: ${JSON.stringify(res.body)}`
+  );
+  assert.ok(res.body.order?.items?.[0]?.customizationId);
+
+  const customization = await Customization.findById(
+    res.body.order.items[0].customizationId
+  ).lean();
+  assert.ok(customization);
 });
 
 test("mark-paid sin token devuelve 401", async () => {

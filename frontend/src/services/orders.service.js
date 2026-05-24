@@ -1,9 +1,15 @@
 // src/services/orders.service.js
 import { http } from "./http";
+import { normalizeCustomization } from "../utils/customizationAdapter";
 
 export async function createOrderRequest(items, data = {}) {
   const payload = {
-    items,
+    items: (items || []).map((item) => ({
+      ...item,
+      customization: normalizeCustomization(item?.customization, {
+        _id: item?.productId,
+      }),
+    })),
     guestId: data.guestId ?? null,
     email: data.email ?? null,
     shippingAddress: data.shippingAddress,

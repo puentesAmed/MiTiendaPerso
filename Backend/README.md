@@ -88,6 +88,38 @@ Reglas:
 
 ---
 
+## Contrato de personalización
+
+Se mantiene compatibilidad hacia atrás para personalizaciones tipo diseñador:
+
+- **v1 (actual):**
+  ```json
+  {
+    "type": "designer",
+    "design": { "...": "..." },
+    "previewsBySide": { "front": "...", "back": "..." },
+    "previewImage": "..."
+  }
+  ```
+- **v2 (futuro):**
+  ```json
+  {
+    "type": "designer",
+    "designVersion": 2,
+    "design": { "...": "..." },
+    "previewsBySide": { "front": "...", "back": "..." },
+    "previewImage": "...",
+    "...": "metadatos extra"
+  }
+  ```
+
+Reglas de compatibilidad:
+- `type` debe seguir siendo `designer`.
+- Si no llega `designVersion`, se interpreta como `designVersion: 1`.
+- `createOrder` acepta v1 y v2 sin romper flujo de carrito/checkout.
+
+---
+
 ## Nomenclatura de estados de pedido
 
 - Valor interno canónico en backend: `processing`.

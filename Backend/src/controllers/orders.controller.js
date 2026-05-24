@@ -14,6 +14,7 @@ import { orderAdminEmail } from "../emails/templates/orderAdminEmail.js";
 import { orderStatusEmail } from "../emails/templates/orderStatusEmail.js";
 
 import { sendToDropshipping } from "../services/dropshipping.service.js";
+import { isDesignerCustomization, normalizeCustomizationPayload } from "../utils/customizationAdapter.js";
 
 console.log("🔥 ORDERS CONTROLLER ACTIVO");
 
@@ -141,20 +142,22 @@ export async function createOrder(req, res) {
        * ------------------------- */
       let customizationId = null;
 
+      const normalizedCustomization = normalizeCustomizationPayload(cartItem.customization);
+
       if (
         provider === "local" &&
-        cartItem.customization?.type === "designer" &&
-        cartItem.customization.design
+        isDesignerCustomization(normalizedCustomization) &&
+        normalizedCustomization.design
       ) {
-        const design = cartItem.customization.design;
+        const design = normalizedCustomization.design;
 
         const previewsBySide =
-          cartItem.customization.previewsBySide ||
+          normalizedCustomization.previewsBySide ||
           design.previewsBySide ||
           null;
 
         const previewImage =
-          cartItem.customization.previewImage ||
+          normalizedCustomization.previewImage ||
           previewsBySide?.front ||
           previewsBySide?.back ||
           null;
