@@ -246,12 +246,32 @@ function normalizePrice(product, variant = null) {
     };
   }
 
-  // 🔹 Producto interno
+  // 🔹 Producto interno (number legacy)
   if (typeof product.price === "number") {
     return {
       final: product.price,
       currency: "EUR",
     };
+  }
+
+  // 🔹 Producto interno con schema actual ({ value, cost, margin, currency })
+  if (typeof product.price?.value === "number") {
+    const payload = {
+      final: product.price.value,
+      currency: product.price.currency || "EUR",
+    };
+
+    if (
+      typeof product.price.cost === "number" ||
+      typeof product.price.margin === "number"
+    ) {
+      payload.breakdown = {
+        cost: product.price.cost,
+        margin: product.price.margin,
+      };
+    }
+
+    return payload;
   }
 
   // 🔹 Producto AliExpress SIN variantes (edge case)
