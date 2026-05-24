@@ -21,7 +21,7 @@ import {
   NumberInputField,
   Text as ChakraText,
   Divider,
-  
+  Badge,
 } from "@chakra-ui/react";
 
 import { forwardRef, useImperativeHandle } from "react";
@@ -519,9 +519,32 @@ useEffect(() => {
           minW="280px"
           maxW="320px"
           spacing={4}
-          overflowY="auto"     
+          overflowY="auto"
           pr={2}
+          bg="gray.50"
+          borderWidth="1px"
+          borderColor="gray.200"
+          borderRadius="lg"
+          p={3}
         >
+          <HStack justify="space-between" align="center">
+            <ChakraText fontWeight="bold" fontSize="sm">
+              Editor de diseño
+            </ChakraText>
+            <Badge colorScheme={selectedElement ? "green" : "gray"} variant="subtle">
+              {selectedElement ? "Elemento seleccionado" : "Sin selección"}
+            </Badge>
+          </HStack>
+
+          <ChakraText fontSize="xs" color="gray.600">
+            Añade texto o imagen y arrastra los elementos sobre el área imprimible.
+          </ChakraText>
+
+          <Divider />
+
+          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+            Contenido
+          </ChakraText>
           <FormControl>
             <FormLabel>Lado del producto</FormLabel>
             <Select
@@ -540,13 +563,9 @@ useEffect(() => {
             </Select>
           </FormControl>
 
-          <Divider />
-
           <Button size="sm" onClick={handleAddText}>
             Añadir texto
           </Button>
-
-          <Divider />
 
           <FormControl>
             <FormLabel>Subir imagen</FormLabel>
@@ -559,23 +578,9 @@ useEffect(() => {
           </FormControl>
 
           <Divider />
-
-          <FormControl>
-            <FormLabel>Notas adicionales</FormLabel>
-            <ChakraText
-              fontSize="sm"
-              color="gray.400"
-              whiteSpace="normal"      
-              wordBreak="break-word" 
-              maxW="100%"              
-              lineHeight="1.4"
-            >
-              Las indicaciones adicionales del pedido (envío, producción, producción especial, etc.)
-              podrás añadirlas más adelante en el formulario de finalización de compra.
-            </ChakraText>
-          </FormControl>
-
-          <Divider />
+          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+            Acciones
+          </ChakraText>
 
           <Button colorScheme="green" size="sm" onClick={handleSaveDesign}>
             Guardar diseño
@@ -588,6 +593,9 @@ useEffect(() => {
           )}
 
           <Divider />
+          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+            Inspector
+          </ChakraText>
 
           {selectedElement && (
             <>
@@ -607,6 +615,10 @@ useEffect(() => {
                       }
                     />
                   </FormControl>
+
+                  <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase" mt={1}>
+                    Estilo
+                  </ChakraText>
 
                   <FormControl>
                     <FormLabel fontSize="sm">Fuente</FormLabel>
@@ -657,6 +669,10 @@ useEffect(() => {
                 </>
               )}
 
+              <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase" mt={1}>
+                Posición / Tamaño
+              </ChakraText>
+
               <FormControl>
                 <FormLabel fontSize="sm">Rotación</FormLabel>
                 <NumberInput
@@ -673,6 +689,9 @@ useEffect(() => {
               </FormControl>
 
               <Divider my={2} />
+              <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+                Capas
+              </ChakraText>
 
               
               <HStack>
@@ -684,7 +703,9 @@ useEffect(() => {
                 </Button>
               </HStack>
 
-
+              <ChakraText fontSize="xs" color="gray.500">
+                Consejo: arrastra directamente en el canvas para mover elementos.
+              </ChakraText>
 
               <Button
                 size="xs"
@@ -696,6 +717,18 @@ useEffect(() => {
               </Button>
             </>
           )}
+
+          {!selectedElement && (
+            <ChakraText fontSize="xs" color="gray.500">
+              Selecciona un elemento del diseño para editar su contenido, estilo y capas.
+            </ChakraText>
+          )}
+
+          <Divider />
+          <ChakraText fontSize="sm" color="gray.500" lineHeight="1.4">
+            Las indicaciones adicionales del pedido (envío, producción especial, etc.) podrás añadirlas
+            más adelante en el formulario de finalización de compra.
+          </ChakraText>
         </Stack>
 
         {/* CANVAS RESPONSIVE */}
