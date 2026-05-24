@@ -534,6 +534,56 @@ useEffect(() => {
     });
   };
 
+  const setLayerPosition = (id, mode) => {
+    setElementsBySide((prev) => {
+      const list = [...(prev?.[side] || [])];
+      const index = list.findIndex((el) => el.id === id);
+      if (index === -1) return prev;
+
+      const [item] = list.splice(index, 1);
+
+      if (mode === "toFront") list.push(item);
+      else if (mode === "toBack") list.unshift(item);
+      else return prev;
+
+      const updated = {
+        ...prev,
+        [side]: list.map((el, i) => ({ ...el, order: i })),
+      };
+      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
+      return updated;
+    });
+  };
+
+  const handleDuplicateSelected = () => {
+    if (!selectedElement) return;
+    const duplicated = {
+      ...selectedElement,
+      id: crypto.randomUUID(),
+      x: (selectedElement.x || 0) + 14,
+      y: (selectedElement.y || 0) + 14,
+      order: (elementsBySide?.[side]?.length || 0),
+    };
+
+    setElementsBySide((prev) => {
+      const updated = {
+        ...prev,
+        [side]: [...(prev?.[side] || []), duplicated],
+      };
+      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
+      return updated;
+    });
+
+    setSelectedId(duplicated.id);
+  };
+
+  const handleCenterSelectedInPrintArea = () => {
+    if (!selectedElement || !currentPrintArea || !selectedBounds) return;
+    const centeredX = currentPrintArea.x + (currentPrintArea.width - selectedBounds.width) / 2;
+    const centeredY = currentPrintArea.y + (currentPrintArea.height - selectedBounds.height) / 2;
+    updateElement(selectedElement.id, { x: centeredX, y: centeredY });
+  };
+
   /* ======================================================
      Render
 ========================================================= */
@@ -786,6 +836,24 @@ useEffect(() => {
               <ChakraText fontWeight="bold" fontSize="sm">
                 Elemento seleccionado
               </ChakraText>
+              <HStack>
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  variant="outline"
+                  onClick={handleDuplicateSelected}
+                  isDisabled={!selectedElement}
+                >
+                  Duplicar
+                </Button>
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  variant="outline"
+                  onClick={handleCenterSelectedInPrintArea}
+                  isDisabled={!selectedElement}
+                >
+                  Centrar en área
+                </Button>
+              </HStack>
               {selectedOutsideSafeArea && (
                 <Alert status="warning" borderRadius="md" py={2}>
                   <AlertIcon />
@@ -887,11 +955,35 @@ useEffect(() => {
 
               
               <HStack flexWrap="wrap">
-                <Button size={{ base: "sm", lg: "xs" }} onClick={() => moveLayer(selectedElement.id, "up")}>
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  onClick={() => moveLayer(selectedElement.id, "up")}
+                  isDisabled={!selectedElement}
+                >
                   ↑ Al frente
                 </Button>
-                <Button size={{ base: "sm", lg: "xs" }} onClick={() => moveLayer(selectedElement.id, "down")}>
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  onClick={() => moveLayer(selectedElement.id, "down")}
+                  isDisabled={!selectedElement}
+                >
                   ↓ Al fondo
+                </Button>
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  variant="outline"
+                  onClick={() => setLayerPosition(selectedElement.id, "toFront")}
+                  isDisabled={!selectedElement}
+                >
+                  Traer al frente
+                </Button>
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  variant="outline"
+                  onClick={() => setLayerPosition(selectedElement.id, "toBack")}
+                  isDisabled={!selectedElement}
+                >
+                  Enviar al fondo
                 </Button>
               </HStack>
 
@@ -904,6 +996,7 @@ useEffect(() => {
                 colorScheme="red"
                 variant="outline"
                 onClick={handleDeleteSelected}
+                isDisabled={!selectedElement}
               >
                 Eliminar elemento
               </Button>
