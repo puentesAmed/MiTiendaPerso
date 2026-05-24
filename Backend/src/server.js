@@ -2,6 +2,7 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import rateLimit from "express-rate-limit";
 
 import { env } from "./config/env.js";
 import { connectDB } from "./config/db.js";
@@ -19,6 +20,27 @@ async function bootstrap() {
   await connectDB();
 
   const app = express();
+
+  const limiterResponse = {
+    ok: false,
+    message: "Demasiadas solicitudes. Inténtalo de nuevo más tarde.",
+  };
+
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: limiterResponse,
+  });
+
+  const publicActionLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: limiterResponse,
+  });
 
   /* ---------------------------------------------------------
    * CORS
@@ -39,6 +61,15 @@ async function bootstrap() {
    * --------------------------------------------------------- */
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  /* ---------------------------------------------------------
+   * RATE LIMIT (RUTAS PÚBLICAS CRÍTICAS)
+   * --------------------------------------------------------- */
+  app.use("/auth/login", authLimiter);
+  app.use("/auth/register", authLimiter);
+  app.use("/api/orders/track", publicActionLimiter);
+  app.use("/api/checkout/shipping-options", publicActionLimiter);
+  app.use("/api/payments/monei/create", publicActionLimiter);
 
   /* ---------------------------------------------------------
    * ARCHIVOS ESTÁTICOS (SOLO IMÁGENES)
