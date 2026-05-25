@@ -18,6 +18,7 @@ import { useCart } from "../../hooks/useCart";
 import { ProductDesigner } from "../../components/ProductDesigner";
 import { ProductPreview360 } from "../../components/ProductPreview360";
 import { DESIGN_TEMPLATES } from "../../config/designTemplates";
+import { createDesignerCustomizationPayload } from "../../utils/customizationAdapter";
 
 export function ProductDesignerPage() {
   const { id } = useParams();
@@ -142,15 +143,16 @@ export function ProductDesignerPage() {
         ?.filter((e) => e.type === "text")
         .map((e) => e.text) || [];
 
-    const customizationPayload = {
-      type: "designer",
+    const customizationPayload = createDesignerCustomizationPayload({
       design: committedDesign,
       previewsBySide,
       previewImage: previewsBySide?.front || previewsBySide?.back || null,
-      textSummary: texts,
-    };
+      productId: product._id || product.id,
+      productSnapshot: { _id: product._id, name: product.name },
+      extra: { textSummary: texts },
+    });
 
-    addItem(product, 1, customizationPayload);
+    addItem(product, 1, null, customizationPayload);
 
     navigate(location.state?.returnTo || "/carrito");
   };
