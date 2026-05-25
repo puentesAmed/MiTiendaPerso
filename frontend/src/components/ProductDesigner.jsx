@@ -367,8 +367,6 @@ useEffect(() => {
   const rehydrateTimer = setTimeout(() => {
     setSide(value.side || "front");
     setElementsBySide(value.elementsBySide || { front: [], back: [] });
-    setHistoryPast([]);
-    setHistoryFuture([]);
     // Mantener selección estable mientras el elemento siga existiendo
     setSelectedId((prevSelectedId) => {
       if (!prevSelectedId) return null;
@@ -1022,14 +1020,14 @@ useEffect(() => {
                   onClick={() => moveLayer(selectedElement.id, "up")}
                   isDisabled={!selectedElement}
                 >
-                  ↑ Al frente
+                  Subir capa
                 </Button>
                 <Button
                   size={{ base: "sm", lg: "xs" }}
                   onClick={() => moveLayer(selectedElement.id, "down")}
                   isDisabled={!selectedElement}
                 >
-                  ↓ Al fondo
+                  Bajar capa
                 </Button>
                 <Button
                   size={{ base: "sm", lg: "xs" }}
