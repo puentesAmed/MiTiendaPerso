@@ -24,6 +24,7 @@ import {
   Badge,
   Alert,
   AlertIcon,
+  useColorModeValue,
 } from "@chakra-ui/react";
 
 import { forwardRef, useImperativeHandle } from "react";
@@ -269,6 +270,14 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
 
   const [selectedId, setSelectedId] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
+
+  const panelBg = useColorModeValue("white", "gray.800");
+  const panelBorder = useColorModeValue("gray.200", "gray.700");
+  const panelTitle = useColorModeValue("gray.700", "gray.100");
+  const sectionTitle = useColorModeValue("gray.600", "gray.300");
+  const helperText = useColorModeValue("gray.600", "gray.300");
+  const mutedText = useColorModeValue("gray.500", "gray.400");
+  const canvasWrapperBg = useColorModeValue("gray.50", "gray.900");
   
   const emitDesign = (overrides = {}) => {
     onChange?.({
@@ -360,9 +369,13 @@ useEffect(() => {
     setElementsBySide(value.elementsBySide || { front: [], back: [] });
     setHistoryPast([]);
     setHistoryFuture([]);
-
-    // reset selección para evitar referencias inválidas
-    setSelectedId(null);
+    // Mantener selección estable mientras el elemento siga existiendo
+    setSelectedId((prevSelectedId) => {
+      if (!prevSelectedId) return null;
+      const nextSide = value.side || "front";
+      const nextElements = value.elementsBySide?.[nextSide] || [];
+      return nextElements.some((el) => el.id === prevSelectedId) ? prevSelectedId : null;
+    });
   }, 0);
 
   return () => clearTimeout(rehydrateTimer);
@@ -648,6 +661,10 @@ useEffect(() => {
         justifyContent="center"
         alignItems="center"
         overflow="hidden"
+        bg={canvasWrapperBg}
+        borderRadius="lg"
+        borderWidth="1px"
+        borderColor={panelBorder}
       >
         {/* CANVAS EDITOR */}
         <Box
@@ -769,14 +786,14 @@ useEffect(() => {
           overflowY="auto"
           maxH={{ base: "none", lg: "calc(100vh - 140px)" }}
           pr={{ base: 0, lg: 2 }}
-          bg="gray.50"
+          bg={panelBg}
           borderWidth="1px"
-          borderColor="gray.200"
+          borderColor={panelBorder}
           borderRadius="lg"
           p={{ base: 3, lg: 3 }}
         >
           <HStack justify="space-between" align="center">
-            <ChakraText fontWeight="bold" fontSize="sm">
+            <ChakraText fontWeight="bold" fontSize="sm" color={panelTitle}>
               Editor de diseño
             </ChakraText>
             <Badge colorScheme={selectedElement ? "green" : "gray"} variant="subtle">
@@ -797,13 +814,13 @@ useEffect(() => {
             </ChakraText>
           </Alert>
 
-          <ChakraText fontSize="xs" color="gray.600">
+          <ChakraText fontSize="xs" color={helperText}>
             Añade texto o imagen y arrastra los elementos sobre el área imprimible.
           </ChakraText>
 
           <Divider />
 
-          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+          <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase">
             Contenido
           </ChakraText>
           <FormControl>
@@ -839,7 +856,7 @@ useEffect(() => {
           </FormControl>
 
           <Divider />
-          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+          <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase">
             Acciones
           </ChakraText>
 
@@ -866,13 +883,13 @@ useEffect(() => {
           </HStack>
 
           {savedAt && (
-            <ChakraText fontSize="xs" color="gray.500">
+            <ChakraText fontSize="xs" color={mutedText}>
               Guardado: {new Date(savedAt).toLocaleString()}
             </ChakraText>
           )}
 
           <Divider />
-          <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+          <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase">
             Inspector
           </ChakraText>
 
@@ -921,7 +938,7 @@ useEffect(() => {
                     />
                   </FormControl>
 
-                  <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase" mt={1}>
+                  <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase" mt={1}>
                     Estilo
                   </ChakraText>
 
@@ -974,7 +991,7 @@ useEffect(() => {
                 </>
               )}
 
-              <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase" mt={1}>
+              <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase" mt={1}>
                 Posición / Tamaño
               </ChakraText>
 
@@ -994,7 +1011,7 @@ useEffect(() => {
               </FormControl>
 
               <Divider my={2} />
-              <ChakraText fontWeight="semibold" fontSize="xs" color="gray.600" textTransform="uppercase">
+              <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase">
                 Capas
               </ChakraText>
 
@@ -1032,7 +1049,7 @@ useEffect(() => {
                 </Button>
               </HStack>
 
-              <ChakraText fontSize="xs" color="gray.500">
+              <ChakraText fontSize="xs" color={mutedText}>
                 Consejo: arrastra directamente en el canvas para mover elementos.
               </ChakraText>
 
@@ -1059,13 +1076,13 @@ useEffect(() => {
           )}
 
           {!selectedElement && (
-            <ChakraText fontSize="xs" color="gray.500">
+            <ChakraText fontSize="xs" color={mutedText}>
               Selecciona un elemento del diseño para editar su contenido, estilo y capas.
             </ChakraText>
           )}
 
           <Divider />
-          <ChakraText fontSize="sm" color="gray.500" lineHeight="1.4">
+          <ChakraText fontSize="sm" color={mutedText} lineHeight="1.4">
             Las indicaciones adicionales del pedido (envío, producción especial, etc.) podrás añadirlas
             más adelante en el formulario de finalización de compra.
           </ChakraText>
