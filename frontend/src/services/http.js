@@ -1,36 +1,3 @@
-/*import axios from 'axios';
-
-export const http = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
-});
-
-http.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-*/
-
-
-// leer el token desde auth_user (o usa auth_token si lo prefieres)
-/*http.interceptors.request.use((config) => {
-  const stored = localStorage.getItem("auth_user");
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored);
-      if (parsed?.token) {
-        config.headers.Authorization = `Bearer ${parsed.token}`;
-      }
-    } catch  {
-      // si falla el parseo, ignoramos y seguimos sin token
-    }
-  }
-  return config;
-});
-*/
-
 
 // src/services/http.js
 import axios from "axios";

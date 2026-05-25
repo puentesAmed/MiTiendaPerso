@@ -1,6 +1,5 @@
 // models/Product.js
 import mongoose from "mongoose";
-import ProductSchema from "./schemas/product.schema.js";
 
 const customizationAreaSchema = new mongoose.Schema(
   {
@@ -38,4 +37,4 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const Product = mongoose.model("Product", ProductSchema);
+export const Product = mongoose.model("Product", productSchema);
