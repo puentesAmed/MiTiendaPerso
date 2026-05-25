@@ -263,6 +263,9 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
   const [elementsBySide, setElementsBySide] = useState(
     () => value?.elementsBySide || { front: [], back: [] }
   );
+  const [historyPast, setHistoryPast] = useState([]);
+  const [historyFuture, setHistoryFuture] = useState([]);
+  const MAX_HISTORY_STEPS = 30;
 
   const [selectedId, setSelectedId] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
@@ -272,6 +275,27 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
       side,
       elementsBySide,
       ...overrides,
+    });
+  };
+
+  const applyElementsBySideChange = (computeNext, { trackHistory = true } = {}) => {
+    setElementsBySide((prev) => {
+      const next = computeNext(prev);
+      if (!next || next === prev) return prev;
+
+      if (trackHistory) {
+        setHistoryPast((past) => {
+          const updatedPast = [...past, prev];
+          if (updatedPast.length > MAX_HISTORY_STEPS) {
+            return updatedPast.slice(updatedPast.length - MAX_HISTORY_STEPS);
+          }
+          return updatedPast;
+        });
+        setHistoryFuture([]);
+      }
+
+      setTimeout(() => emitDesign({ elementsBySide: next }), 0);
+      return next;
     });
   };
 
@@ -334,6 +358,8 @@ useEffect(() => {
   const rehydrateTimer = setTimeout(() => {
     setSide(value.side || "front");
     setElementsBySide(value.elementsBySide || { front: [], back: [] });
+    setHistoryPast([]);
+    setHistoryFuture([]);
 
     // reset selección para evitar referencias inválidas
     setSelectedId(null);
@@ -367,17 +393,13 @@ useEffect(() => {
      CRUD elementos
 ========================================================= */
   const updateElement = (id, attrs) => {
-    setElementsBySide((prev) => {
+    applyElementsBySideChange((prev) => {
       const updated = {
         ...prev,
         [side]: prev[side].map((el) =>
           el.id === id ? { ...el, ...attrs } : el
         ),
       };
-
-      // 🔑 sincroniza con el padre
-      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
-
       return updated;
     });
   };
@@ -398,14 +420,11 @@ useEffect(() => {
       order: (elementsBySide?.[side]?.length || 0),
     };
 
-    setElementsBySide((prev) => {
+    applyElementsBySideChange((prev) => {
       const updated = {
         ...prev,
         [side]: [...(prev?.[side] || []), newText],
       };
-
-      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
-
       return updated;
     });
 
@@ -442,14 +461,11 @@ useEffect(() => {
           order: (elementsBySide?.[side]?.length || 0),
         };
 
-        setElementsBySide((prev) => {
+        applyElementsBySideChange((prev) => {
           const updated = {
             ...prev,
             [side]: [...(prev?.[side] || []), newImg],
           };
-
-          setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
-
           return updated;
         });
 
@@ -464,14 +480,11 @@ useEffect(() => {
 
   const handleDeleteSelected = () => {
     if (!selectedId) return;
-    setElementsBySide((prev) => {
+    applyElementsBySideChange((prev) => {
       const updated = {
         ...prev,
         [side]: prev[side].filter((el) => el.id !== selectedId),
       };
-
-      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
-
       return updated;
     });
 
@@ -510,7 +523,7 @@ useEffect(() => {
 
   // Función para mover capa arriba/abajo
   const moveLayer = (id, direction) => {
-    setElementsBySide((prev) => {
+    applyElementsBySideChange((prev) => {
       const list = [...(prev?.[side] || [])];
       const index = list.findIndex((el) => el.id === id);
       if (index === -1) return prev;
@@ -526,16 +539,12 @@ useEffect(() => {
         ...prev,
         [side]: list.map((el, i) => ({ ...el, order: i })),
       };
-
-      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
-
       return updated;
-
     });
   };
 
   const setLayerPosition = (id, mode) => {
-    setElementsBySide((prev) => {
+    applyElementsBySideChange((prev) => {
       const list = [...(prev?.[side] || [])];
       const index = list.findIndex((el) => el.id === id);
       if (index === -1) return prev;
@@ -550,7 +559,6 @@ useEffect(() => {
         ...prev,
         [side]: list.map((el, i) => ({ ...el, order: i })),
       };
-      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
       return updated;
     });
   };
@@ -565,12 +573,11 @@ useEffect(() => {
       order: (elementsBySide?.[side]?.length || 0),
     };
 
-    setElementsBySide((prev) => {
+    applyElementsBySideChange((prev) => {
       const updated = {
         ...prev,
         [side]: [...(prev?.[side] || []), duplicated],
       };
-      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
       return updated;
     });
 
@@ -582,6 +589,26 @@ useEffect(() => {
     const centeredX = currentPrintArea.x + (currentPrintArea.width - selectedBounds.width) / 2;
     const centeredY = currentPrintArea.y + (currentPrintArea.height - selectedBounds.height) / 2;
     updateElement(selectedElement.id, { x: centeredX, y: centeredY });
+  };
+
+  const handleUndo = () => {
+    if (!historyPast.length) return;
+    const previous = historyPast[historyPast.length - 1];
+    setHistoryPast((past) => past.slice(0, -1));
+    setHistoryFuture((future) => [elementsBySide, ...future].slice(0, MAX_HISTORY_STEPS));
+    setElementsBySide(previous);
+    setSelectedId(null);
+    setTimeout(() => emitDesign({ elementsBySide: previous }), 0);
+  };
+
+  const handleRedo = () => {
+    if (!historyFuture.length) return;
+    const next = historyFuture[0];
+    setHistoryFuture((future) => future.slice(1));
+    setHistoryPast((past) => [...past, elementsBySide].slice(-MAX_HISTORY_STEPS));
+    setElementsBySide(next);
+    setSelectedId(null);
+    setTimeout(() => emitDesign({ elementsBySide: next }), 0);
   };
 
   /* ======================================================
@@ -819,6 +846,24 @@ useEffect(() => {
           <Button colorScheme="green" size={{ base: "md", lg: "sm" }} onClick={handleSaveDesign}>
             Guardar diseño
           </Button>
+          <HStack>
+            <Button
+              size={{ base: "sm", lg: "xs" }}
+              variant="outline"
+              onClick={handleUndo}
+              isDisabled={!historyPast.length}
+            >
+              Deshacer
+            </Button>
+            <Button
+              size={{ base: "sm", lg: "xs" }}
+              variant="outline"
+              onClick={handleRedo}
+              isDisabled={!historyFuture.length}
+            >
+              Rehacer
+            </Button>
+          </HStack>
 
           {savedAt && (
             <ChakraText fontSize="xs" color="gray.500">
