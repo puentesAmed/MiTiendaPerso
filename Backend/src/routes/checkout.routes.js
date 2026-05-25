@@ -35,8 +35,7 @@ router.post("/shipping-options", async (req, res) => {
 
     return res.status(500).json({
       ok: false,
-      message: "No se pudo calcular el envío",
-      details: error.response?.data || error.message,
+      message: "No se pudieron calcular las opciones de envío en este momento.",
     });
   }
 });

@@ -21,7 +21,10 @@ import {
   NumberInputField,
   Text as ChakraText,
   Divider,
-  
+  Badge,
+  Alert,
+  AlertIcon,
+  useColorModeValue,
 } from "@chakra-ui/react";
 
 import { forwardRef, useImperativeHandle } from "react";
@@ -106,6 +109,36 @@ function DesignerImageElement({ el, onSelect, onChange }) {
         node.scaleY(1);
       }}
     />
+  );
+}
+
+function getElementBounds(el) {
+  if (!el) return null;
+  if (el.type === "text") {
+    const fontSize = el.fontSize || 24;
+    const textLength = (el.text || "").length || 1;
+    const approxWidth = Math.max(fontSize * 0.6 * textLength, fontSize * 0.8);
+    const approxHeight = fontSize * 1.2;
+    return { x: el.x || 0, y: el.y || 0, width: approxWidth, height: approxHeight };
+  }
+  if (el.type === "image") {
+    return {
+      x: el.x || 0,
+      y: el.y || 0,
+      width: 120 * Math.abs(el.scaleX ?? 1),
+      height: 120 * Math.abs(el.scaleY ?? 1),
+    };
+  }
+  return null;
+}
+
+function isBoundsInsidePrintArea(bounds, area) {
+  if (!bounds || !area) return true;
+  return (
+    bounds.x >= area.x &&
+    bounds.y >= area.y &&
+    bounds.x + bounds.width <= area.x + area.width &&
+    bounds.y + bounds.height <= area.y + area.height
   );
 }
 
@@ -231,10 +264,20 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
   const [elementsBySide, setElementsBySide] = useState(
     () => value?.elementsBySide || { front: [], back: [] }
   );
-  //const [notes, setNotes] = useState(() => value?.notes || "");
+  const [historyPast, setHistoryPast] = useState([]);
+  const [historyFuture, setHistoryFuture] = useState([]);
+  const MAX_HISTORY_STEPS = 30;
 
   const [selectedId, setSelectedId] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
+
+  const panelBg = useColorModeValue("white", "gray.800");
+  const panelBorder = useColorModeValue("gray.200", "gray.700");
+  const panelTitle = useColorModeValue("gray.700", "gray.100");
+  const sectionTitle = useColorModeValue("gray.600", "gray.300");
+  const helperText = useColorModeValue("gray.600", "gray.300");
+  const mutedText = useColorModeValue("gray.500", "gray.400");
+  const canvasWrapperBg = useColorModeValue("gray.50", "gray.900");
   
   const emitDesign = (overrides = {}) => {
     onChange?.({
@@ -244,10 +287,28 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
     });
   };
 
+  const applyElementsBySideChange = (computeNext, { trackHistory = true } = {}) => {
+    setElementsBySide((prev) => {
+      const next = computeNext(prev);
+      if (!next || next === prev) return prev;
 
-  // Stage principal (editor)
-  //const internalStageRef = useRef(null);
-  //const effectiveStageRef = stageRef || internalStageRef;
+      if (trackHistory) {
+        setHistoryPast((past) => {
+          const updatedPast = [...past, prev];
+          if (updatedPast.length > MAX_HISTORY_STEPS) {
+            return updatedPast.slice(updatedPast.length - MAX_HISTORY_STEPS);
+          }
+          return updatedPast;
+        });
+        setHistoryFuture([]);
+      }
+
+      setTimeout(() => emitDesign({ elementsBySide: next }), 0);
+      return next;
+    });
+  };
+
+
   
   const layerRef = useRef(null);
   const trRef = useRef(null);
@@ -264,6 +325,13 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
   printArea?.front || printArea?.back
     ? printArea[side] || printArea.front
     : printArea;
+  const selectedBounds = getElementBounds(selectedElement);
+  const selectedOutsideSafeArea = selectedElement
+    ? !isBoundsInsidePrintArea(selectedBounds, currentPrintArea)
+    : false;
+  const hasOutOfAreaElements = currentElements.some(
+    (el) => !isBoundsInsidePrintArea(getElementBounds(el), currentPrintArea)
+  );
 
 
 
@@ -299,9 +367,15 @@ useEffect(() => {
   const rehydrateTimer = setTimeout(() => {
     setSide(value.side || "front");
     setElementsBySide(value.elementsBySide || { front: [], back: [] });
-
-    // reset selección para evitar referencias inválidas
-    setSelectedId(null);
+    setHistoryPast([]);
+    setHistoryFuture([]);
+    // Mantener selección estable mientras el elemento siga existiendo
+    setSelectedId((prevSelectedId) => {
+      if (!prevSelectedId) return null;
+      const nextSide = value.side || "front";
+      const nextElements = value.elementsBySide?.[nextSide] || [];
+      return nextElements.some((el) => el.id === prevSelectedId) ? prevSelectedId : null;
+    });
   }, 0);
 
   return () => clearTimeout(rehydrateTimer);
@@ -329,79 +403,16 @@ useEffect(() => {
 
 
   /* ======================================================
-     Exponer métodos en stageRef.current (IMPORTANTE)
-     Para que ProductDesignerPage pueda llamarlos.
-========================================================= */
-  /*useEffect(() => {
-    const stage = effectiveStageRef.current;
-    if (!stage) return;
-
-    /*stage.exportPreviewForSide = (sideName = "front", pixelRatio = 2) => {
-      const ref = sideName === "back" ? exportBackRef : exportFrontRef;
-      const s = ref.current;
-      if (!s) return null;
-
-      try {
-        return s.toDataURL({ pixelRatio });
-      } catch {
-        return null;
-      }
-    };*/
-    /*
-
-    stage.exportPreviewForSide = async (sideName = "front", pixelRatio = 2) => {
-      const ref = sideName === "back" ? exportBackRef : exportFrontRef;
-      const s = ref.current;
-      if (!s) return null;
-
-      // ⏱️ esperar a que React + Konva rendericen el texto
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-
-      s.batchDraw();
-
-      try {
-        return s.toDataURL({ pixelRatio });
-      } catch {
-        return null;
-      }
-    };
-*/
-
-
-    /*stage.exportPreviewsBySide = (pixelRatio = 2) => {
-      return {
-        front: stage.exportPreviewForSide("front", pixelRatio),
-        back: stage.exportPreviewForSide("back", pixelRatio),
-        };
-      };*/
-/*
-    stage.exportPreviewsBySide = async (pixelRatio = 2) => {
-      return {
-        front: await stage.exportPreviewForSide("front", pixelRatio),
-        back: await stage.exportPreviewForSide("back", pixelRatio),
-      };
-    };
-  
-
-      
-    
-  }, [effectiveStageRef, elementsBySide, frontImage, backImage]);
-*/
-  /* ======================================================
      CRUD elementos
 ========================================================= */
   const updateElement = (id, attrs) => {
-    setElementsBySide((prev) => {
+    applyElementsBySideChange((prev) => {
       const updated = {
         ...prev,
         [side]: prev[side].map((el) =>
           el.id === id ? { ...el, ...attrs } : el
         ),
       };
-
-      // 🔑 sincroniza con el padre
-      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
-
       return updated;
     });
   };
@@ -422,14 +433,11 @@ useEffect(() => {
       order: (elementsBySide?.[side]?.length || 0),
     };
 
-    setElementsBySide((prev) => {
+    applyElementsBySideChange((prev) => {
       const updated = {
         ...prev,
         [side]: [...(prev?.[side] || []), newText],
       };
-
-      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
-
       return updated;
     });
 
@@ -466,14 +474,11 @@ useEffect(() => {
           order: (elementsBySide?.[side]?.length || 0),
         };
 
-        setElementsBySide((prev) => {
+        applyElementsBySideChange((prev) => {
           const updated = {
             ...prev,
             [side]: [...(prev?.[side] || []), newImg],
           };
-
-          setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
-
           return updated;
         });
 
@@ -488,18 +493,24 @@ useEffect(() => {
 
   const handleDeleteSelected = () => {
     if (!selectedId) return;
-    setElementsBySide((prev) => {
+    applyElementsBySideChange((prev) => {
       const updated = {
         ...prev,
         [side]: prev[side].filter((el) => el.id !== selectedId),
       };
-
-      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
-
       return updated;
     });
 
     setSelectedId(null);
+  };
+
+  const handleFitSelectedInPrintArea = () => {
+    if (!selectedElement || !currentPrintArea || !selectedBounds) return;
+    const maxX = currentPrintArea.x + currentPrintArea.width - selectedBounds.width;
+    const maxY = currentPrintArea.y + currentPrintArea.height - selectedBounds.height;
+    const nextX = Math.min(Math.max(selectedBounds.x, currentPrintArea.x), maxX);
+    const nextY = Math.min(Math.max(selectedBounds.y, currentPrintArea.y), maxY);
+    updateElement(selectedElement.id, { x: nextX, y: nextY });
   };
 
 
@@ -507,27 +518,6 @@ useEffect(() => {
      Guardar diseño (SIN CAMBIAR SIDE)
      Genera previewsBySide usando stages ocultos.
 ========================================================= */
- /* const handleSaveDesign = async() => {
-    const stage = effectiveStageRef.current;
-    if (!stage) return;
-
-    const previewsBySide = await stage.exportPreviewsBySide(2);
-
-
-    console.log(
-      "¿FRONT === BACK?",
-      previewsBySide.front === previewsBySide.back
-    );
-
-    setSavedAt(new Date().toISOString());
-
-    onChange?.({
-      side,
-      elementsBySide,      
-      previewsBySide,
-    });
-  };
-*/
   const handleSaveDesign = async () => {
     if (!apiRef?.current) return;
 
@@ -546,7 +536,7 @@ useEffect(() => {
 
   // Función para mover capa arriba/abajo
   const moveLayer = (id, direction) => {
-    setElementsBySide((prev) => {
+    applyElementsBySideChange((prev) => {
       const list = [...(prev?.[side] || [])];
       const index = list.findIndex((el) => el.id === id);
       if (index === -1) return prev;
@@ -562,12 +552,76 @@ useEffect(() => {
         ...prev,
         [side]: list.map((el, i) => ({ ...el, order: i })),
       };
-
-      setTimeout(() => emitDesign({ elementsBySide: updated }), 0);
-
       return updated;
-
     });
+  };
+
+  const setLayerPosition = (id, mode) => {
+    applyElementsBySideChange((prev) => {
+      const list = [...(prev?.[side] || [])];
+      const index = list.findIndex((el) => el.id === id);
+      if (index === -1) return prev;
+
+      const [item] = list.splice(index, 1);
+
+      if (mode === "toFront") list.push(item);
+      else if (mode === "toBack") list.unshift(item);
+      else return prev;
+
+      const updated = {
+        ...prev,
+        [side]: list.map((el, i) => ({ ...el, order: i })),
+      };
+      return updated;
+    });
+  };
+
+  const handleDuplicateSelected = () => {
+    if (!selectedElement) return;
+    const duplicated = {
+      ...selectedElement,
+      id: crypto.randomUUID(),
+      x: (selectedElement.x || 0) + 14,
+      y: (selectedElement.y || 0) + 14,
+      order: (elementsBySide?.[side]?.length || 0),
+    };
+
+    applyElementsBySideChange((prev) => {
+      const updated = {
+        ...prev,
+        [side]: [...(prev?.[side] || []), duplicated],
+      };
+      return updated;
+    });
+
+    setSelectedId(duplicated.id);
+  };
+
+  const handleCenterSelectedInPrintArea = () => {
+    if (!selectedElement || !currentPrintArea || !selectedBounds) return;
+    const centeredX = currentPrintArea.x + (currentPrintArea.width - selectedBounds.width) / 2;
+    const centeredY = currentPrintArea.y + (currentPrintArea.height - selectedBounds.height) / 2;
+    updateElement(selectedElement.id, { x: centeredX, y: centeredY });
+  };
+
+  const handleUndo = () => {
+    if (!historyPast.length) return;
+    const previous = historyPast[historyPast.length - 1];
+    setHistoryPast((past) => past.slice(0, -1));
+    setHistoryFuture((future) => [elementsBySide, ...future].slice(0, MAX_HISTORY_STEPS));
+    setElementsBySide(previous);
+    setSelectedId(null);
+    setTimeout(() => emitDesign({ elementsBySide: previous }), 0);
+  };
+
+  const handleRedo = () => {
+    if (!historyFuture.length) return;
+    const next = historyFuture[0];
+    setHistoryFuture((future) => future.slice(1));
+    setHistoryPast((past) => [...past, elementsBySide].slice(-MAX_HISTORY_STEPS));
+    setElementsBySide(next);
+    setSelectedId(null);
+    setTimeout(() => emitDesign({ elementsBySide: next }), 0);
   };
 
   /* ======================================================
@@ -593,216 +647,35 @@ useEffect(() => {
         elements={elementsBySide?.back || []}
       />
 
-      <HStack
+      <Stack
+        direction={{ base: "column", lg: "row" }}
         align="stretch"
-        spacing={6}
-        height="calc(100vh - 140px)"
+        spacing={{ base: 4, lg: 6 }}
+        minH={{ base: "auto", lg: "calc(100vh - 140px)" }}
       >
-        {/* PANEL LATERAL */}
-        <Stack
-          minW="280px"
-          maxW="320px"
-          spacing={4}
-          overflowY="auto"     
-          pr={2}
-        >
-          <FormControl>
-            <FormLabel>Lado del producto</FormLabel>
-            <Select
-              size="sm"
-              value={side}
-              onChange={(e) => {
-                const newSide = e.target.value;
-                setSide(newSide);
-                setSelectedId(null);
-
-                emitDesign({ side: newSide });
-              }}
-            >
-              <option value="front">Delante</option>
-              <option value="back">Detrás</option>
-            </Select>
-          </FormControl>
-
-          <Divider />
-
-          <Button size="sm" onClick={handleAddText}>
-            Añadir texto
-          </Button>
-
-          <Divider />
-
-          <FormControl>
-            <FormLabel>Subir imagen</FormLabel>
-            <Input
-              type="file"
-              accept="image/*"
-              size="sm"
-              onChange={(e) => handleAddImage(e.target.files?.[0])}
-            />
-          </FormControl>
-
-          <Divider />
-
-          <FormControl>
-            <FormLabel>Notas adicionales</FormLabel>
-            <ChakraText
-              fontSize="sm"
-              color="gray.400"
-              whiteSpace="normal"      
-              wordBreak="break-word" 
-              maxW="100%"              
-              lineHeight="1.4"
-            >
-              Las indicaciones adicionales del pedido (envío, producción, producción especial, etc.)
-              podrás añadirlas más adelante en el formulario de finalización de compra.
-            </ChakraText>
-          </FormControl>
-
-          <Divider />
-
-          <Button colorScheme="green" size="sm" onClick={handleSaveDesign}>
-            Guardar diseño
-          </Button>
-
-          {savedAt && (
-            <ChakraText fontSize="xs" color="gray.500">
-              Guardado: {new Date(savedAt).toLocaleString()}
-            </ChakraText>
-          )}
-
-          <Divider />
-
-          {selectedElement && (
-            <>
-              <ChakraText fontWeight="bold" fontSize="sm">
-                Elemento seleccionado
-              </ChakraText>
-
-              {selectedElement.type === "text" && (
-                <>
-                  <FormControl>
-                    <FormLabel fontSize="sm">Texto</FormLabel>
-                    <Input
-                      size="sm"
-                      value={selectedElement.text || ""}
-                      onChange={(e) =>
-                        updateElement(selectedElement.id, { text: e.target.value })
-                      }
-                    />
-                  </FormControl>
-
-                  <FormControl>
-                    <FormLabel fontSize="sm">Fuente</FormLabel>
-                    <Select
-                      size="sm"
-                      value={selectedElement.fontFamily || "Arial"}
-                      onChange={(e) =>
-                        updateElement(selectedElement.id, {
-                          fontFamily: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="Arial">Arial</option>
-                      <option value="Helvetica">Helvetica</option>
-                      <option value="Times New Roman">Times New Roman</option>
-                      <option value="Courier New">Courier New</option>
-                      <option value="Comic Sans MS">Comic Sans MS</option>
-                      <option value="Impact">Impact</option>
-                    </Select>
-                  </FormControl>
-
-                  <FormControl>
-                    <FormLabel fontSize="sm">Tamaño</FormLabel>
-                    <NumberInput
-                      size="sm"
-                      min={8}
-                      max={120}
-                      value={selectedElement.fontSize || 24}
-                      onChange={(v) =>
-                        updateElement(selectedElement.id, { fontSize: Number(v) || 24 })
-                      }
-                    >
-                      <NumberInputField />
-                    </NumberInput>
-                  </FormControl>
-
-                  <FormControl>
-                    <FormLabel fontSize="sm">Color</FormLabel>
-                    <Input
-                      size="sm"
-                      type="color"
-                      value={selectedElement.fill || "#ffffff"}
-                      onChange={(e) =>
-                        updateElement(selectedElement.id, { fill: e.target.value })
-                      }
-                    />
-                  </FormControl>
-                </>
-              )}
-
-              <FormControl>
-                <FormLabel fontSize="sm">Rotación</FormLabel>
-                <NumberInput
-                  size="sm"
-                  min={-180}
-                  max={180}
-                  value={selectedElement.rotation || 0}
-                  onChange={(v) =>
-                    updateElement(selectedElement.id, { rotation: Number(v) || 0 })
-                  }
-                >
-                  <NumberInputField />
-                </NumberInput>
-              </FormControl>
-
-              <Divider my={2} />
-
-              
-              <HStack>
-                <Button size="xs" onClick={() => moveLayer(selectedElement.id, "up")}>
-                  ↑ Al frente
-                </Button>
-                <Button size="xs" onClick={() => moveLayer(selectedElement.id, "down")}>
-                  ↓ Al fondo
-                </Button>
-              </HStack>
-
-
-
-              <Button
-                size="xs"
-                colorScheme="red"
-                variant="outline"
-                onClick={handleDeleteSelected}
-              >
-                Eliminar elemento
-              </Button>
-            </>
-          )}
-        </Stack>
-
         {/* CANVAS RESPONSIVE */}
       <Box
+        order={{ base: 1, lg: 2 }}
         flex="1"
         display="flex"
         justifyContent="center"
         alignItems="center"
         overflow="hidden"
+        bg={canvasWrapperBg}
+        borderRadius="lg"
+        borderWidth="1px"
+        borderColor={panelBorder}
       >
-
-
-
         {/* CANVAS EDITOR */}
         <Box
           width="100%"
-          maxW={`${stageWidth}px`}
-          aspectRatio={stageWidth / stageHeight}
+          maxW={{ base: "100%", lg: `${stageWidth}px` }}
           display="flex"
           justifyContent="center"
           alignItems="center"
+          overflowX="auto"
         >
-
+          <Box minW={`${stageWidth}px`}>
           <Stage
              width={stageWidth}
             height={stageHeight}
@@ -829,6 +702,7 @@ useEffect(() => {
                 width={currentPrintArea.width}
                 height={currentPrintArea.height}
                 stroke="#00B5D8"
+                strokeWidth={2}
                 dash={[4, 4]}
               />
 
@@ -899,9 +773,321 @@ useEffect(() => {
             
           </Layer>
           </Stage>
+          </Box>
         </Box>
       </Box>
-      </HStack>
+
+        {/* PANEL LATERAL */}
+        <Stack
+          order={{ base: 2, lg: 1 }}
+          minW={{ base: "100%", lg: "280px" }}
+          maxW={{ base: "100%", lg: "320px" }}
+          spacing={{ base: 3, lg: 4 }}
+          overflowY="auto"
+          maxH={{ base: "none", lg: "calc(100vh - 140px)" }}
+          pr={{ base: 0, lg: 2 }}
+          bg={panelBg}
+          borderWidth="1px"
+          borderColor={panelBorder}
+          borderRadius="lg"
+          p={{ base: 3, lg: 3 }}
+        >
+          <HStack justify="space-between" align="center">
+            <ChakraText fontWeight="bold" fontSize="sm" color={panelTitle}>
+              Editor de diseño
+            </ChakraText>
+            <Badge colorScheme={selectedElement ? "green" : "gray"} variant="subtle">
+              {selectedElement ? "Elemento seleccionado" : "Sin selección"}
+            </Badge>
+          </HStack>
+          <Alert
+            status={hasOutOfAreaElements ? "warning" : "success"}
+            borderRadius="md"
+            py={2}
+            px={3}
+          >
+            <AlertIcon />
+            <ChakraText fontSize="xs">
+              {hasOutOfAreaElements
+                ? "Hay elementos fuera del área imprimible."
+                : "Diseño correcto dentro del área imprimible."}
+            </ChakraText>
+          </Alert>
+
+          <ChakraText fontSize="xs" color={helperText}>
+            Añade texto o imagen y arrastra los elementos sobre el área imprimible.
+          </ChakraText>
+
+          <Divider />
+
+          <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase">
+            Contenido
+          </ChakraText>
+          <FormControl>
+            <FormLabel>Lado del producto</FormLabel>
+            <Select
+              size={{ base: "md", lg: "sm" }}
+              value={side}
+              onChange={(e) => {
+                const newSide = e.target.value;
+                setSide(newSide);
+                setSelectedId(null);
+
+                emitDesign({ side: newSide });
+              }}
+            >
+              <option value="front">Delante</option>
+              <option value="back">Detrás</option>
+            </Select>
+          </FormControl>
+
+          <Button size={{ base: "md", lg: "sm" }} onClick={handleAddText}>
+            Añadir texto
+          </Button>
+
+          <FormControl>
+            <FormLabel>Subir imagen</FormLabel>
+            <Input
+              type="file"
+              accept="image/*"
+              size={{ base: "md", lg: "sm" }}
+              onChange={(e) => handleAddImage(e.target.files?.[0])}
+            />
+          </FormControl>
+
+          <Divider />
+          <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase">
+            Acciones
+          </ChakraText>
+
+          <Button colorScheme="green" size={{ base: "md", lg: "sm" }} onClick={handleSaveDesign}>
+            Guardar diseño
+          </Button>
+          <HStack>
+            <Button
+              size={{ base: "sm", lg: "xs" }}
+              variant="outline"
+              onClick={handleUndo}
+              isDisabled={!historyPast.length}
+            >
+              Deshacer
+            </Button>
+            <Button
+              size={{ base: "sm", lg: "xs" }}
+              variant="outline"
+              onClick={handleRedo}
+              isDisabled={!historyFuture.length}
+            >
+              Rehacer
+            </Button>
+          </HStack>
+
+          {savedAt && (
+            <ChakraText fontSize="xs" color={mutedText}>
+              Guardado: {new Date(savedAt).toLocaleString()}
+            </ChakraText>
+          )}
+
+          <Divider />
+          <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase">
+            Inspector
+          </ChakraText>
+
+          {selectedElement && (
+            <>
+              <ChakraText fontWeight="bold" fontSize="sm">
+                Elemento seleccionado
+              </ChakraText>
+              <HStack>
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  variant="outline"
+                  onClick={handleDuplicateSelected}
+                  isDisabled={!selectedElement}
+                >
+                  Duplicar
+                </Button>
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  variant="outline"
+                  onClick={handleCenterSelectedInPrintArea}
+                  isDisabled={!selectedElement}
+                >
+                  Centrar en área
+                </Button>
+              </HStack>
+              {selectedOutsideSafeArea && (
+                <Alert status="warning" borderRadius="md" py={2}>
+                  <AlertIcon />
+                  <ChakraText fontSize="xs">
+                    Este elemento está fuera del área imprimible.
+                  </ChakraText>
+                </Alert>
+              )}
+
+              {selectedElement.type === "text" && (
+                <>
+                  <FormControl>
+                    <FormLabel fontSize="sm">Texto</FormLabel>
+                    <Input
+                      size={{ base: "md", lg: "sm" }}
+                      value={selectedElement.text || ""}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, { text: e.target.value })
+                      }
+                    />
+                  </FormControl>
+
+                  <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase" mt={1}>
+                    Estilo
+                  </ChakraText>
+
+                  <FormControl>
+                    <FormLabel fontSize="sm">Fuente</FormLabel>
+                    <Select
+                      size={{ base: "md", lg: "sm" }}
+                      value={selectedElement.fontFamily || "Arial"}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, {
+                          fontFamily: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="Arial">Arial</option>
+                      <option value="Helvetica">Helvetica</option>
+                      <option value="Times New Roman">Times New Roman</option>
+                      <option value="Courier New">Courier New</option>
+                      <option value="Comic Sans MS">Comic Sans MS</option>
+                      <option value="Impact">Impact</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="sm">Tamaño</FormLabel>
+                    <NumberInput
+                      size={{ base: "md", lg: "sm" }}
+                      min={8}
+                      max={120}
+                      value={selectedElement.fontSize || 24}
+                      onChange={(v) =>
+                        updateElement(selectedElement.id, { fontSize: Number(v) || 24 })
+                      }
+                    >
+                      <NumberInputField />
+                    </NumberInput>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="sm">Color</FormLabel>
+                    <Input
+                      size={{ base: "md", lg: "sm" }}
+                      type="color"
+                      value={selectedElement.fill || "#ffffff"}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, { fill: e.target.value })
+                      }
+                    />
+                  </FormControl>
+                </>
+              )}
+
+              <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase" mt={1}>
+                Posición / Tamaño
+              </ChakraText>
+
+              <FormControl>
+                <FormLabel fontSize="sm">Rotación</FormLabel>
+                <NumberInput
+                  size={{ base: "md", lg: "sm" }}
+                  min={-180}
+                  max={180}
+                  value={selectedElement.rotation || 0}
+                  onChange={(v) =>
+                    updateElement(selectedElement.id, { rotation: Number(v) || 0 })
+                  }
+                >
+                  <NumberInputField />
+                </NumberInput>
+              </FormControl>
+
+              <Divider my={2} />
+              <ChakraText fontWeight="semibold" fontSize="xs" color={sectionTitle} textTransform="uppercase">
+                Capas
+              </ChakraText>
+
+              
+              <HStack flexWrap="wrap">
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  onClick={() => moveLayer(selectedElement.id, "up")}
+                  isDisabled={!selectedElement}
+                >
+                  ↑ Al frente
+                </Button>
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  onClick={() => moveLayer(selectedElement.id, "down")}
+                  isDisabled={!selectedElement}
+                >
+                  ↓ Al fondo
+                </Button>
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  variant="outline"
+                  onClick={() => setLayerPosition(selectedElement.id, "toFront")}
+                  isDisabled={!selectedElement}
+                >
+                  Traer al frente
+                </Button>
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  variant="outline"
+                  onClick={() => setLayerPosition(selectedElement.id, "toBack")}
+                  isDisabled={!selectedElement}
+                >
+                  Enviar al fondo
+                </Button>
+              </HStack>
+
+              <ChakraText fontSize="xs" color={mutedText}>
+                Consejo: arrastra directamente en el canvas para mover elementos.
+              </ChakraText>
+
+              <Button
+                size={{ base: "sm", lg: "xs" }}
+                colorScheme="red"
+                variant="outline"
+                onClick={handleDeleteSelected}
+                isDisabled={!selectedElement}
+              >
+                Eliminar elemento
+              </Button>
+              {selectedOutsideSafeArea && (
+                <Button
+                  size={{ base: "sm", lg: "xs" }}
+                  colorScheme="blue"
+                  variant="ghost"
+                  onClick={handleFitSelectedInPrintArea}
+                >
+                  Ajustar dentro del área
+                </Button>
+              )}
+            </>
+          )}
+
+          {!selectedElement && (
+            <ChakraText fontSize="xs" color={mutedText}>
+              Selecciona un elemento del diseño para editar su contenido, estilo y capas.
+            </ChakraText>
+          )}
+
+          <Divider />
+          <ChakraText fontSize="sm" color={mutedText} lineHeight="1.4">
+            Las indicaciones adicionales del pedido (envío, producción especial, etc.) podrás añadirlas
+            más adelante en el formulario de finalización de compra.
+          </ChakraText>
+        </Stack>
+      </Stack>
     </>
   );
 }
