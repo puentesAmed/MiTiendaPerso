@@ -4,14 +4,32 @@ import { User } from '../models/User.js';
 import { env } from '../config/env.js';
 import { Order } from '../models/Order.js';
 
+function normalizeEmail(email) {
+  return typeof email === 'string' ? email.trim().toLowerCase() : '';
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export async function register(req, res) {
   try {
     const { name, email, password, guestId, mode } = req.body;
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedName = typeof name === 'string' ? name.trim() : '';
 
-    if (!name || !email || !password) {
+    if (!normalizedName || !normalizedEmail || !password) {
       return res
         .status(400)
         .json({ message: 'Name, email y password son obligatorios' });
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      return res.status(400).json({ message: 'Formato de email inválido' });
+    }
+
+    if (typeof password !== 'string' || password.trim().length === 0) {
+      return res.status(400).json({ message: 'La contraseña es obligatoria' });
     }
 
     if (mode === 'from-guest' && !guestId) {
@@ -20,7 +38,7 @@ export async function register(req, res) {
         .json({ message: 'Sesión de invitado inválida o caducada' });
     }
 
-    const existing = await User.findOne({ email });
+    const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(409).json({ message: 'Ya existe un usuario con ese email' });
     }
@@ -34,8 +52,8 @@ export async function register(req, res) {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const u = await User.create({
-      name,
-      email,
+      name: normalizedName,
+      email: normalizedEmail,
       passwordHash,
       role: 'user', // registro público siempre como usuario
     });
@@ -70,12 +88,21 @@ export async function register(req, res) {
 export async function login(req, res) {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return res.status(400).json({ message: 'Email y password son obligatorios' });
     }
 
-    const u = await User.findOne({ email });
+    if (!isValidEmail(normalizedEmail)) {
+      return res.status(400).json({ message: 'Formato de email inválido' });
+    }
+
+    if (typeof password !== 'string' || password.trim().length === 0) {
+      return res.status(400).json({ message: 'La contraseña es obligatoria' });
+    }
+
+    const u = await User.findOne({ email: normalizedEmail });
     if (!u) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -108,13 +135,13 @@ export async function login(req, res) {
 
 export async function checkEmail(req, res) {
   try {
-    const { email } = req.query;
+    const normalizedEmail = normalizeEmail(req.query?.email);
 
-    if (!email) {
+    if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
       return res.status(400).json({ exists: false });
     }
 
-    const user = await User.findOne({ email }).select('_id');
+    const user = await User.findOne({ email: normalizedEmail }).select('_id');
     return res.json({ exists: !!user });
   } catch (err) {
     console.error("checkEmail error:", err);

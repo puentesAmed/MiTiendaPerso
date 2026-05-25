@@ -49,6 +49,7 @@ import {
   adminGetOrders,
   adminUpdateOrderStatus,
   adminConfirmDeliveryDate,
+  confirmOrderPayment,
 } from "../../services/orders.service";
 
 /* 🔧 Helper: nombre del usuario del pedido */
@@ -67,6 +68,24 @@ function getNumericPrice(price) {
   if (typeof price === "number") return price;
   if (price && typeof price.final === "number") return price.final;
   return 0;
+}
+
+function getOrderPaymentStatus(order) {
+  return order?.payment?.status || order?.paymentStatus || "pending";
+}
+
+function getPaymentStatusLabel(status) {
+  switch (status) {
+    case "paid":
+      return "Pagado";
+    case "failed":
+      return "Fallido";
+    case "refunded":
+      return "Reembolsado";
+    case "pending":
+    default:
+      return "Pendiente";
+  }
 }
 
 export function Admin() {
@@ -408,6 +427,36 @@ export function Admin() {
     } catch (err) {
       console.error("Error actualizando pedido:", err);
       toast({ title: "Error", status: "error" });
+    }
+  };
+
+  const handleConfirmOrderPayment = async (order) => {
+    const isPending = getOrderPaymentStatus(order) === "pending";
+    if (!isPending) return;
+
+    const ok = window.confirm("¿Confirmar pago manual de este pedido?");
+    if (!ok) return;
+
+    try {
+      const data = await confirmOrderPayment(order._id);
+      if (data?.ok) {
+        toast({ title: "Pago confirmado", status: "success" });
+        loadAdminOrders();
+      } else {
+        toast({
+          title: "No se pudo confirmar el pago",
+          description: data?.message || "Error inesperado",
+          status: "error",
+        });
+      }
+    } catch (err) {
+      const status = err?.response?.status;
+      const message = err?.response?.data?.message || "Error confirmando el pago";
+      if (status === 401 || status === 403 || status === 409) {
+        toast({ title: "No permitido", description: message, status: "error" });
+      } else {
+        toast({ title: "Error", description: message, status: "error" });
+      }
     }
   };
 
@@ -974,6 +1023,7 @@ const handleDownloadZip = async (customization) => {
                       <Th>Cliente</Th>
                       <Th>Total</Th>
                       <Th>Estado</Th>
+                      <Th>Pago</Th>
                       <Th>Fecha</Th>
                       <Th>Acciones</Th>
                     </Tr>
@@ -1016,32 +1066,62 @@ const handleDownloadZip = async (customization) => {
                           </Select>
                         </Td>
 
-                        {/* Fecha */}
-                        <Td fontSize="xs">
+	                        {/* Fecha */}
+	                        <Td>
+                            <Badge
+                              colorScheme={
+                                getOrderPaymentStatus(o) === "paid"
+                                  ? "green"
+                                  : getOrderPaymentStatus(o) === "failed"
+                                    ? "red"
+                                    : getOrderPaymentStatus(o) === "refunded"
+                                      ? "purple"
+                                      : "yellow"
+                              }
+                            >
+                              {getPaymentStatusLabel(getOrderPaymentStatus(o))}
+                            </Badge>
+                          </Td>
+
+	                        {/* Fecha */}
+	                        <Td fontSize="xs">
                           {o.createdAt
                             ? new Date(o.createdAt).toLocaleString()
                             : "—"}
                         </Td>
 
-                        {/* Botón ver detalles (opcional futuro) */}
-                        <Td>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedOrder(o);
-                              setOrderDetailOpen(true);
-                            }}
-                          >
-                            Ver
-                          </Button>
-                        </Td>
+	                        {/* Botón ver detalles (opcional futuro) */}
+	                        <Td>
+                            <Flex gap={2} wrap="wrap">
+	                            <Button
+	                              size="xs"
+	                              variant="outline"
+	                              onClick={() => {
+	                                setSelectedOrder(o);
+	                                setOrderDetailOpen(true);
+	                              }}
+	                            >
+	                              Ver
+	                            </Button>
+                              {getOrderPaymentStatus(o) === "pending" && (
+                                <Button
+                                  size="xs"
+                                  colorScheme="green"
+                                  variant="outline"
+                                  onClick={() => handleConfirmOrderPayment(o)}
+                                  isDisabled={o.status === "cancelled"}
+                                >
+                                  Confirmar pago
+                                </Button>
+                              )}
+                            </Flex>
+	                        </Td>
                       </Tr>
                     ))}
 
                     {!loadingOrders && orders.length === 0 && (
                       <Tr>
-                        <Td colSpan={6}>
+	                        <Td colSpan={7}>
                           <Text
                             fontSize="sm"
                             color="gray.500"
