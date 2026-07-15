@@ -22,7 +22,7 @@ ordersRouter.get("/track", trackOrderByEmail);
 // usuario normal
 ordersRouter.post("/", optionalAuth, createOrder); // público
 ordersRouter.get("/mine", requireAuth, getOrdersByUser);
-ordersRouter.post("/:id/mark-paid", markOrderAsPaid);
+ordersRouter.post("/:id/mark-paid", requireAuth, requireAdmin, markOrderAsPaid);
 
 // ADMIN: lista todos los pedidos
 ordersRouter.get("/", requireAuth, requireAdmin, adminGetAllOrders);
@@ -32,6 +32,5 @@ ordersRouter.patch("/:id/status", requireAuth, requireAdmin, adminUpdateOrderSta
 
 // Admin: actualizar fecha de entrega
 ordersRouter.put("/admin/:id/delivery", requireAuth, requireAdmin, adminConfirmDeliveryDate);
-
 
 

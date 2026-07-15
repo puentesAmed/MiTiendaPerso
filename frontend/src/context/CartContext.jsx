@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { normalizeCustomization } from "../utils/customizationAdapter";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const CartContext = createContext(null);
@@ -178,10 +179,7 @@ export function CartProvider({ children }) {
             next[idx] = {
               ...existing,
               customization: customization
-                ? {
-                    ...customization,
-                    type: "designer",
-                  }
+                ? normalizeCustomization(customization, product)
                 : existing.customization,
 
               skuId: variant?.skuId ?? existing.skuId,
@@ -214,7 +212,7 @@ export function CartProvider({ children }) {
           price: Number(product.price) || 0,
           quantity: qty,
           image: product.image || "",
-          customization: product.customizable ? customization : null,
+          customization: product.customizable ? normalizeCustomization(customization, product) : null,
           selectedVariant: selectedVariant || null,
           requiresDesign,
           customizable: !!product.customizable,
@@ -236,7 +234,7 @@ export function CartProvider({ children }) {
           skuId: variant?.skuId || null,
           variantAttributes: variant?.attributes || null,
 
-          customization: product.customizable ? customization : null,
+          customization: product.customizable ? normalizeCustomization(customization, product) : null,
 
           requiresDesign,
           customizable: !!product.customizable,

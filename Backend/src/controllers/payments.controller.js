@@ -1,6 +1,7 @@
 // controllers/payments.controller.js
 import crypto from "crypto";
 import axios from "axios";
+import mongoose from "mongoose";
 import { Order } from "../models/Order.js";
 import { sendToDropshipping } from "../services/dropshipping.service.js";
 
@@ -63,13 +64,26 @@ export async function createMoneiPayment(req, res) {
   try {
     const { orderId } = req.body;
 
-    if (!orderId) {
-      return res.status(400).json({ ok: false, message: "orderId required" });
+    if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({
+        ok: false,
+        message: "ID de pedido inválido.",
+      });
     }
 
     const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({ ok: false, message: "Order not found" });
+    }
+
+    const normalizedPaymentStatus = order.payment?.status || order.paymentStatus;
+    const blockedStatuses = new Set(["cancelled", "delivered", "completed"]);
+
+    if (normalizedPaymentStatus === "paid" || blockedStatuses.has(order.status)) {
+      return res.status(409).json({
+        ok: false,
+        message: "Este pedido ya tiene el pago confirmado o no admite un nuevo intento de pago.",
+      });
     }
 
     const response = await axios.post(
