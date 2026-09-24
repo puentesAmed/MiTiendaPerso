@@ -14,6 +14,39 @@ const ORIGINS = (process.env.CORS_ORIGINS || '')
 
 const FRONTEND_URL = (process.env.FRONTEND_URL || '').trim();
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const isEnabled = (key) =>
+  (process.env[key] || '').trim().toLowerCase() === 'true';
+
+const ALIEXPRESS_CATALOG_ENABLED = isEnabled('ALIEXPRESS_CATALOG_ENABLED');
+const DROPSHIPPING_ENABLED = isEnabled('DROPSHIPPING_ENABLED');
+const MONEI_ENABLED = isEnabled('MONEI_ENABLED');
+
+const requireIntegrationConfig = (enabled, keys, integration) => {
+  if (!enabled) return;
+
+  const missing = keys.filter((key) => !(process.env[key] || '').trim());
+  if (missing.length > 0) {
+    throw new Error(
+      `Configuración incompleta para ${integration}: falta ${missing.join(', ')}.`
+    );
+  }
+};
+
+requireIntegrationConfig(
+  ALIEXPRESS_CATALOG_ENABLED,
+  ['MONGO_URI_ALIEXPRESS'],
+  'AliExpress'
+);
+requireIntegrationConfig(
+  DROPSHIPPING_ENABLED,
+  ['DROPSHIPPING_API_URL'],
+  'dropshipping'
+);
+requireIntegrationConfig(
+  MONEI_ENABLED,
+  ['MONEI_API_KEY', 'MONEI_WEBHOOK_SECRET'],
+  'MONEI'
+);
 
 let CORS_ORIGINS = ORIGINS;
 
@@ -39,4 +72,11 @@ export const env = {
   CORS_ORIGINS,
   FRONTEND_URL,
   NODE_ENV,
+  ALIEXPRESS_CATALOG_ENABLED,
+  DROPSHIPPING_ENABLED,
+  MONEI_ENABLED,
+  MONGO_URI_ALIEXPRESS: process.env.MONGO_URI_ALIEXPRESS,
+  DROPSHIPPING_API_URL: process.env.DROPSHIPPING_API_URL,
+  MONEI_API_KEY: process.env.MONEI_API_KEY,
+  MONEI_WEBHOOK_SECRET: process.env.MONEI_WEBHOOK_SECRET,
 };

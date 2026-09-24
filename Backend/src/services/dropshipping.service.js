@@ -1,11 +1,11 @@
 // Backend/src/services/dropshipping.service.js
 import axios from "axios";
 import { Order } from "../models/Order.js";  
+import { env } from "../config/env.js";
 
 
 
-const DROPSHIPPING_API_URL =
-  process.env.DROPSHIPPING_API_URL || "http://localhost:4001";
+const DROPSHIPPING_API_URL = env.DROPSHIPPING_API_URL;
 
 export async function sendToDropshipping({ order }) {
   // 0️⃣ Seguridad absoluta

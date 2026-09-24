@@ -3,16 +3,27 @@ import crypto from "crypto";
 import axios from "axios";
 import mongoose from "mongoose";
 import { Order } from "../models/Order.js";
-import { sendToDropshipping } from "../services/dropshipping.service.js";
+import { env } from "../config/env.js";
+
+async function sendToDropshippingIfEnabled({ order }) {
+  if (!env.DROPSHIPPING_ENABLED) return;
+
+  const { sendToDropshipping } = await import("../services/dropshipping.service.js");
+  await sendToDropshipping({ order });
+}
 
 export async function moneiWebhook(req, res) {
+  if (!env.MONEI_ENABLED) {
+    return res.status(503).json({ ok: false, message: "MONEI deshabilitado" });
+  }
+
   try {
     const signature = req.headers["monei-signature"];
     const payload = JSON.stringify(req.body);
 
     // 🔐 Verificar firma MONEI
     const expectedSignature = crypto
-      .createHmac("sha256", process.env.MONEI_WEBHOOK_SECRET)
+      .createHmac("sha256", env.MONEI_WEBHOOK_SECRET)
       .update(payload)
       .digest("hex");
 
@@ -50,7 +61,7 @@ export async function moneiWebhook(req, res) {
     await order.save();
 
     // 🚚 DROPSHIPPING (AHORA SÍ)
-    await sendToDropshipping({ order });
+    await sendToDropshippingIfEnabled({ order });
 
     return res.json({ ok: true });
   } catch (err) {
@@ -86,6 +97,10 @@ export async function createMoneiPayment(req, res) {
       });
     }
 
+    if (!env.MONEI_ENABLED) {
+      return res.status(503).json({ ok: false, message: "MONEI deshabilitado" });
+    }
+
     const response = await axios.post(
       "https://api.monei.com/v1/payments",
       {
@@ -93,16 +108,16 @@ export async function createMoneiPayment(req, res) {
         currency: "EUR",
         orderId: order._id.toString(),
         description: `Pedido ${order._id}`,
-        callbackUrl: `${process.env.FRONTEND_URL}/order-confirmation/${order._id}`,
-        completeUrl: `${process.env.FRONTEND_URL}/order-confirmation/${order._id}`,
-        cancelUrl: `${process.env.FRONTEND_URL}/checkout?cancelled=true`,
+        callbackUrl: `${env.FRONTEND_URL}/order-confirmation/${order._id}`,
+        completeUrl: `${env.FRONTEND_URL}/order-confirmation/${order._id}`,
+        cancelUrl: `${env.FRONTEND_URL}/checkout?cancelled=true`,
         metadata: {
           orderId: order._id.toString(),
         },
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.MONEI_API_KEY}`,
+          Authorization: `Bearer ${env.MONEI_API_KEY}`,
         },
       }
     );
@@ -145,7 +160,7 @@ export async function markOrderAsPaidForTest(req, res) {
     await order.save();
 
     // 🚚 DROPSHIPPING (MISMO CÓDIGO QUE PRODUCCIÓN)
-    await sendToDropshipping({ order });
+    await sendToDropshippingIfEnabled({ order });
 
     return res.json({
       ok: true,

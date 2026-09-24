@@ -1,6 +1,11 @@
 
 import { Product } from "../models/Product.js";
-import { AffiliateProduct } from "../models/AffiliateProduct.js";
+import { env } from "../config/env.js";
+
+async function loadAffiliateProductModel() {
+  const { AffiliateProduct } = await import("../models/AffiliateProduct.js");
+  return AffiliateProduct;
+}
 
 /**
  * 🔐 NORMALIZADOR ÚNICO DE PRECIO
@@ -142,25 +147,36 @@ export async function getProducts(req, res) {
     const { category, q } = req.query;
 
     const localFilter = { active: true };
-    const affiliateFilter = { enabled: true, status: "active" };
 
     if (category) {
       localFilter.category = category;
-      affiliateFilter.category = category;
     }
 
     if (q) {
       localFilter.name = { $regex: q, $options: "i" };
-      affiliateFilter.$or = [
-        { title: { $regex: q, $options: "i" } },
-        { name: { $regex: q, $options: "i" } },
-      ];
     }
 
-    const [localProducts, affiliateProducts] = await Promise.all([
-      Product.find(localFilter).sort({ createdAt: -1 }).lean(),
-      AffiliateProduct.find(affiliateFilter).sort({ createdAt: -1 }).lean(),
-    ]);
+    const localProducts = await Product.find(localFilter)
+      .sort({ createdAt: -1 })
+      .lean();
+    let affiliateProducts = [];
+
+    if (env.ALIEXPRESS_CATALOG_ENABLED) {
+      const AffiliateProduct = await loadAffiliateProductModel();
+      const affiliateFilter = { enabled: true, status: "active" };
+
+      if (category) affiliateFilter.category = category;
+      if (q) {
+        affiliateFilter.$or = [
+          { title: { $regex: q, $options: "i" } },
+          { name: { $regex: q, $options: "i" } },
+        ];
+      }
+
+      affiliateProducts = await AffiliateProduct.find(affiliateFilter)
+        .sort({ createdAt: -1 })
+        .lean();
+    }
 
     const products = [...localProducts, ...affiliateProducts]
       .map(mapToCatalogProduct);
@@ -181,7 +197,8 @@ export async function getProduct(req, res) {
     const { id } = req.params;
 
     let product = await Product.findById(id).lean();
-    if (!product) {
+    if (!product && env.ALIEXPRESS_CATALOG_ENABLED) {
+      const AffiliateProduct = await loadAffiliateProductModel();
       product = await AffiliateProduct.findById(id).lean();
     }
 

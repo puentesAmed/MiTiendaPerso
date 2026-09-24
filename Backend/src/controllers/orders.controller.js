@@ -2,8 +2,8 @@
 // controllers/orders.controller.js
 import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
-import { AffiliateProduct } from "../models/AffiliateProduct.js";
 import { Customization } from "../models/Customization.js";
+import { env } from "../config/env.js";
 
 import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
 import { calculateEstimatedDelivery } from "../utils/calculateEstimatedDelivery.js";
@@ -13,7 +13,6 @@ import { orderClientEmail } from "../emails/templates/orderClientEmail.js";
 import { orderAdminEmail } from "../emails/templates/orderAdminEmail.js";
 import { orderStatusEmail } from "../emails/templates/orderStatusEmail.js";
 
-import { sendToDropshipping } from "../services/dropshipping.service.js";
 import { isDesignerCustomization, normalizeCustomizationPayload } from "../utils/customizationAdapter.js";
 
 console.log("🔥 ORDERS CONTROLLER ACTIVO");
@@ -74,6 +73,17 @@ export async function createOrder(req, res) {
     /* ----------------------------------------------------
      * CARGAR PRODUCTOS
      * ---------------------------------------------------- */
+    const hasAffiliateItems = items.some(
+      (item) => (item.provider || "local") === "aliexpress"
+    );
+
+    if (hasAffiliateItems && !env.ALIEXPRESS_CATALOG_ENABLED) {
+      return res.status(400).json({
+        ok: false,
+        message: "Producto no disponible (aliexpress)",
+      });
+    }
+
     const productIds = items.map(i => i.productId);
 
     const localProducts = await Product.find({
@@ -81,11 +91,15 @@ export async function createOrder(req, res) {
       active: true,
     });
 
-    const affiliateProducts = await AffiliateProduct.find({
-      _id: { $in: productIds },
-      enabled: true,
-      readyForCheckout: true,
-    });
+    let affiliateProducts = [];
+    if (env.ALIEXPRESS_CATALOG_ENABLED) {
+      const { AffiliateProduct } = await import("../models/AffiliateProduct.js");
+      affiliateProducts = await AffiliateProduct.find({
+        _id: { $in: productIds },
+        enabled: true,
+        readyForCheckout: true,
+      });
+    }
 
     const productsMap = new Map([
       ...localProducts.map(p => [p._id.toString(), p]),
