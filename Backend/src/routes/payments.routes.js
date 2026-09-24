@@ -1,8 +1,15 @@
 // routes/payments.routes.js
 import { Router } from "express";
-import { moneiWebhook, createMoneiPayment, markOrderAsPaidForTest } from "../controllers/payments.controller.js";
+import {
+  createMoneiPayment,
+  getManualPaymentMethods,
+  markOrderAsPaidForTest,
+  moneiWebhook,
+} from "../controllers/payments.controller.js";
 
 const router = Router();
+
+router.get("/manual/methods", getManualPaymentMethods);
 
 // MONEI webhook
 router.post("/webhooks/monei", moneiWebhook);

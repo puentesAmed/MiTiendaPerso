@@ -46,6 +46,11 @@ export async function getShippingQuoteRequest(items, shippingAddress, signal) {
   return data;
 }
 
+export async function getManualPaymentMethodsRequest() {
+  const { data } = await http.get("/api/payments/manual/methods");
+  return data;
+}
+
 // Pedidos del usuario autenticado
 export async function getMyOrdersRequest() {
   const { data } = await http.get("/api/orders/mine");

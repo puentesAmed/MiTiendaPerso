@@ -4,12 +4,20 @@ import axios from "axios";
 import mongoose from "mongoose";
 import { Order } from "../models/Order.js";
 import { env } from "../config/env.js";
+import { getEnabledManualPaymentMethods } from "../services/manual-payments.service.js";
 
 async function sendToDropshippingIfEnabled({ order }) {
   if (!env.DROPSHIPPING_ENABLED) return;
 
   const { sendToDropshipping } = await import("../services/dropshipping.service.js");
   await sendToDropshipping({ order });
+}
+
+export function getManualPaymentMethods(_req, res) {
+  return res.json({
+    ok: true,
+    methods: getEnabledManualPaymentMethods(),
+  });
 }
 
 export async function moneiWebhook(req, res) {

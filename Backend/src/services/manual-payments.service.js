@@ -1,9 +1,15 @@
 import { env } from "../config/env.js";
 
-export const ACTIVE_MANUAL_PAYMENT_METHODS = new Set([
-  "bizum",
-  "bank_transfer",
-]);
+const MANUAL_PAYMENT_METHODS = {
+  bizum: {
+    label: "Bizum",
+    isEnabled: () => env.MANUAL_PAYMENTS.bizum.enabled,
+  },
+  bank_transfer: {
+    label: "Transferencia bancaria",
+    isEnabled: () => env.MANUAL_PAYMENTS.bankTransfer.enabled,
+  },
+};
 
 export class ManualPaymentError extends Error {
   constructor(message) {
@@ -14,9 +20,15 @@ export class ManualPaymentError extends Error {
 }
 
 export function assertManualPaymentMethod(method) {
-  if (!ACTIVE_MANUAL_PAYMENT_METHODS.has(method)) {
+  if (!MANUAL_PAYMENT_METHODS[method]?.isEnabled()) {
     throw new ManualPaymentError("Método de pago no soportado");
   }
+}
+
+export function getEnabledManualPaymentMethods() {
+  return Object.entries(MANUAL_PAYMENT_METHODS)
+    .filter(([, definition]) => definition.isEnabled())
+    .map(([id, definition]) => ({ id, label: definition.label }));
 }
 
 export function buildManualPaymentInstructions(order) {

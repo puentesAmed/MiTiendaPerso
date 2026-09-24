@@ -5,6 +5,7 @@ import { useCart } from "../../hooks/useCart";
 import { useAuth } from "../../hooks/useAuth";
 import {
   createOrderRequest,
+  getManualPaymentMethodsRequest,
   getShippingQuoteRequest,
 } from "../../services/orders.service";
 import { CustomizationInlineSummary } from "../../components/checkout/CustomizationInlineSummary";
@@ -76,7 +77,10 @@ export function Checkout() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("bizum");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(true);
+  const [paymentMethodsError, setPaymentMethodsError] = useState("");
   const [checkoutHydrated, setCheckoutHydrated] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
@@ -84,6 +88,36 @@ export function Checkout() {
   const [emailHasAccount, setEmailHasAccount] = useState(false);
   // Control de estructura básica de email
   const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  useEffect(() => {
+    let active = true;
+
+    getManualPaymentMethodsRequest()
+      .then((data) => {
+        if (!active) return;
+        setPaymentMethods(Array.isArray(data.methods) ? data.methods : []);
+        setPaymentMethodsError("");
+      })
+      .catch(() => {
+        if (!active) return;
+        setPaymentMethods([]);
+        setPaymentMethodsError("No se pudieron cargar los métodos de pago.");
+      })
+      .finally(() => {
+        if (active) setPaymentMethodsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (paymentMethodsLoading) return;
+    if (!paymentMethods.some((method) => method.id === paymentMethod)) {
+      setPaymentMethod(paymentMethods[0]?.id || "");
+    }
+  }, [paymentMethod, paymentMethods, paymentMethodsLoading]);
 
 
   // --- ENVÍO ---
@@ -252,6 +286,11 @@ export function Checkout() {
 
     if (!acceptedTerms) {
       setError("Debes aceptar los Términos y Condiciones para continuar");
+      return;
+    }
+
+    if (!paymentMethod) {
+      setError("No hay ningún método de pago disponible");
       return;
     }
 
@@ -739,10 +778,24 @@ export function Checkout() {
         <Select
           value={paymentMethod}
           onChange={(event) => setPaymentMethod(event.target.value)}
+          isDisabled={paymentMethodsLoading || paymentMethods.length === 0}
         >
-          <option value="bizum">Bizum</option>
-          <option value="bank_transfer">Transferencia bancaria</option>
+          {paymentMethods.map((method) => (
+            <option key={method.id} value={method.id}>
+              {method.label}
+            </option>
+          ))}
         </Select>
+        {paymentMethodsLoading && (
+          <Text fontSize="xs" color="textMuted" mt={1}>
+            Cargando métodos de pago…
+          </Text>
+        )}
+        {!paymentMethodsLoading && paymentMethods.length === 0 && (
+          <Text fontSize="sm" color="red.400" mt={1}>
+            {paymentMethodsError || "No hay métodos de pago disponibles."}
+          </Text>
+        )}
         <Text fontSize="xs" color="textMuted" mt={1}>
           El pedido quedará pendiente de pago. Verás las instrucciones después
           de confirmarlo.
@@ -795,7 +848,12 @@ export function Checkout() {
         colorScheme="blue" 
         size="lg" 
         onClick={handleConfirmOrder} 
-        isDisabled={loading || !acceptedTerms} 
+        isDisabled={
+          loading ||
+          paymentMethodsLoading ||
+          !paymentMethod ||
+          !acceptedTerms
+        }
         > 
           {loading ? "Procesando pedido…" : "Confirmar pedido"}
         </Button>

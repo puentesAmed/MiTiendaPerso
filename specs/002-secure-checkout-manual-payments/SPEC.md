@@ -286,10 +286,12 @@ Se añadirá configuración backend centralizada, sin panel administrativo y sin
 ```text
 manualPayments:
   bizum:
+    enabled         ← MANUAL_PAYMENT_BIZUM_ENABLED
     recipient       ← MANUAL_PAYMENT_BIZUM_RECIPIENT
     instructions    ← MANUAL_PAYMENT_BIZUM_INSTRUCTIONS
 
   bankTransfer:
+    enabled         ← MANUAL_PAYMENT_BANK_TRANSFER_ENABLED
     accountHolder   ← MANUAL_PAYMENT_BANK_ACCOUNT_HOLDER
     iban            ← MANUAL_PAYMENT_BANK_IBAN
     instructions    ← MANUAL_PAYMENT_BANK_INSTRUCTIONS
@@ -297,7 +299,10 @@ manualPayments:
 
 Decisiones:
 
-- Bizum y transferencia están activos en esta fase; sus campos de configuración son obligatorios;
+- ambos flags usan `false` cuando la variable está ausente;
+- los campos de un método solo son obligatorios cuando su flag está en `true`;
+- un método habilitado con configuración incompleta produce un error explícito de arranque;
+- un método deshabilitado no bloquea el arranque, no se ofrece en la API/frontend y no puede usarse al crear pedidos;
 - la configuración se carga una vez desde el módulo backend de entorno/configuración;
 - si falta un campo obligatorio, se produce un error de configuración explícito al arrancar; no se ofrecen instrucciones incompletas ni se degrada silenciosamente;
 - los tests inyectan valores ficticios no sensibles;
@@ -338,7 +343,7 @@ Para `bank_transfer`, el mismo bloque sustituye `recipient` por `accountHolder` 
 
 Cambios funcionales mínimos:
 
-- añadir un selector obligatorio con las opciones `Bizum` y `Transferencia bancaria`;
+- añadir un selector obligatorio que muestre únicamente los métodos manuales habilitados por backend;
 - enviar el identificador estable `bizum` o `bank_transfer`;
 - mostrar la cotización backend y advertir que el importe definitivo lo confirma el servidor;
 - sustituir `Confirmar pedido y pagar` por `Confirmar pedido`;
@@ -488,14 +493,14 @@ Se ampliarán los tests existentes sin sustituir aserciones correctas por mocks 
 - [x] **CA-09.** `shipping.price`, zona, plazos y total enviados por cliente se ignoran para persistencia y cálculo.
 - [x] **CA-10.** El shipping persistido coincide con la cotización recalculada durante `createOrder`.
 - [x] **CA-11.** El total persistido es subtotal autoritativo más shipping autoritativo.
-- [x] **CA-12.** `bizum` crea un pedido con provider manual y estado de pago pendiente.
-- [x] **CA-13.** `bank_transfer` crea un pedido con provider manual y estado de pago pendiente.
+- [x] **CA-12.** `bizum`, cuando está habilitado, crea un pedido con provider manual y estado de pago pendiente.
+- [x] **CA-13.** `bank_transfer`, cuando está habilitado, crea un pedido con provider manual y estado de pago pendiente.
 - [x] **CA-14.** Cualquier método distinto de `bizum` o `bank_transfer`, incluido `test`, se rechaza en checkout.
 - [x] **CA-15.** El enum incorpora `bank_transfer` sin eliminar valores ni datos históricos.
 - [x] **CA-16.** `payment.status` y `paymentStatus` permanecen sincronizados durante la compatibilidad legacy.
-- [x] **CA-17.** La configuración manual vive en backend, contiene cero datos reales versionados y falla explícitamente si está incompleta.
+- [x] **CA-17.** Cada método manual usa un flag `false` por defecto y solo exige su configuración completa cuando está habilitado.
 - [x] **CA-18.** `POST /api/orders` devuelve instrucciones solo del método elegido y derivadas del pedido/configuración.
-- [x] **CA-19.** Checkout muestra solo Bizum/transferencia y usa el CTA `Confirmar pedido` sin promesa de pago online.
+- [x] **CA-19.** Checkout muestra únicamente Bizum/transferencia habilitados y usa el CTA `Confirmar pedido` sin promesa de pago online.
 - [x] **CA-20.** La confirmación muestra referencia, total servidor, método, estado pendiente, instrucciones y siguiente paso.
 - [x] **CA-21.** El endpoint admin protegido cambia `pending → paid`, conserva el método y registra fecha/actor disponibles.
 - [x] **CA-22.** Un usuario no administrador no puede confirmar el pago.

@@ -5,6 +5,7 @@ import request from "supertest";
 import { createApp } from "../../src/app.js";
 import { Product } from "../../src/models/Product.js";
 import { Order } from "../../src/models/Order.js";
+import { env } from "../../src/config/env.js";
 import { emailTransporter } from "../../src/services/email.service.js";
 import {
   clearTestDB,
@@ -375,4 +376,38 @@ test("el esquema conserva métodos históricos y acepta bank_transfer", async ()
 
   assert.equal(historical.payment.method, "transfer");
   assert.equal(current.payment.method, "bank_transfer");
+});
+
+test("API ofrece únicamente métodos manuales habilitados", async (t) => {
+  const previousBizumEnabled = env.MANUAL_PAYMENTS.bizum.enabled;
+  const previousBankEnabled = env.MANUAL_PAYMENTS.bankTransfer.enabled;
+  env.MANUAL_PAYMENTS.bizum.enabled = false;
+  env.MANUAL_PAYMENTS.bankTransfer.enabled = true;
+  t.after(() => {
+    env.MANUAL_PAYMENTS.bizum.enabled = previousBizumEnabled;
+    env.MANUAL_PAYMENTS.bankTransfer.enabled = previousBankEnabled;
+  });
+
+  const response = await request(app).get("/api/payments/manual/methods");
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body.methods, [
+    { id: "bank_transfer", label: "Transferencia bancaria" },
+  ]);
+});
+
+test("createOrder rechaza un método manual deshabilitado", async (t) => {
+  const previousBizumEnabled = env.MANUAL_PAYMENTS.bizum.enabled;
+  env.MANUAL_PAYMENTS.bizum.enabled = false;
+  t.after(() => {
+    env.MANUAL_PAYMENTS.bizum.enabled = previousBizumEnabled;
+  });
+  const product = await createProduct();
+
+  const response = await request(app)
+    .post("/api/orders")
+    .send(orderPayload(product._id.toString(), { paymentMethod: "bizum" }));
+
+  assert.equal(response.status, 400);
+  assert.equal(await Order.countDocuments(), 0);
 });
