@@ -51,6 +51,7 @@ import {
   adminConfirmDeliveryDate,
   confirmOrderPayment,
 } from "../../services/orders.service";
+import { getOrderItemVariant } from "../../utils/orderVariantAdapter";
 
 /* 🔧 Helper: nombre del usuario del pedido */
 function getOrderUserLabel(order) {
@@ -1517,16 +1518,16 @@ const handleDownloadZip = async (customization) => {
                               {i.name} × {i.quantity}
                             </Text>
 
-                            {i.selectedVariant && (
+                            {getOrderItemVariant(i) && (
                               <Text fontSize="xs" color="gray.500">
-                                {i.selectedVariant.size && (
-                                  <>Talla: {i.selectedVariant.size}</>
+                                {getOrderItemVariant(i).size && (
+                                  <>Talla: {getOrderItemVariant(i).size}</>
                                 )}
-                                {i.selectedVariant.size &&
-                                  i.selectedVariant.color &&
+                                {getOrderItemVariant(i).size &&
+                                  getOrderItemVariant(i).color &&
                                   " · "}
-                                {i.selectedVariant.color && (
-                                  <>Color: {i.selectedVariant.color}</>
+                                {getOrderItemVariant(i).color && (
+                                  <>Color: {getOrderItemVariant(i).color}</>
                                 )}
                               </Text>
                             )}

@@ -46,7 +46,7 @@ export function ProductCard({ product }) {
 
 
   /*const handleAddToCart = () => {
-    addItem(product, 1);
+    addItem({ product, quantity: 1, variant: null, customization: null });
   };*/
   /*
 
@@ -66,7 +66,7 @@ export function ProductCard({ product }) {
     // 🟢 Producto normal → añadir al carrito
     const isFirstItem = items.length === 0;
 
-    addItem(product, 1);
+    addItem({ product, quantity: 1, variant: null, customization: null });
 
     if (isFirstItem) {
       onOpen();
@@ -346,7 +346,7 @@ export function ProductCard({ product }) {
 
     // 🟢 Producto simple → añadir al carrito
     const isFirstItem = items.length === 0;
-    addItem(product, 1);
+    addItem({ product, quantity: 1, variant: null, customization: null });
 
     if (isFirstItem) onOpen();
   };
@@ -457,7 +457,7 @@ export function ProductCard({ product }) {
               size="sm"
               variant="outline"
               as={RouterLink}
-              to={`/personalizar/${productId}`}
+              to={hasVariants ? `/productos/${productId}` : `/personalizar/${productId}`}
             >
               Personalizar
             </Button>

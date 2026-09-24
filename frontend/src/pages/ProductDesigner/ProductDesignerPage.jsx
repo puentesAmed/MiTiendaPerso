@@ -24,7 +24,7 @@ export function ProductDesignerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { addItem } = useCart();
+  const { addItem, updateCustomization } = useCart();
 
   // 🔗 Ref expuesto por ProductDesigner (exportPreviewForSide, etc.)
   //const stageRef = useRef(null);
@@ -144,6 +144,8 @@ export function ProductDesignerPage() {
         .map((e) => e.text) || [];
 
     const customizationPayload = createDesignerCustomizationPayload({
+      clientId:
+        location.state?.customization?.clientId || crypto.randomUUID(),
       design: committedDesign,
       previewsBySide,
       previewImage: previewsBySide?.front || previewsBySide?.back || null,
@@ -152,7 +154,16 @@ export function ProductDesignerPage() {
       extra: { textSummary: texts },
     });
 
-    addItem(product, 1, null, customizationPayload);
+    if (location.state?.lineKey) {
+      updateCustomization(location.state.lineKey, customizationPayload);
+    } else {
+      addItem({
+        product,
+        quantity: 1,
+        variant: location.state?.variant || null,
+        customization: customizationPayload,
+      });
+    }
 
     navigate(location.state?.returnTo || "/carrito");
   };

@@ -1,13 +1,12 @@
 // src/services/orders.service.js
 import { http } from "./http";
 import { normalizeCustomization } from "../utils/customizationAdapter";
+import { toCheckoutItem } from "../utils/cartLineAdapter";
 
 export async function createOrderRequest(items, data = {}) {
   const payload = {
     items: (items || []).map((item) => ({
-      productId: item.productId,
-      quantity: item.quantity,
-      selectedVariant: item.selectedVariant ?? null,
+      ...toCheckoutItem(item),
       customization: normalizeCustomization(item?.customization, {
         _id: item?.productId,
       }),
@@ -34,11 +33,9 @@ export async function createOrderRequest(items, data = {}) {
 
 export async function getShippingQuoteRequest(items, shippingAddress, signal) {
   const payload = {
-    items: (items || []).map((item) => ({
-      productId: item.productId,
-      quantity: item.quantity,
-      selectedVariant: item.selectedVariant ?? null,
-    })),
+    items: (items || []).map((item) =>
+      toCheckoutItem(item, { includeCustomization: false })
+    ),
     shippingAddress,
   };
 

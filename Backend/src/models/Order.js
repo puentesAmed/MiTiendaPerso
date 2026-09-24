@@ -29,6 +29,10 @@ const orderSchema = new mongoose.Schema(
         providerSku: { type: String, default: null },    // AliExpress ae_sku_id (CRÍTICO)
 
 
+        variant: {
+          size: { type: String, default: null },
+          color: { type: String, default: null },
+        },
         selectedVariant: {
           size: { type: String, default: null },
           color: { type: String, default: null },

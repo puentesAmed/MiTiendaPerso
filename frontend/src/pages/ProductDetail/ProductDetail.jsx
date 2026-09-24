@@ -25,6 +25,7 @@ import {
 import { ArrowBackIcon } from "@chakra-ui/icons";
 import { apiGetProductById } from "../../services/products.service";
 import { useCart } from "../../hooks/useCart";
+import { normalizeVariant } from "../../utils/cartLineAdapter";
 
 export function ProductDetail() {
   const { id } = useParams();
@@ -161,21 +162,17 @@ export function ProductDetail() {
       (!product?.variants?.colors?.length || selectedColor);
 
   const handleAddToCart = () => {
-    const localVariant = {
-      selectedVariant: {
+    if (isAliExpress) return;
+
+    addItem({
+      product,
+      quantity: Number(quantity) || 1,
+      variant: normalizeVariant(product, {
         size: selectedSize || null,
         color: selectedColor || null,
-      },
-    };
-
-    addItem(
-      product,
-      Number(quantity) || 1,
-      isAliExpress ? selectedVariant : localVariant,
-      isAliExpress
-        ? { attributes: selectedAttributes }
-        : null
-    );
+      }),
+      customization: null,
+    });
   };
 
   /*const displayedPrice = isAliExpress
@@ -333,8 +330,17 @@ export function ProductDetail() {
                 <Button
                   as={Link}
                   to={`/personalizar/${product._id}`}
+                  state={{
+                    variant: canAddToCart
+                      ? normalizeVariant(product, {
+                          size: selectedSize || null,
+                          color: selectedColor || null,
+                        })
+                      : null,
+                  }}
                   size="sm"
                   colorScheme="purple"
+                  isDisabled={!canAddToCart}
                 >
                   Abrir diseñador avanzado
                 </Button>

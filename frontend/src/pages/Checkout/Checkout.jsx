@@ -256,7 +256,7 @@ export function Checkout() {
   const [pendingProduct, setPendingProduct] = useState(null);
 
   const productNeedsCustomization = (item) => {
-    if (!item.customizable) return false;
+    if (!item.customizationRequired) return false;
     if (!item.customization) return true;
     if (item.customization.type !== "designer") return true;
     const design = item.customization.design;
@@ -495,7 +495,7 @@ export function Checkout() {
 
       <Stack spacing={4}>
         {items.map((it) => (
-          <Card key={it.productId} boxShadow="md">
+          <Card key={it.lineKey} boxShadow="md">
             <CardBody>
               <Flex
                 direction={{ base: "column", md: "row" }}
@@ -505,24 +505,24 @@ export function Checkout() {
               >
                 <HStack>
                   <img
-                    src={it.image || "/no-image.png"}
+                    src={it.presentation.image || "/no-image.png"}
                     width="70"
                     onError={(e) => (e.target.src = "/no-image.png")}
                     style={{ borderRadius: "6px" }}
                   />
                   <VStack align="start" spacing={1}>
-                    <Heading size="sm">{it.name}</Heading>
-                    
-                    {it.selectedVariant && (
+                    <Heading size="sm">{it.presentation.name}</Heading>
+
+                    {it.variant && (
                       <Text fontSize="xs" color="gray.500">
-                        {it.selectedVariant.size && <>Talla: {it.selectedVariant.size}</>}
-                        {it.selectedVariant.size && it.selectedVariant.color && " · "}
-                        {it.selectedVariant.color && <>Color: {it.selectedVariant.color}</>}
+                        {it.variant.size && <>Talla: {it.variant.size}</>}
+                        {it.variant.size && it.variant.color && " · "}
+                        {it.variant.color && <>Color: {it.variant.color}</>}
                       </Text>
                     )}
 
                     <Text fontSize="sm" color="gray.400">
-                      Precio: {it.price.toFixed(2)} €
+                      Precio estimado: {it.presentation.displayPrice.toFixed(2)} €
                     </Text>
                   </VStack>
                 </HStack>
@@ -533,8 +533,8 @@ export function Checkout() {
                     size="sm"
                     onClick={() =>
                       it.quantity > 1
-                        ? updateQuantity(it.productId, it.quantity - 1)
-                        : removeItem(it.productId)
+                        ? updateQuantity(it.lineKey, it.quantity - 1)
+                        : removeItem(it.lineKey)
                     }
                   >
                     −
@@ -549,7 +549,7 @@ export function Checkout() {
                   <Button
                     size="sm"
                     onClick={() =>
-                      updateQuantity(it.productId, it.quantity + 1)
+                      updateQuantity(it.lineKey, it.quantity + 1)
                     }
                   >
                     +
@@ -557,7 +557,7 @@ export function Checkout() {
 
                   {/* Precio línea */}
                   <Text fontWeight="bold" ml={2}>
-                    {(it.price * it.quantity).toFixed(2)} €
+                    {(it.presentation.displayPrice * it.quantity).toFixed(2)} €
                   </Text>
 
                   {/* Eliminar */}
@@ -566,7 +566,7 @@ export function Checkout() {
                     icon={<DeleteIcon />}
                     colorScheme="red"
                     variant="ghost"
-                    onClick={() => removeItem(it.productId)}
+                    onClick={() => removeItem(it.lineKey)}
                   />
                 </HStack>
 
@@ -580,6 +580,8 @@ export function Checkout() {
                     nav(`/personalizar/${it.productId}`, {
                       state: {
                         customization: it.customization,
+                        lineKey: it.lineKey,
+                        variant: it.variant,
                         returnTo: "/checkout",
                       },
                     });
@@ -877,7 +879,7 @@ export function Checkout() {
           <ModalCloseButton />
           <ModalBody>
             <Text>
-              El producto <strong>{pendingProduct?.name}</strong> debe
+              El producto <strong>{pendingProduct?.presentation.name}</strong> debe
               personalizarse antes de completar el pedido.
             </Text>
           </ModalBody>
@@ -887,7 +889,14 @@ export function Checkout() {
               mr={3}
               onClick={() => {
                 setModalOpen(false);
-                nav(`/personalizar/${pendingProduct.productId}`);
+                nav(`/personalizar/${pendingProduct.productId}`, {
+                  state: {
+                    lineKey: pendingProduct.lineKey,
+                    variant: pendingProduct.variant,
+                    customization: pendingProduct.customization,
+                    returnTo: "/checkout",
+                  },
+                });
               }}
             >
               Personalizar ahora

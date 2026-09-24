@@ -1,3 +1,5 @@
+import { getOrderItemVariant } from "../../utils/orderVariantAdapter.js";
+
 export function orderAdminEmail(order) {
   return `
     <h2>Nuevo pedido recibido</h2>
@@ -15,8 +17,8 @@ export function orderAdminEmail(order) {
           (i) =>
             `<li>
               ${i.name} × ${i.quantity}
-              ${i.selectedVariant?.size ? ` — Talla: ${i.selectedVariant.size}` : ""}
-              ${i.selectedVariant?.color ? ` — Color: ${i.selectedVariant.color}` : ""}
+              ${getOrderItemVariant(i)?.size ? ` — Talla: ${getOrderItemVariant(i).size}` : ""}
+              ${getOrderItemVariant(i)?.color ? ` — Color: ${getOrderItemVariant(i).color}` : ""}
               — ${i.price.toFixed(2)} €
             </li>
             `

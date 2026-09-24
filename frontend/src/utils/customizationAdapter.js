@@ -32,6 +32,7 @@ export function normalizeCustomization(customization, product = null) {
 }
 
 export function createDesignerCustomizationPayload({
+  clientId,
   design,
   previewsBySide,
   previewImage,
@@ -42,6 +43,7 @@ export function createDesignerCustomizationPayload({
   return normalizeCustomization(
     {
       type: "designer",
+      clientId,
       designVersion: 1,
       design,
       previewsBySide: previewsBySide || design?.previewsBySide || null,

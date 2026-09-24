@@ -9,11 +9,58 @@ export class OrderCalculationError extends Error {
   }
 }
 
-function validateSelectedVariant(product, selectedVariant) {
+function normalizeRequestedVariant(input) {
+  if (input == null) return null;
+  if (typeof input !== "object" || Array.isArray(input)) {
+    throw new OrderCalculationError("Variante inválida");
+  }
+  if (Object.keys(input).some((key) => !["size", "color"].includes(key))) {
+    throw new OrderCalculationError("Variante inválida");
+  }
+
+  for (const value of [input.size, input.color]) {
+    if (value != null && typeof value !== "string") {
+      throw new OrderCalculationError("Variante inválida");
+    }
+  }
+
+  const size = input.size || null;
+  const color = input.color || null;
+  return size || color ? { size, color } : null;
+}
+
+function resolveRequestedVariant(item) {
+  const hasVariant = Object.hasOwn(item, "variant");
+  const hasLegacyVariant = Object.hasOwn(item, "selectedVariant");
+  const variant = hasVariant ? normalizeRequestedVariant(item.variant) : null;
+  const legacyVariant = hasLegacyVariant
+    ? normalizeRequestedVariant(item.selectedVariant)
+    : null;
+
+  if (
+    hasVariant &&
+    hasLegacyVariant &&
+    JSON.stringify(variant) !== JSON.stringify(legacyVariant)
+  ) {
+    throw new OrderCalculationError("La variante enviada es contradictoria");
+  }
+
+  return hasVariant ? variant : legacyVariant;
+}
+
+function validateVariant(product, variant) {
   const sizes = product.variants?.sizes || [];
   const colors = product.variants?.colors || [];
-  const size = selectedVariant?.size || null;
-  const color = selectedVariant?.color || null;
+  const size = variant?.size || null;
+  const color = variant?.color || null;
+
+  if (sizes.length === 0 && size) {
+    throw new OrderCalculationError(`Talla no válida para: ${product.name}`);
+  }
+
+  if (colors.length === 0 && color) {
+    throw new OrderCalculationError(`Color no válido para: ${product.name}`);
+  }
 
   if (sizes.length > 0 && (!size || !sizes.includes(size))) {
     throw new OrderCalculationError(
@@ -27,7 +74,7 @@ function validateSelectedVariant(product, selectedVariant) {
     );
   }
 
-  return { size, color };
+  return size || color ? { size, color } : null;
 }
 
 function roundCurrency(value) {
@@ -98,10 +145,7 @@ export async function resolveAuthoritativeOrderLines(items) {
   let subtotal = 0;
   const lines = normalizedItems.map((item) => {
     const product = productsById.get(item.productId);
-    const selectedVariant = validateSelectedVariant(
-      product,
-      item.selectedVariant
-    );
+    const variant = validateVariant(product, resolveRequestedVariant(item));
     const price = roundCurrency(Number(product.price));
     subtotal = roundCurrency(subtotal + price * item.quantity);
 
@@ -111,7 +155,7 @@ export async function resolveAuthoritativeOrderLines(items) {
       name: product.name,
       price,
       quantity: item.quantity,
-      selectedVariant,
+      variant,
       customization: item.customization || null,
     };
   });

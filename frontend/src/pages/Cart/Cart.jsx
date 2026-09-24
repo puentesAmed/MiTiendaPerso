@@ -15,6 +15,7 @@ import {
 import { DeleteIcon } from "@chakra-ui/icons";
 import { useCart } from "../../hooks/useCart";
 import { useNavigate } from "react-router-dom";
+import { CustomizationInlineSummary } from "../../components/checkout/CustomizationInlineSummary";
 
 export function Cart() {
   const { items, updateQuantity, removeItem, clearCart, totalAmount } = useCart();
@@ -38,7 +39,7 @@ export function Cart() {
       <VStack align="stretch" spacing={4}>
         {items.map((item) => (
           <Box
-            key={item.productId}
+            key={item.lineKey}
             p={3}
             bg={cardBg}
             borderRadius="lg"
@@ -46,26 +47,26 @@ export function Cart() {
           >
             <HStack spacing={4}>
               <Image
-                src={item.image || "https://via.placeholder.com/100x100?text=IMG"}
-                alt={item.name}
+                src={item.presentation.image || "https://via.placeholder.com/100x100?text=IMG"}
+                alt={item.presentation.name}
                 boxSize="80px"
                 borderRadius="md"
                 objectFit="cover"
               />
 
               <VStack align="start" flex="1">
-                <Text fontWeight="bold">{item.name}</Text>
+                <Text fontWeight="bold">{item.presentation.name}</Text>
 
-                {item.selectedVariant && (
+                {item.variant && (
                   <Text fontSize="xs" color="gray.500">
-                    {item.selectedVariant.size && <>Talla: {item.selectedVariant.size}</>}
-                    {item.selectedVariant.size && item.selectedVariant.color && " · "}
-                    {item.selectedVariant.color && <>Color: {item.selectedVariant.color}</>}
+                    {item.variant.size && <>Talla: {item.variant.size}</>}
+                    {item.variant.size && item.variant.color && " · "}
+                    {item.variant.color && <>Color: {item.variant.color}</>}
                   </Text>
                 )}
 
                 <Text fontSize="sm" color="gray.500">
-                  Precio: {item.price} €
+                  Precio estimado: {item.presentation.displayPrice} €
                 </Text>
 
                 <HStack spacing={2}>
@@ -75,8 +76,8 @@ export function Cart() {
                     size="xs"
                     onClick={() =>
                       item.quantity > 1
-                        ? updateQuantity(item.productId, item.quantity - 1)
-                        : removeItem(item.productId)
+                        ? updateQuantity(item.lineKey, item.quantity - 1)
+                        : removeItem(item.lineKey)
                     }
                   >
                     −
@@ -89,7 +90,7 @@ export function Cart() {
                   <Button
                     size="xs"
                     onClick={() =>
-                      updateQuantity(item.productId, item.quantity + 1)
+                      updateQuantity(item.lineKey, item.quantity + 1)
                     }
                   >
                     +
@@ -103,9 +104,24 @@ export function Cart() {
                 icon={<DeleteIcon />}
                 colorScheme="red"
                 variant="ghost"
-                onClick={() => removeItem(item.productId)}
+                onClick={() => removeItem(item.lineKey)}
               />
             </HStack>
+            {item.customization && (
+              <CustomizationInlineSummary
+                item={item}
+                onEdit={() =>
+                  navigate(`/personalizar/${item.productId}`, {
+                    state: {
+                      lineKey: item.lineKey,
+                      variant: item.variant,
+                      customization: item.customization,
+                      returnTo: "/carrito",
+                    },
+                  })
+                }
+              />
+            )}
           </Box>
         ))}
       </VStack>

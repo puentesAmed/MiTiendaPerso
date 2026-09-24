@@ -1,4 +1,3 @@
-// CartContext.jsx
 import {
   createContext,
   useCallback,
@@ -7,17 +6,25 @@ import {
   useState,
 } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { normalizeCustomization } from "../utils/customizationAdapter";
+import {
+  addOrMergeCartLine,
+  buildCartStoragePayload,
+  buildGuestCartSession,
+  createCartLine,
+  normalizeStoredCart,
+  removeCartLine,
+  updateCartLineCustomization,
+  updateCartLineQuantity,
+} from "../utils/cartLineAdapter";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const CartContext = createContext(null);
 
-const getCartStorageKey = (userId) => `miTienda_cart_v1_${userId}`;
-
+const getCartStorageKey = (userId) => `miTienda_cart_v2_${userId}`;
+const getLegacyCartStorageKey = (userId) => `miTienda_cart_v1_${userId}`;
 const GUEST_KEY = "guest_id";
 const GUEST_SESSION_KEY = "guest_session_v1";
 const GUEST_SESSION_TTL_DAYS = 7;
-
 
 function getGuestId() {
   let id = localStorage.getItem(GUEST_KEY);
@@ -32,265 +39,160 @@ function loadGuestSession() {
   try {
     const raw = localStorage.getItem(GUEST_SESSION_KEY);
     if (!raw) return null;
-
     const session = JSON.parse(raw);
-    const updatedAt = new Date(session.updatedAt);
-    //const now = new Date();
-
     const diffDays =
-      (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
-
+      (Date.now() - new Date(session.updatedAt).getTime()) /
+      (1000 * 60 * 60 * 24);
     if (diffDays > GUEST_SESSION_TTL_DAYS) {
       localStorage.removeItem(GUEST_SESSION_KEY);
       return null;
     }
-
     return session;
   } catch {
     return null;
   }
 }
 
-
 function saveGuestSession(partial) {
   try {
     const existing = loadGuestSession() || {};
-
-    localStorage.setItem(
-      GUEST_SESSION_KEY,
-      JSON.stringify({
-        ...existing,
-        ...partial,
-        version: 1,
-        guestId: getGuestId(),
-        updatedAt: new Date().toISOString(),
-      })
-    );
+    const next = partial.cart
+      ? buildGuestCartSession(existing, partial.cart, {
+          guestId: getGuestId(),
+        })
+      : {
+          ...existing,
+          ...partial,
+          version: existing.version || 1,
+          guestId: existing.guestId || getGuestId(),
+          updatedAt: new Date().toISOString(),
+        };
+    localStorage.setItem(GUEST_SESSION_KEY, JSON.stringify(next));
   } catch {
-    // silencioso
+    // El carrito no debe bloquear la navegación si storage no está disponible.
   }
 }
 
+function reportMigrationWarnings(result) {
+  if (result.omittedCount > 0) {
+    console.warn(
+      `${result.omittedCount} línea(s) no se pudieron restaurar del carrito`,
+      result.warnings
+    );
+  }
+}
 
 export function CartProvider({ children }) {
   const { user } = useAuth();
+  const userId = user?.id;
   const [items, setItems] = useState([]);
-
-   /* ───────────────────────────────
-     RESTAURAR CARRITO
-  ──────────────────────────────── */
-  
+  const [hydratedIdentity, setHydratedIdentity] = useState(null);
+  const identity = userId ? `user:${userId}` : "guest";
 
   useEffect(() => {
-    let nextItems = [];
+    let result = { items: [], omittedCount: 0, warnings: [] };
 
-    if (user?.id) {
+    if (userId) {
       try {
-        const raw = localStorage.getItem(getCartStorageKey(user.id));
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          nextItems = Array.isArray(parsed.items) ? parsed.items : [];
+        const v2Key = getCartStorageKey(userId);
+        const v2Raw = localStorage.getItem(v2Key);
+        const legacyRaw = localStorage.getItem(getLegacyCartStorageKey(userId));
+        const sourceRaw = v2Raw || legacyRaw;
+        if (sourceRaw) result = normalizeStoredCart(JSON.parse(sourceRaw));
+
+        if (!v2Raw && legacyRaw) {
+          localStorage.setItem(
+            v2Key,
+            JSON.stringify(buildCartStoragePayload(result.items))
+          );
         }
       } catch {
-        nextItems = [];
+        result = { items: [], omittedCount: 0, warnings: [] };
       }
     } else {
-      const guestSession = loadGuestSession();
-      nextItems = guestSession?.cart || [];
+      const session = loadGuestSession();
+      result = normalizeStoredCart(session?.cart || []);
+      if (session?.cart && session.cartVersion !== 2) {
+        saveGuestSession({ cartVersion: 2, cart: result.items });
+      }
     }
 
-    const syncTimer = setTimeout(() => setItems(nextItems), 0);
+    reportMigrationWarnings(result);
+    const syncTimer = setTimeout(() => {
+      setItems(result.items);
+      setHydratedIdentity(identity);
+    }, 0);
     return () => clearTimeout(syncTimer);
-  }, [user]);
+  }, [identity, userId]);
 
-
-  /*// ===============================
-  // PERSISTIR CARRITO POR USUARIO
-  // ===============================
   useEffect(() => {
-    if (!user?.id) return;
+    if (hydratedIdentity !== identity) return;
 
-    try {
-      const payload = {
-        version: 1,
-        items,
-        updatedAt: new Date().toISOString(),
-      };
+    if (userId) {
       localStorage.setItem(
-        getCartStorageKey(user.id),
-        JSON.stringify(payload)
-      );
-    } catch {
-      // silencioso
-    }
-  }, [items, user]);*/
-
-  /* ───────────────────────────────
-     PERSISTIR CARRITO
-  ──────────────────────────────── */
-  useEffect(() => {
-    if (user?.id) {
-      localStorage.setItem(
-        getCartStorageKey(user.id),
-        JSON.stringify({
-          version: 1,
-          items,
-          updatedAt: new Date().toISOString(),
-        })
+        getCartStorageKey(userId),
+        JSON.stringify(buildCartStoragePayload(items))
       );
     } else {
-      saveGuestSession({ cart: items });
+      saveGuestSession({ cartVersion: 2, cart: items });
     }
-  }, [items, user]); 
+  }, [hydratedIdentity, identity, items, userId]);
 
-  // ===============================
-  // LÓGICA ORIGINAL (SIN CAMBIOS) API
-  // ===============================
- // const addItem = useCallback((product, quantity = 1, customization = null, selectedVariant = null) => {
-  const addItem = useCallback((product, quantity = 1, variant = null, customization = null) => {
-    setItems((prev) => {
-      const qty = Number(quantity) || 1;
-      const productId = product.id || product._id;
-      //const idx = prev.findIndex((i) => i.productId === productId);
-      const idx = prev.findIndex(
-        (i) =>
-          i.productId === productId &&
-          (i.skuId || null) === (variant?.skuId || null)
-      );
-      const requiresDesign = !!product.customizable;
-
-      if (idx !== -1) {
-        const existing = prev[idx];
-
-        /*if (customization || selectedVariant) {
-          const next = [...prev];
-          next[idx] = {
-            ...existing,
-            customization: customization ?? existing.customization,
-            selectedVariant: selectedVariant ?? existing.selectedVariant,
-            requiresDesign,
-            quantity: existing.quantity,
-          };
-          return next;
-        }*/
-
-          if (customization || variant) {
-            const next = [...prev];
-            next[idx] = {
-              ...existing,
-              customization: customization
-                ? normalizeCustomization(customization, product)
-                : existing.customization,
-
-              skuId: variant?.skuId ?? existing.skuId,
-              variantAttributes: variant?.attributes ?? existing.variantAttributes,
-              selectedVariant:
-                variant?.selectedVariant ?? existing.selectedVariant ?? null,
-
-              requiresDesign,
-              quantity: existing.quantity,
-            };
-            return next;
-          }
-
-
-        const next = [...prev];
-        next[idx] = {
-          ...existing,
-          quantity: existing.quantity + qty,
-          requiresDesign:
-            typeof existing.requiresDesign === "boolean"
-              ? existing.requiresDesign
-              : requiresDesign,
-        };
-        return next;
-      }
-
-      /*return [
-        ...prev,
-        {
-          productId,
-          name: product.name,
-          price: Number(product.price) || 0,
-          quantity: qty,
-          image: product.image || "",
-          customization: product.customizable ? normalizeCustomization(customization, product) : null,
-          selectedVariant: selectedVariant || null,
-          requiresDesign,
-          customizable: !!product.customizable,
-        },
-      ];*/
-      return [
-        ...prev,
-        {
-          productId,
-          externalId: product.externalId || null,
-          provider: product.provider || "internal",
-          supplierId: product.supplierId || null,
-
-          name: product.name,
-          price: variant?.price?.final ?? Number(product.price || 0),
-          quantity: qty,
-          image: product.image || "",
-
-          skuId: variant?.skuId || null,
-          variantAttributes: variant?.attributes || null,
-          selectedVariant: variant?.selectedVariant || null,
-
-          customization: product.customizable ? normalizeCustomization(customization, product) : null,
-
-          requiresDesign,
-          customizable: !!product.customizable,
-        },
-      ];
-    });
+  const addItem = useCallback((command) => {
+    const line = createCartLine(command);
+    setItems((current) => addOrMergeCartLine(current, line));
   }, []);
 
-  const removeItem = useCallback((productId) => {
-    setItems((prev) => prev.filter((i) => i.productId !== productId));
+  const removeItem = useCallback((lineKey) => {
+    setItems((current) => removeCartLine(current, lineKey));
   }, []);
 
-  const updateQuantity = useCallback((productId, quantity) => {
-    const qty = Number(quantity) || 0;
-    setItems((prev) =>
-      prev.map((i) =>
-          i.productId === productId ? { ...i, quantity: qty } : i
-        )
-        .filter((i) => i.quantity > 0)
+  const updateQuantity = useCallback((lineKey, quantity) => {
+    setItems((current) =>
+      updateCartLineQuantity(current, lineKey, quantity)
+    );
+  }, []);
+
+  const updateCustomization = useCallback((lineKey, customization) => {
+    setItems((current) =>
+      updateCartLineCustomization(current, lineKey, customization)
     );
   }, []);
 
   const clearCart = useCallback(() => {
     setItems([]);
-    if (user?.id) {
-      localStorage.removeItem(getCartStorageKey(user.id));
-    }
-  }, [user]);
+    if (userId) localStorage.removeItem(getCartStorageKey(userId));
+  }, [userId]);
 
   const totals = useMemo(() => {
-    const totalItems = items.reduce((acc, it) => acc + it.quantity, 0);
+    const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
     const totalAmount = items.reduce(
-      (acc, it) => acc + it.quantity * it.price,
+      (sum, item) => sum + item.quantity * item.presentation.displayPrice,
       0
     );
     return { totalItems, totalAmount };
   }, [items]);
 
-  /*const value = useMemo(
+  const value = useMemo(
     () => ({
       items,
       addItem,
       removeItem,
       updateQuantity,
+      updateCustomization,
       clearCart,
       ...totals,
     }),
-    [items, addItem, removeItem, updateQuantity, clearCart, totals]
-  );*/
-
-  return (
-    <CartContext.Provider value={{items, addItem, removeItem, updateQuantity, clearCart, ...totals}}>
-      {children}
-    </CartContext.Provider>
+    [
+      items,
+      addItem,
+      removeItem,
+      updateQuantity,
+      updateCustomization,
+      clearCart,
+      totals,
+    ]
   );
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
