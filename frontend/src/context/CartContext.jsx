@@ -184,8 +184,10 @@ export function CartProvider({ children }) {
 
               skuId: variant?.skuId ?? existing.skuId,
               variantAttributes: variant?.attributes ?? existing.variantAttributes,
+              selectedVariant:
+                variant?.selectedVariant ?? existing.selectedVariant ?? null,
 
-              requiresDesign: true,
+              requiresDesign,
               quantity: existing.quantity,
             };
             return next;
@@ -233,6 +235,7 @@ export function CartProvider({ children }) {
 
           skuId: variant?.skuId || null,
           variantAttributes: variant?.attributes || null,
+          selectedVariant: variant?.selectedVariant || null,
 
           customization: product.customizable ? normalizeCustomization(customization, product) : null,
 

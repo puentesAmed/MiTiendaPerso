@@ -1,6 +1,6 @@
 # SPEC-001 — Aislamiento reversible de AliExpress y Dropshipping
 
-Estado: propuesta para implementación  
+Estado: cerrada — 23/23 criterios de aceptación; 36/36 tests backend  
 Tipo: arquitectura y aislamiento de integración  
 Fuente principal: `docs/audits/2026-09-web-audit.md`
 
@@ -519,6 +519,7 @@ Otros pendientes posteriores que requieren SPEC independiente:
 - atomicidad de pedido, stock y personalizaciones;
 - contrato único de producto/variante/carrito;
 - idempotencia y eventual reactivación completa de MONEI;
+- corregir en la fase de checkout/pagos el endpoint de pago de desarrollo que intenta guardar `payment.method="test"`, valor que no pertenece al enum actual; queda fuera de SPEC-001 y no debe resolverse ampliando el modelo;
 - modularización de controllers;
 - limpieza de código legacy comentado;
 - UI/UX, responsive y Design System.

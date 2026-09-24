@@ -161,13 +161,20 @@ export function ProductDetail() {
       (!product?.variants?.colors?.length || selectedColor);
 
   const handleAddToCart = () => {
+    const localVariant = {
+      selectedVariant: {
+        size: selectedSize || null,
+        color: selectedColor || null,
+      },
+    };
+
     addItem(
       product,
       Number(quantity) || 1,
-      isAliExpress ? selectedVariant?.skuId : null,
+      isAliExpress ? selectedVariant : localVariant,
       isAliExpress
         ? { attributes: selectedAttributes }
-        : { size: selectedSize || null, color: selectedColor || null }
+        : null
     );
   };
 

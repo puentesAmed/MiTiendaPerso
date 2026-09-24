@@ -70,6 +70,7 @@ function validOrderPayload(productId, provider = "local") {
   return {
     guestId: "guest-dormant-integrations",
     email: "guest@test.com",
+    paymentMethod: "bizum",
     items: [{ productId, quantity: 1, provider, price: 20 }],
     shippingAddress: {
       fullName: "Cliente Test",
@@ -156,6 +157,11 @@ function isolatedConfigEnv(overrides = {}) {
 }
 
 function importEnvInChild(overrides = {}) {
+  const childEnv = isolatedConfigEnv(overrides);
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === null) delete childEnv[key];
+  }
+
   return spawnSync(
     process.execPath,
     [
@@ -165,7 +171,7 @@ function importEnvInChild(overrides = {}) {
     ],
     {
       cwd: process.cwd(),
-      env: isolatedConfigEnv(overrides),
+      env: childEnv,
       encoding: "utf8",
     }
   );
@@ -210,6 +216,18 @@ test("una integración habilitada sin configuración falla explícitamente", () 
       `El error de ${flag} debe identificar ${missingVariable}`
     );
   }
+});
+
+test("la configuración manual incompleta falla explícitamente", () => {
+  const result = importEnvInChild({
+    MANUAL_PAYMENT_BANK_IBAN: null,
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(
+    `${result.stdout}\n${result.stderr}`,
+    /MANUAL_PAYMENT_BANK_IBAN/
+  );
 });
 
 test("el arranque con AliExpress apagado no abre la conexión afiliada", () => {

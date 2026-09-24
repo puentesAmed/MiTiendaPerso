@@ -21,6 +21,14 @@ const ALIEXPRESS_CATALOG_ENABLED = isEnabled('ALIEXPRESS_CATALOG_ENABLED');
 const DROPSHIPPING_ENABLED = isEnabled('DROPSHIPPING_ENABLED');
 const MONEI_ENABLED = isEnabled('MONEI_ENABLED');
 
+const MANUAL_PAYMENT_KEYS = [
+  'MANUAL_PAYMENT_BIZUM_RECIPIENT',
+  'MANUAL_PAYMENT_BIZUM_INSTRUCTIONS',
+  'MANUAL_PAYMENT_BANK_ACCOUNT_HOLDER',
+  'MANUAL_PAYMENT_BANK_IBAN',
+  'MANUAL_PAYMENT_BANK_INSTRUCTIONS',
+];
+
 const requireIntegrationConfig = (enabled, keys, integration) => {
   if (!enabled) return;
 
@@ -47,6 +55,7 @@ requireIntegrationConfig(
   ['MONEI_API_KEY', 'MONEI_WEBHOOK_SECRET'],
   'MONEI'
 );
+requireIntegrationConfig(true, MANUAL_PAYMENT_KEYS, 'pagos manuales');
 
 let CORS_ORIGINS = ORIGINS;
 
@@ -79,4 +88,15 @@ export const env = {
   DROPSHIPPING_API_URL: process.env.DROPSHIPPING_API_URL,
   MONEI_API_KEY: process.env.MONEI_API_KEY,
   MONEI_WEBHOOK_SECRET: process.env.MONEI_WEBHOOK_SECRET,
+  MANUAL_PAYMENTS: {
+    bizum: {
+      recipient: process.env.MANUAL_PAYMENT_BIZUM_RECIPIENT,
+      instructions: process.env.MANUAL_PAYMENT_BIZUM_INSTRUCTIONS,
+    },
+    bankTransfer: {
+      accountHolder: process.env.MANUAL_PAYMENT_BANK_ACCOUNT_HOLDER,
+      iban: process.env.MANUAL_PAYMENT_BANK_IBAN,
+      instructions: process.env.MANUAL_PAYMENT_BANK_INSTRUCTIONS,
+    },
+  },
 };

@@ -152,9 +152,17 @@ export async function markOrderAsPaidForTest(req, res) {
 
     // 🔁 Simular pago confirmado
     order.payment.status = "paid";
-    order.payment.method = "test";
+    order.payment.method = "manual";
+    order.payment.provider = "manual";
     order.payment.transactionId = "TEST_" + Date.now();
     order.payment.paidAt = new Date();
+    order.payment.confirmedAt = order.payment.paidAt;
+    order.payment.metadata = {
+      ...(order.payment.metadata || {}),
+      testSimulation: true,
+    };
+    order.paymentStatus = "paid";
+    order.paymentConfirmedAt = order.payment.confirmedAt;
     order.status = "processing";
 
     await order.save();

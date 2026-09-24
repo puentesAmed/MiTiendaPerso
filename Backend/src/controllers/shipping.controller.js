@@ -1,24 +1,12 @@
-import { resolveShippingZone } from "../utils/shippingZones.js";
-
-const FREE_SHIPPING_THRESHOLD = 60;
-
-const SHIPPING_RULES = {
-  peninsula: {
-    basePrice: 5.99,
-    estimatedDays: { min: 2, max: 3 },
-    freeFrom: FREE_SHIPPING_THRESHOLD,
-  },
-  islands: {
-    basePrice: 9.99,
-    estimatedDays: { min: 3, max: 6 },
-    freeFrom: null,
-  },
-  international: {
-    basePrice: 19.99,
-    estimatedDays: { min: 5, max: 10 },
-    freeFrom: null,
-  },
-};
+import {
+  OrderCalculationError,
+  resolveAuthoritativeOrderLines,
+  roundCurrency,
+} from "../services/order-calculation.service.js";
+import {
+  calculateShippingQuote,
+  ShippingCalculationError,
+} from "../services/shipping.service.js";
 
 
 export async function getShippingQuote(req, res) {
@@ -32,40 +20,31 @@ export async function getShippingQuote(req, res) {
       });
     }
 
-    const zone = resolveShippingZone(shippingAddress);
+    const { subtotal } = await resolveAuthoritativeOrderLines(items);
+    const quote = calculateShippingQuote({
+      authoritativeSubtotal: subtotal,
+      shippingAddress,
+    });
 
-    
-   
-
-
-   // Calcular subtotal de productos
-    const subtotal = items.reduce((acc, item) => {
-        return acc + (item.price || 0) * (item.quantity || 1);
-        }, 0);
-
-        const rule = SHIPPING_RULES[zone];
-
-        let price = rule.basePrice;
-        let isFree = false;
-
-        if (rule.freeFrom && subtotal >= rule.freeFrom) {
-        price = 0;
-        isFree = true;
-        }
-
-        return res.json({
-        ok: true,
-        quote: {
-            zone,
-            price,
-            isFree,
-            freeFrom: rule.freeFrom,
-            estimatedDays: rule.estimatedDays,
-            currency: "EUR",
-        },
+    return res.json({
+      ok: true,
+      quote: {
+        ...quote,
+        subtotal,
+        total: roundCurrency(subtotal + quote.price),
+      },
     });
 
   } catch (err) {
+    if (
+      err instanceof OrderCalculationError ||
+      err instanceof ShippingCalculationError
+    ) {
+      return res.status(err.status || 400).json({
+        ok: false,
+        message: err.message,
+      });
+    }
     console.error("Shipping quote error:", err);
     return res.status(500).json({
       ok: false,

@@ -3,7 +3,6 @@
 import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
 import { Customization } from "../models/Customization.js";
-import { env } from "../config/env.js";
 
 import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
 import { calculateEstimatedDelivery } from "../utils/calculateEstimatedDelivery.js";
@@ -14,34 +13,41 @@ import { orderAdminEmail } from "../emails/templates/orderAdminEmail.js";
 import { orderStatusEmail } from "../emails/templates/orderStatusEmail.js";
 
 import { isDesignerCustomization, normalizeCustomizationPayload } from "../utils/customizationAdapter.js";
+import {
+  OrderCalculationError,
+  resolveAuthoritativeOrderLines,
+  roundCurrency,
+} from "../services/order-calculation.service.js";
+import {
+  calculateShippingQuote,
+  ShippingCalculationError,
+} from "../services/shipping.service.js";
+import {
+  assertManualPaymentMethod,
+  buildManualPaymentInstructions,
+  ManualPaymentError,
+} from "../services/manual-payments.service.js";
 
 console.log("🔥 ORDERS CONTROLLER ACTIVO");
 
 /**
  * 📌 CREATE ORDER
- * - Productos locales: stock + personalización
- * - AliExpress: sin stock local, sin personalización
+ * - Producto, precio, variante, stock y envío autoritativos de backend
+ * - Bizum o transferencia manual con pago inicialmente pendiente
  */
 export async function createOrder(req, res) {
-  console.log("🧪 CREATE ORDER CALLED");
-
   try {
     const userId = req.userId || null;
-
     const {
       items,
+      paymentMethod,
       guestId,
       email: guestEmail,
       shippingAddress,
       billingAddress,
       notes,
-      shipping,
-      total: clientTotal,
     } = req.body;
 
-    /* ----------------------------------------------------
-     * VALIDACIONES BÁSICAS
-     * ---------------------------------------------------- */
     if (!userId && (!guestId || !guestEmail)) {
       return res.status(400).json({
         ok: false,
@@ -56,120 +62,34 @@ export async function createOrder(req, res) {
       });
     }
 
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        ok: false,
-        message: "El carrito está vacío",
-      });
-    }
+    assertManualPaymentMethod(paymentMethod);
 
-    if (!shipping || !shipping.estimatedDays) {
-      return res.status(400).json({
-        ok: false,
-        message: "Información de envío no disponible",
-      });
-    }
-
-    /* ----------------------------------------------------
-     * CARGAR PRODUCTOS
-     * ---------------------------------------------------- */
-    const hasAffiliateItems = items.some(
-      (item) => (item.provider || "local") === "aliexpress"
-    );
-
-    if (hasAffiliateItems && !env.ALIEXPRESS_CATALOG_ENABLED) {
-      return res.status(400).json({
-        ok: false,
-        message: "Producto no disponible (aliexpress)",
-      });
-    }
-
-    const productIds = items.map(i => i.productId);
-
-    const localProducts = await Product.find({
-      _id: { $in: productIds },
-      active: true,
+    const { lines, subtotal, stockRequirements } =
+      await resolveAuthoritativeOrderLines(items);
+    const shipping = calculateShippingQuote({
+      authoritativeSubtotal: subtotal,
+      shippingAddress,
     });
+    const calculatedTotal = roundCurrency(subtotal + shipping.price);
 
-    let affiliateProducts = [];
-    if (env.ALIEXPRESS_CATALOG_ENABLED) {
-      const { AffiliateProduct } = await import("../models/AffiliateProduct.js");
-      affiliateProducts = await AffiliateProduct.find({
-        _id: { $in: productIds },
-        enabled: true,
-        readyForCheckout: true,
-      });
-    }
-
-    const productsMap = new Map([
-      ...localProducts.map(p => [p._id.toString(), p]),
-      ...affiliateProducts.map(p => [p._id.toString(), p]),
-    ]);
-
-    /* ----------------------------------------------------
-     * PROCESAR ITEMS
-     * ---------------------------------------------------- */
+    // Todas las validaciones autoritativas terminan antes de efectos laterales.
     const orderItems = [];
-    let productsTotal = 0;
-
-    for (const cartItem of items) {
-      const { productId, quantity } = cartItem;
-      const qty = Number(quantity) || 0;
-      const provider = cartItem.provider || "local";
-
-      if (!productId || qty <= 0) {
-        return res.status(400).json({
-          ok: false,
-          message: "Línea de carrito inválida",
-        });
-      }
-
-      const product = productsMap.get(productId);
-
-      if (!product) {
-        return res.status(400).json({
-          ok: false,
-          message: `Producto no disponible (${provider})`,
-        });
-      }
-
-      /* -------------------------
-       * STOCK (SOLO LOCAL)
-       * ------------------------- */
-      if (provider === "local") {
-        if (
-          typeof product.stock === "number" &&
-          product.stock < qty
-        ) {
-          return res.status(400).json({
-            ok: false,
-            message: `Stock insuficiente para: ${product.name}`,
-          });
-        }
-      }
-
-      const price = Number(cartItem.price ?? product.price);
-      productsTotal += price * qty;
-
-      /* -------------------------
-       * PERSONALIZACIÓN (SOLO LOCAL)
-       * ------------------------- */
+    for (const line of lines) {
       let customizationId = null;
-
-      const normalizedCustomization = normalizeCustomizationPayload(cartItem.customization);
+      const normalizedCustomization = normalizeCustomizationPayload(
+        line.customization
+      );
 
       if (
-        provider === "local" &&
+        line.product.customizable &&
         isDesignerCustomization(normalizedCustomization) &&
         normalizedCustomization.design
       ) {
         const design = normalizedCustomization.design;
-
         const previewsBySide =
           normalizedCustomization.previewsBySide ||
           design.previewsBySide ||
           null;
-
         const previewImage =
           normalizedCustomization.previewImage ||
           previewsBySide?.front ||
@@ -179,7 +99,7 @@ export async function createOrder(req, res) {
         const customization = await Customization.create({
           userId: userId || null,
           guestId: userId ? null : guestId,
-          productId: product._id,
+          productId: line.productId,
           design,
           previewImage,
           previewsBySide,
@@ -192,87 +112,63 @@ export async function createOrder(req, res) {
       }
 
       orderItems.push({
-        productId: product._id,
-        name: product.name || product.title,
-        price,
-        quantity: qty,
+        productId: line.productId,
+        name: line.name,
+        price: line.price,
+        quantity: line.quantity,
         customizationId,
-        selectedVariant: cartItem.selectedVariant || null,
-
-        provider,
-        externalId: provider === "aliexpress" ? product.externalId : null,
-        providerSku: cartItem.providerSku || null,
+        selectedVariant: line.selectedVariant,
+        provider: "local",
+        externalId: null,
+        providerSku: null,
       });
     }
 
-    /* ----------------------------------------------------
-     * TOTAL
-     * ---------------------------------------------------- */
-    if (typeof clientTotal !== "number") {
-      return res.status(400).json({
-        ok: false,
-        message: "Total del pedido no recibido",
-      });
-    }
-
-    const shippingPrice = shipping.price || 0;
-    const calculatedTotal = productsTotal + shippingPrice;
-
-    if (Math.abs(calculatedTotal - clientTotal) > 0.01) {
-      return res.status(400).json({
-        ok: false,
-        message: "El total del pedido no es válido",
-      });
-    }
-
-    /* ----------------------------------------------------
-     * FECHA ESTIMADA
-     * ---------------------------------------------------- */
     const estimatedDeliveryDate = calculateEstimatedDelivery({
       minDays: shipping.estimatedDays.min,
       maxDays: shipping.estimatedDays.max,
     });
 
-    /* ----------------------------------------------------
-     * DESCONTAR STOCK (SOLO LOCAL)
-     * ---------------------------------------------------- */
-    await Promise.all(
-      orderItems
-        .filter(item => item.provider === "local")
-        .map(item =>
-          Product.updateOne(
-            { _id: item.productId, stock: { $gte: item.quantity } },
-            { $inc: { stock: -item.quantity } }
-          )
-        )
-    );
+    for (const requirement of stockRequirements) {
+      const stockResult = await Product.updateOne(
+        {
+          _id: requirement.productId,
+          active: true,
+          stock: { $gte: requirement.quantity },
+        },
+        { $inc: { stock: -requirement.quantity } }
+      );
 
-    /* ----------------------------------------------------
-     * CREAR ORDER
-     * ---------------------------------------------------- */
+      if (stockResult.modifiedCount !== 1) {
+        return res.status(409).json({
+          ok: false,
+          message: "El stock ha cambiado. Revisa el carrito e inténtalo de nuevo.",
+        });
+      }
+    }
+
     const order = await Order.create({
       userId: userId || null,
       guestId: userId ? null : guestId,
       guestEmail: userId ? null : guestEmail,
-
       items: orderItems,
       total: calculatedTotal,
-
       shippingAddress,
       billingAddress: billingAddress || shippingAddress,
       notes: notes || "",
-
       status: "created",
-
       payment: {
-        method: null,
-        provider: null,
+        method: paymentMethod,
+        provider: "manual",
         status: "pending",
+        confirmedAt: null,
+        confirmedBy: null,
         providerPaymentId: null,
         metadata: {},
+        paidAt: null,
       },
       paymentStatus: "pending",
-
+      paymentConfirmedAt: null,
       shipping: {
         zone: shipping.zone,
         price: shipping.price,
@@ -283,11 +179,8 @@ export async function createOrder(req, res) {
       },
     });
 
-    /* ----------------------------------------------------
-     * VINCULAR PERSONALIZACIONES
-     * ---------------------------------------------------- */
     const customizationIds = orderItems
-      .map(i => i.customizationId)
+      .map((item) => item.customizationId)
       .filter(Boolean);
 
     if (customizationIds.length > 0) {
@@ -297,9 +190,6 @@ export async function createOrder(req, res) {
       );
     }
 
-    /* ----------------------------------------------------
-     * EMAILS
-     * ---------------------------------------------------- */
     try {
       await sendEmail({
         to: order.guestEmail || req.user?.email,
@@ -313,7 +203,7 @@ export async function createOrder(req, res) {
     try {
       await sendEmail({
         to: process.env.ADMIN_EMAIL,
-        subject: `Nuevo pedido #${order._id}`,
+        subject: "Nuevo pedido #" + order._id,
         html: orderAdminEmail(order),
       });
     } catch (err) {
@@ -324,9 +214,20 @@ export async function createOrder(req, res) {
       ok: true,
       orderId: order._id,
       order,
+      paymentInstructions: buildManualPaymentInstructions(order),
     });
-
   } catch (err) {
+    if (
+      err instanceof OrderCalculationError ||
+      err instanceof ShippingCalculationError ||
+      err instanceof ManualPaymentError
+    ) {
+      return res.status(err.status || 400).json({
+        ok: false,
+        message: err.message,
+      });
+    }
+
     console.error("🔥 ERROR DETALLADO EN createOrder:", err);
     return res.status(500).json({
       ok: false,

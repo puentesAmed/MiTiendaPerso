@@ -1,5 +1,7 @@
 import test, { before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
+import { rm } from "node:fs/promises";
+import path from "node:path";
 import request from "supertest";
 
 import { createApp } from "../../src/app.js";
@@ -7,7 +9,11 @@ import { Product } from "../../src/models/Product.js";
 import { Order } from "../../src/models/Order.js";
 import { Customization } from "../../src/models/Customization.js";
 import { setupTestDB, clearTestDB, teardownTestDB } from "../setup/test-db.js";
-import { createAdminAuthHeader } from "../setup/test-auth.js";
+import {
+  createAdminAuthHeader,
+  createTokenForUser,
+  createUser,
+} from "../setup/test-auth.js";
 
 const app = createApp();
 
@@ -15,6 +21,7 @@ function validOrderPayload(productId) {
   return {
     guestId: "guest-test-1",
     email: "guest@test.com",
+    paymentMethod: "bizum",
     items: [{ productId, quantity: 1, provider: "local", price: 20 }],
     shippingAddress: {
       fullName: "Cliente Test",
@@ -147,6 +154,12 @@ test("createOrder con customization v1 (designer) sigue creando Customization", 
     res.body.order.items[0].customizationId
   ).lean();
   assert.ok(customization);
+  if (customization.zipUrl) {
+    await rm(
+      path.resolve(process.cwd(), customization.zipUrl.replace(/^\/+/, "")),
+      { force: true }
+    );
+  }
 });
 
 test("mark-paid sin token devuelve 401", async () => {
@@ -190,7 +203,7 @@ test("mark-paid con admin en pedido pendiente marca pago y no cambia status oper
       deliveryStatus: "estimated",
     },
     shippingAddress: address(),
-    payment: { status: "pending", method: null, provider: null, metadata: {} },
+    payment: { status: "pending", method: "bizum", provider: "manual", metadata: {} },
     paymentStatus: "pending",
   });
 
@@ -202,8 +215,27 @@ test("mark-paid con admin en pedido pendiente marca pago y no cambia status oper
   assert.equal(res.status, 200);
   const updated = await Order.findById(order._id).lean();
   assert.equal(updated.payment.status, "paid");
+  assert.equal(updated.payment.method, "bizum");
+  assert.ok(updated.payment.confirmedAt);
+  assert.ok(updated.payment.confirmedBy);
   assert.equal(updated.paymentStatus, "paid");
+  assert.ok(updated.paymentConfirmedAt);
   assert.equal(updated.status, "created");
+});
+
+test("mark-paid con usuario no administrador devuelve 403", async () => {
+  const user = await createUser({
+    role: "user",
+    email: "regular@test.com",
+  });
+  const order = await Order.create(baseOrder());
+
+  const res = await request(app)
+    .post(`/api/orders/${order._id}/mark-paid`)
+    .set("Authorization", `Bearer ${createTokenForUser(user)}`)
+    .send();
+
+  assert.equal(res.status, 403);
 });
 
 test("mark-paid en pedido cancelado devuelve 409", async () => {

@@ -42,7 +42,13 @@ export function OrderConfirmation() {
     isGuest,
     email,
     emailHasAccount, // 🔑 CLAVE
+    paymentInstructions,
   } = state;
+
+  const paymentMethodLabel =
+    paymentInstructions?.method === "bank_transfer"
+      ? "Transferencia bancaria"
+      : "Bizum";
 
   return (
     <Box maxW="800px" mx="auto" mt={12} px={4}>
@@ -143,6 +149,41 @@ export function OrderConfirmation() {
         <Text fontWeight="bold">
           Total: {order?.total?.toFixed(2)} €
         </Text>
+
+        {paymentInstructions && (
+          <Box mt={5} p={4} borderWidth="1px" borderRadius="md" bg={infoBg}>
+            <Heading size="sm" mb={3}>
+              Pago pendiente
+            </Heading>
+            <Stack spacing={2} fontSize="sm">
+              <Text><strong>Método:</strong> {paymentMethodLabel}</Text>
+              <Text>
+                <strong>Importe:</strong>{" "}
+                {paymentInstructions.amount.toFixed(2)} {paymentInstructions.currency}
+              </Text>
+              <Text>
+                <strong>Concepto:</strong> {paymentInstructions.reference}
+              </Text>
+              {paymentInstructions.method === "bizum" ? (
+                <Text>
+                  <strong>Destinatario:</strong> {paymentInstructions.recipient}
+                </Text>
+              ) : (
+                <>
+                  <Text>
+                    <strong>Titular:</strong> {paymentInstructions.accountHolder}
+                  </Text>
+                  <Text><strong>IBAN:</strong> {paymentInstructions.iban}</Text>
+                </>
+              )}
+              <Text>{paymentInstructions.instructions}</Text>
+              <Text fontWeight="semibold">
+                Realiza el pago indicando la referencia y espera la confirmación
+                manual del pedido.
+              </Text>
+            </Stack>
+          </Box>
+        )}
 
         {/* DIRECCIÓN */}
         {order?.shippingAddress && (

@@ -5,18 +5,19 @@ import { normalizeCustomization } from "../utils/customizationAdapter";
 export async function createOrderRequest(items, data = {}) {
   const payload = {
     items: (items || []).map((item) => ({
-      ...item,
+      productId: item.productId,
+      quantity: item.quantity,
+      selectedVariant: item.selectedVariant ?? null,
       customization: normalizeCustomization(item?.customization, {
         _id: item?.productId,
       }),
     })),
+    paymentMethod: data.paymentMethod,
     guestId: data.guestId ?? null,
     email: data.email ?? null,
     shippingAddress: data.shippingAddress,
     billingAddress: data.billingAddress ?? null,
     notes: data.notes ?? "",
-    shipping: data.shipping,
-    total: data.total ?? 0,
   };
 
   if (import.meta.env.DEV) {
@@ -29,6 +30,20 @@ export async function createOrderRequest(items, data = {}) {
     console.log("Pedido creado correctamente");
   }
   return response;
+}
+
+export async function getShippingQuoteRequest(items, shippingAddress, signal) {
+  const payload = {
+    items: (items || []).map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      selectedVariant: item.selectedVariant ?? null,
+    })),
+    shippingAddress,
+  };
+
+  const { data } = await http.post("/api/shipping/quote", payload, { signal });
+  return data;
 }
 
 // Pedidos del usuario autenticado

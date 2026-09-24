@@ -3,7 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, Link as RouterLink} from "react-router-dom";
 import { useCart } from "../../hooks/useCart";
 import { useAuth } from "../../hooks/useAuth";
-import { createOrderRequest } from "../../services/orders.service";
+import {
+  createOrderRequest,
+  getShippingQuoteRequest,
+} from "../../services/orders.service";
 import { CustomizationInlineSummary } from "../../components/checkout/CustomizationInlineSummary";
 //import { createPayment } from "../../services/payments.service";
 
@@ -40,7 +43,8 @@ import {
   Link,
   FormControl,
   FormLabel,
-  FormErrorMessage
+  FormErrorMessage,
+  Select,
 } from "@chakra-ui/react";
 import { loadGuestSession, saveGuestSession } from "../../services/guestSession.service";
 import { GuestSessionNotice } from "../../components/checkout/GuestSessionNotice";
@@ -72,7 +76,7 @@ export function Checkout() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  //const [paymentMethod] = useState("card");
+  const [paymentMethod, setPaymentMethod] = useState("bizum");
   const [checkoutHydrated, setCheckoutHydrated] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
@@ -135,9 +139,10 @@ export function Checkout() {
         billingAddress,
         useSameBilling,
         notes,
+        paymentMethod,
       },
     });
-  }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes, checkoutHydrated]);
+  }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes, paymentMethod, checkoutHydrated]);
 
   
   // 🔁 Restaurar borrador del checkout (volver del diseñador)
@@ -151,6 +156,9 @@ export function Checkout() {
       if (d.billingAddress) setBillingAddress(d.billingAddress);
       if (typeof d.useSameBilling === "boolean") setUseSameBilling(d.useSameBilling);
       if (d.notes) setNotes(d.notes);
+      if (["bizum", "bank_transfer"].includes(d.paymentMethod)) {
+        setPaymentMethod(d.paymentMethod);
+      }
     }
     
     setCheckoutHydrated(true);
@@ -185,27 +193,19 @@ export function Checkout() {
         setShippingLoading(true);
         setShippingError("");
 
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/shipping/quote`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            items: items.map(i => ({
-              productId: i.productId,
-              quantity: i.quantity,
-              price: i.price,
-            })),
-            shippingAddress,
-          }),
-          signal: controller.signal,
-        });
-
-        const data = await res.json();
+        const data = await getShippingQuoteRequest(
+          items,
+          shippingAddress,
+          controller.signal
+        );
         if (!data.ok) throw new Error(data.message || "Error envío");
 
         setShippingQuote(data.quote);
       } catch (err) {
-        if (err.name !== "AbortError") {
-          setShippingError("No se pudo calcular el envío");
+        if (err.name !== "CanceledError" && err.code !== "ERR_CANCELED") {
+          setShippingError(
+            err.response?.data?.message || "No se pudo calcular el envío"
+          );
           setShippingQuote(null);
         }
       } finally {
@@ -279,22 +279,18 @@ export function Checkout() {
   };
 
   const processOrder = async () => {
-    console.log("🚚 shippingQuote enviado:", shippingQuote);
     if (loading) return; // ⛔ evita doble ejecución
 
     try {
       setLoading(true);
 
-      const orderTotal = totalAmount + (shippingQuote.price || 0);
-
-      const data = await createOrderRequest(items, /*paymentMethod,*/ {
+      const data = await createOrderRequest(items, {
+        paymentMethod,
         guestId: user ? null : getGuestId(),
         email: user ? null : guestEmail,
         shippingAddress,
         billingAddress: useSameBilling ? shippingAddress : billingAddress,
         notes,
-        shipping: shippingQuote,
-        total: orderTotal,
       });
 
       
@@ -363,6 +359,7 @@ export function Checkout() {
         isGuest: !user,
         email: !user ? guestEmail : null, 
         emailHasAccount, 
+        paymentInstructions: data.paymentInstructions,
       }, 
     }); 
     
@@ -375,7 +372,9 @@ export function Checkout() {
 
     } catch (err) {
       console.error("Error procesando pedido:", err);
-      setError("Error inesperado al procesar pedido");
+      setError(
+        err.response?.data?.message || "Error inesperado al procesar pedido"
+      );
     } finally {
       setLoading(false);
     }
@@ -559,7 +558,9 @@ export function Checkout() {
 
       <Box mt={4}>
         <Text fontSize="lg" fontWeight="bold">
-          Subtotal productos: {totalAmount.toFixed(2)} €
+          Subtotal productos: {shippingQuote
+            ? shippingQuote.subtotal.toFixed(2)
+            : totalAmount.toFixed(2)} €
         </Text>
 
         {!isShippingAddressValid() && (
@@ -604,11 +605,11 @@ export function Checkout() {
             {/* FALTA PARA ENVÍO GRATIS */}
             {!shippingQuote.isFree &&
               shippingQuote.freeFrom &&
-              totalAmount < shippingQuote.freeFrom && (
+              shippingQuote.subtotal < shippingQuote.freeFrom && (
                 <Text fontSize="xs" color="textMuted" mt={1}>
                   Añade{" "}
                   <strong>
-                    {(shippingQuote.freeFrom - totalAmount).toFixed(2)} €
+                    {(shippingQuote.freeFrom - shippingQuote.subtotal).toFixed(2)} €
                   </strong>{" "}
                   más para conseguir envío gratis
                 </Text>
@@ -617,7 +618,10 @@ export function Checkout() {
             <Divider my={2} />
 
             <Text fontSize="xl" fontWeight="bold">
-              Total: {(totalAmount + shippingQuote.price).toFixed(2)} €
+              Total: {shippingQuote.total.toFixed(2)} €
+            </Text>
+            <Text fontSize="xs" color="textMuted">
+              Importes calculados y confirmados por el servidor.
             </Text>
           </>
         )}
@@ -730,14 +734,29 @@ export function Checkout() {
         </AccordionItem>
       </Accordion>
 
+      <FormControl mt={6} isRequired>
+        <FormLabel>Método de pago</FormLabel>
+        <Select
+          value={paymentMethod}
+          onChange={(event) => setPaymentMethod(event.target.value)}
+        >
+          <option value="bizum">Bizum</option>
+          <option value="bank_transfer">Transferencia bancaria</option>
+        </Select>
+        <Text fontSize="xs" color="textMuted" mt={1}>
+          El pedido quedará pendiente de pago. Verás las instrucciones después
+          de confirmarlo.
+        </Text>
+      </FormControl>
+
       <Stack
         mt={6}
         spacing={2}
         fontSize="sm"
         color={useColorModeValue("gray.600", "gray.400")}
       >
-        <Text>🔒 Pago seguro: tus datos están protegidos durante todo el proceso.</Text>
-        <Text>📦 Envío: el coste y el plazo se confirmarán antes del pago.</Text>
+        <Text>🔒 Pago manual: recibirás instrucciones para el método seleccionado.</Text>
+        <Text>📦 Envío: el coste y el plazo se confirman antes de crear el pedido.</Text>
         <Text>🎨 Personalización: revisa tu diseño antes de confirmar el pedido.</Text>
         <Text>🕒 Privacidad: los datos de invitados se conservan solo para finalizar el pedido.</Text>
       </Stack>
@@ -757,7 +776,7 @@ export function Checkout() {
       </Checkbox>
       {!acceptedTerms && (
         <Text fontSize="xs" color="gray.500" mt={1}>
-          Es obligatorio aceptar los términos para continuar con el pago.
+          Es obligatorio aceptar los términos para confirmar el pedido.
         </Text>
       )}
 
@@ -778,14 +797,14 @@ export function Checkout() {
         onClick={handleConfirmOrder} 
         isDisabled={loading || !acceptedTerms} 
         > 
-          {loading ? "Procesando pedido…" : "Confirmar pedido y pagar"} 
+          {loading ? "Procesando pedido…" : "Confirmar pedido"}
         </Button>
 
       <Text fontSize="xs" color="gray.500" mt={2}>
         Los datos introducidos se utilizarán únicamente para gestionar este pedido.
         Se guardan de forma temporal en tu dispositivo y se eliminarán automáticamente
-        al finalizar el proceso o tras un periodo de inactividad. El coste total, 
-        incluyendo el envío, se mostrará antes de confirmar el pago.{" "}
+        al finalizar el proceso o tras un periodo de inactividad. El coste total,
+        incluyendo el envío, será recalculado al confirmar el pedido.{" "}
         <Link as={RouterLink} to="/politica-privacidad" textDecoration="underline">
           Política de Privacidad
         </Link>
