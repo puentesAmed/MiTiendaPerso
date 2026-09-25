@@ -24,8 +24,8 @@ import {
   Badge,
   Alert,
   AlertIcon,
-  useColorModeValue,
-} from "@chakra-ui/react";
+  useThemeValue,
+} from "@/components/ui/legacy-ui";
 
 import { forwardRef, useImperativeHandle } from "react";
 
@@ -271,13 +271,13 @@ export const ProductDesigner = forwardRef(function ProductDesigner(
   const [selectedId, setSelectedId] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
 
-  const panelBg = useColorModeValue("white", "gray.800");
-  const panelBorder = useColorModeValue("gray.200", "gray.700");
-  const panelTitle = useColorModeValue("gray.700", "gray.100");
-  const sectionTitle = useColorModeValue("gray.600", "gray.300");
-  const helperText = useColorModeValue("gray.600", "gray.300");
-  const mutedText = useColorModeValue("gray.500", "gray.400");
-  const canvasWrapperBg = useColorModeValue("gray.50", "gray.900");
+  const panelBg = useThemeValue("white", "gray.800");
+  const panelBorder = useThemeValue("gray.200", "gray.700");
+  const panelTitle = useThemeValue("gray.700", "gray.100");
+  const sectionTitle = useThemeValue("gray.600", "gray.300");
+  const helperText = useThemeValue("gray.600", "gray.300");
+  const mutedText = useThemeValue("gray.500", "gray.400");
+  const canvasWrapperBg = useThemeValue("gray.50", "gray.900");
   
   const emitDesign = (overrides = {}) => {
     onChange?.({

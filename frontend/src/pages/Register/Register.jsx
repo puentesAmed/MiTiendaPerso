@@ -17,8 +17,8 @@ import {
   Text,
   Alert,
   AlertIcon,
-  useColorModeValue,
-} from "@chakra-ui/react";
+  useThemeValue,
+} from "@/components/ui/legacy-ui";
 
 const schema = z
   .object({
@@ -40,9 +40,9 @@ export function Register() {
   const fromGuest = location.state?.fromGuest === true;
   const guestEmail = location.state?.email || "";
 
-  const cardBg = useColorModeValue("white", "gray.800");
-  const mutedText = useColorModeValue("gray.600", "gray.400");
-  const guestEmailBg = useColorModeValue("gray.100", "gray.700");
+  const cardBg = useThemeValue("white", "gray.800");
+  const mutedText = useThemeValue("gray.600", "gray.400");
+  const guestEmailBg = useThemeValue("gray.100", "gray.700");
 
   const {
     register,

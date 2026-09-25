@@ -1,8 +1,8 @@
 // src/pages/Legal/CookiesPolicy.jsx
-import { Box, Heading, Text, Stack, useColorModeValue } from "@chakra-ui/react";
+import { Box, Heading, Text, Stack, useThemeValue } from "@/components/ui/legacy-ui";
 
 export function CookiesPolicy() {
-  const textColor = useColorModeValue("gray.700", "gray.300");
+  const textColor = useThemeValue("gray.700", "gray.300");
 
   return (
     <Box maxW="800px" mx="auto" p={6}>

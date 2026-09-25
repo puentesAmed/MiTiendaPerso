@@ -7,7 +7,7 @@ import {
   Stack,
   Text,
   Badge,
-} from "@chakra-ui/react";
+} from "@/components/ui/legacy-ui";
 import { http } from "../../services/http";
 
 
@@ -111,7 +111,7 @@ import {
   Text,
   Badge,
   Divider,
-} from "@chakra-ui/react";
+} from "@/components/ui/legacy-ui";
 import { http } from "../../services/http";
 import { OrderTimeline } from "../../components/orders/OrderTimeline";
 

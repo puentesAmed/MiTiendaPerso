@@ -1,4 +1,4 @@
-import { Box, Text, Button, Image, Stack, Badge } from "@chakra-ui/react";
+import { Box, Text, Button, Image, Stack, Badge } from "@/components/ui/legacy-ui";
 
 export function CustomizationInlineSummary({ item, onEdit }) {
   const customization = item?.customization;

@@ -10,9 +10,9 @@ import {
   Button,
   Input,
   Divider,
-  useColorModeValue,
-} from "@chakra-ui/react";
-import { DeleteIcon } from "@chakra-ui/icons";
+  useThemeValue,
+} from "@/components/ui/legacy-ui";
+import { DeleteIcon } from "@/components/ui/icons";
 import { useCart } from "../../hooks/useCart";
 import { useNavigate } from "react-router-dom";
 import { CustomizationInlineSummary } from "../../components/checkout/CustomizationInlineSummary";
@@ -21,8 +21,8 @@ export function Cart() {
   const { items, updateQuantity, removeItem, clearCart, totalAmount } = useCart();
   const navigate = useNavigate();
 
-  const bg = useColorModeValue("gray.50", "gray.800");
-  const cardBg = useColorModeValue("white", "gray.700");
+  const bg = useThemeValue("gray.50", "gray.800");
+  const cardBg = useThemeValue("white", "gray.700");
 
   return (
     <Box p={{ base: 3, md: 6 }} bg={bg} borderRadius="xl" boxShadow="md">

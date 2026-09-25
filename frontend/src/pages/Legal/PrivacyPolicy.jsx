@@ -1,5 +1,5 @@
 // src/pages/Legal/PrivacyPolicy.jsx
-import { Box, Heading, Text, Stack } from "@chakra-ui/react";
+import { Box, Heading, Text, Stack } from "@/components/ui/legacy-ui";
 
 export function PrivacyPolicy() {
   return (

@@ -1,4 +1,4 @@
-import { Box, Heading, Text, Stack, Divider } from "@chakra-ui/react";
+import { Box, Heading, Text, Stack, Divider } from "@/components/ui/legacy-ui";
 
 export function TerminosCondiciones() {
   return (

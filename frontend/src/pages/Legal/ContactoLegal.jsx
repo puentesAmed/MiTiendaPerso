@@ -1,7 +1,7 @@
-import { Box, Heading, Text, Stack, Link, useColorModeValue } from "@chakra-ui/react";
+import { Box, Heading, Text, Stack, Link, useThemeValue } from "@/components/ui/legacy-ui";
 
 export function ContactoLegal() {
-  const textColor = useColorModeValue("gray.700", "gray.300");
+  const textColor = useThemeValue("gray.700", "gray.300");
 
   return (
     <Box maxW="800px" mx="auto" p={6}>

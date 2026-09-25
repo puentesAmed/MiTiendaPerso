@@ -8,17 +8,17 @@ import {
   Button,
   Alert,
   AlertIcon,
-  useColorModeValue,
-} from "@chakra-ui/react";
+  useThemeValue,
+} from "@/components/ui/legacy-ui";
 
 export function OrderConfirmation() {
   const { state } = useLocation();
   const navigate = useNavigate();
 
-  const cardBg = useColorModeValue("white", "gray.800");
-  const mutedText = useColorModeValue("gray.600", "gray.400");
-  const successColor = useColorModeValue("green.500", "green.300");
-  const infoBg = useColorModeValue("blue.50", "blue.900");
+  const cardBg = useThemeValue("white", "gray.800");
+  const mutedText = useThemeValue("gray.600", "gray.400");
+  const successColor = useThemeValue("green.500", "green.300");
+  const infoBg = useThemeValue("blue.50", "blue.900");
 
   // 🔒 Acceso directo sin pedido
   if (!state || !state.orderId) {

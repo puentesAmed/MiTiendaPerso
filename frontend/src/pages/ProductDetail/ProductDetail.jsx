@@ -20,9 +20,9 @@ import {
   FormLabel,
   Select,
   Divider,
-  useColorModeValue,
-} from "@chakra-ui/react";
-import { ArrowBackIcon } from "@chakra-ui/icons";
+  useThemeValue,
+} from "@/components/ui/legacy-ui";
+import { ArrowBackIcon } from "@/components/ui/icons";
 import { apiGetProductById } from "../../services/products.service";
 import { useCart } from "../../hooks/useCart";
 import { normalizeVariant } from "../../utils/cartLineAdapter";
@@ -53,7 +53,7 @@ export function ProductDetail() {
 
   const isCustomizable = !!product?.customizable;
 
-  const customBoxBg = useColorModeValue("purple.50", "purple.900Alpha.200");
+  const customBoxBg = useThemeValue("purple.50", "purple.900Alpha.200");
 
   const handleBackToProducts = () => {
     if (location.state?.fromProducts) {

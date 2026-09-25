@@ -8,9 +8,9 @@ import {
   Button,
   HStack,
   Stack,
-  useColorModeValue,
-} from "@chakra-ui/react";
-import { ArrowBackIcon } from "@chakra-ui/icons";
+  useThemeValue,
+} from "@/components/ui/legacy-ui";
+import { ArrowBackIcon } from "@/components/ui/icons";
 
 import { apiGetProductById } from "../../services/products.service";
 import { useCart } from "../../hooks/useCart";
@@ -38,8 +38,8 @@ export function ProductDesignerPage() {
   const [mode, setMode] = useState("edit");
   const [error, setError] = useState("");
 
-  const bg = useColorModeValue("gray.50", "gray.900");
-  const cardBg = useColorModeValue("white", "gray.800");
+  const bg = useThemeValue("gray.50", "gray.900");
+  const cardBg = useThemeValue("white", "gray.800");
 
   /* ───────────────────────────────
      CARGAR PRODUCTO

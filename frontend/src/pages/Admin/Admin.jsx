@@ -21,7 +21,7 @@ import {
   Td,
   Badge,
   useToast,
-  useColorModeValue,
+  useThemeValue,
   FormControl,
   FormLabel,
   Input,
@@ -40,9 +40,9 @@ import {
   ModalHeader,
   ModalCloseButton,
   ModalFooter,
-} from "@chakra-ui/react";
+} from "@/components/ui/legacy-ui";
 
-import { AddIcon, EditIcon, DeleteIcon, RepeatIcon, DownloadIcon } from "@chakra-ui/icons";
+import { AddIcon, EditIcon, DeleteIcon, RepeatIcon, DownloadIcon } from "@/components/ui/icons";
 
 import { http } from "../../services/http";
 import {
@@ -160,8 +160,8 @@ export function Admin() {
 
   
   // Chakra UI colors
-  const cardBg = useColorModeValue("white", "gray.800");
-  const headerBg = useColorModeValue("gray.100", "gray.700");
+  const cardBg = useThemeValue("white", "gray.800");
+  const headerBg = useThemeValue("gray.100", "gray.700");
 
   // ---------------------------
   //  RESET FORM PRODUCTO

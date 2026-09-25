@@ -6,9 +6,9 @@ import {
   Image,
   SimpleGrid,
   Stack,
-  useColorModeValue,
-} from "@chakra-ui/react";
-import { ArrowForwardIcon } from "@chakra-ui/icons";
+  useThemeValue,
+} from "@/components/ui/legacy-ui";
+import { ArrowForwardIcon } from "@/components/ui/icons";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
@@ -20,7 +20,7 @@ const MotionBox = motion(Box);
 
 export function Home() {
   const navigate = useNavigate();
-  const bg = useColorModeValue("#F7F7FA", "gray.900");
+  const bg = useThemeValue("#F7F7FA", "gray.900");
 
   return (
     <Box bg={bg} minH="100vh">

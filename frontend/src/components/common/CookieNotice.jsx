@@ -1,4 +1,4 @@
-import { Box, Button, Text, HStack, Link, useColorModeValue } from "@chakra-ui/react";
+import { Box, Button, Text, HStack, Link, useThemeValue } from "@/components/ui/legacy-ui";
 import { Link as RouterLink } from "react-router-dom";
 import { useState } from "react";
 
@@ -6,7 +6,7 @@ const COOKIE_KEY = "cookies_accepted_v1";
 
 export function CookieNotice() {
   const [visible, setVisible] = useState(() => !localStorage.getItem(COOKIE_KEY));
-  const noticeBg = useColorModeValue("gray.900", "gray.800");
+  const noticeBg = useThemeValue("gray.900", "gray.800");
 
   if (!visible) return null;
 

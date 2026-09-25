@@ -1,5 +1,5 @@
 // src/components/ProductPreviewGallery.jsx
-import { Box, Image, Text, HStack } from "@chakra-ui/react";
+import { Box, Image, Text, HStack } from "@/components/ui/legacy-ui";
 
 export function ProductPreviewGallery({ design, width = 300 }) {
   const front = design?.previewsBySide?.front;

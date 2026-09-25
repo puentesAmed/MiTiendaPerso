@@ -9,8 +9,8 @@ import {
   SimpleGrid,
   Divider,
   Spinner,
-  useColorModeValue,
-} from "@chakra-ui/react";
+  useThemeValue,
+} from "@/components/ui/legacy-ui";
 import { useAuth } from "../../hooks/useAuth";
 import { getMyOrdersRequest } from "../../services/orders.service";
 
@@ -22,8 +22,8 @@ export function MyOrders() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const cardBg = useColorModeValue("white", "gray.800");
-  const subTextColor = useColorModeValue("gray.600", "gray.400");
+  const cardBg = useThemeValue("white", "gray.800");
+  const subTextColor = useThemeValue("gray.600", "gray.400");
 
   useEffect(() => {
     if (!user) {

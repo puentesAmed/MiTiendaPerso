@@ -46,11 +46,11 @@ import {
   FormLabel,
   FormErrorMessage,
   Select,
-} from "@chakra-ui/react";
+} from "@/components/ui/legacy-ui";
 import { loadGuestSession, saveGuestSession } from "../../services/guestSession.service";
 import { GuestSessionNotice } from "../../components/checkout/GuestSessionNotice";
-import { useColorModeValue } from "@chakra-ui/react";
-import { DeleteIcon } from "@chakra-ui/icons";
+import { useThemeValue } from "@/components/ui/legacy-ui";
+import { DeleteIcon } from "@/components/ui/icons";
 import { checkEmailExists } from "../../services/auth.service";
 //import { createMoneiPayment } from "../../services/payments.service";
 
@@ -808,7 +808,7 @@ export function Checkout() {
         mt={6}
         spacing={2}
         fontSize="sm"
-        color={useColorModeValue("gray.600", "gray.400")}
+        color={useThemeValue("gray.600", "gray.400")}
       >
         <Text>🔒 Pago manual: recibirás instrucciones para el método seleccionado.</Text>
         <Text>📦 Envío: el coste y el plazo se confirman antes de crear el pedido.</Text>

@@ -1,4 +1,4 @@
-import { Box, Flex, Text, Circle } from "@chakra-ui/react";
+import { Box, Flex, Text, Circle } from "@/components/ui/legacy-ui";
 
 const STEPS = [
   { key: "created", label: "Pedido recibido" },

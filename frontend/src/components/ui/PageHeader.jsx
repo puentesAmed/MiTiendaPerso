@@ -1,27 +1,2 @@
-import { Box, Flex, Heading, Text } from "@chakra-ui/react";
-
-export function PageHeader({ title, description, actions, ...props }) {
-  return (
-    <Flex
-      as="header"
-      direction={{ base: "column", md: "row" }}
-      align={{ base: "stretch", md: "flex-start" }}
-      justify="space-between"
-      gap={4}
-      mb={6}
-      {...props}
-    >
-      <Box minW={0}>
-        <Heading as="h1" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="short">
-          {title}
-        </Heading>
-        {description && (
-          <Text mt={2} color="textMuted" maxW="3xl">
-            {description}
-          </Text>
-        )}
-      </Box>
-      {actions && <Box flexShrink={0}>{actions}</Box>}
-    </Flex>
-  );
-}
+import { cn } from "@/lib/utils";
+export function PageHeader({ title, description, actions, className, ...props }) { return <header className={cn("mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between", className)} {...props}><div className="min-w-0"><h1 className="text-2xl font-bold tracking-tight md:text-3xl">{title}</h1>{description && <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p>}</div>{actions && <div className="shrink-0">{actions}</div>}</header>; }

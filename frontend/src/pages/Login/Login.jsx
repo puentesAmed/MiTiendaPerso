@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { useNavigate, useLocation } from "react-router-dom";
-import { Input, Button, Box, Heading, VStack, Text } from "@chakra-ui/react";
+import { Input, Button, Box, Heading, VStack, Text } from "@/components/ui/legacy-ui";
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
@@ -102,16 +102,16 @@ import {
   FormLabel,
   FormErrorMessage,
   Heading,
-  useColorModeValue,
+  useThemeValue,
   VStack,
   InputGroup,
   InputRightElement,
   IconButton,
-} from "@chakra-ui/react";
-import { ViewIcon, ViewOffIcon } from "@chakra-ui/icons";
+} from "@/components/ui/legacy-ui";
+import { ViewIcon, ViewOffIcon } from "@/components/ui/icons";
 import { useAuth } from "../../hooks/useAuth.js";
 import { Link as RouterLink } from "react-router-dom";
-import { Link, Text, HStack } from "@chakra-ui/react";
+import { Link, Text, HStack } from "@/components/ui/legacy-ui";
 
 
 
@@ -164,7 +164,7 @@ export function Login() {
       border="1px solid"
       borderColor={border}
       rounded="lg"
-      boxShadow={useColorModeValue("sm", "none")}
+      boxShadow={useThemeValue("sm", "none")}
     >
       <Heading as="h2" size="lg" mb={6} textAlign="center">
         Iniciar sesión

@@ -1,4 +1,4 @@
-import { Text } from "@chakra-ui/react";
+import { Text } from "@/components/ui/legacy-ui";
 
 export function GuestSessionNotice() {
   return (

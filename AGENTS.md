@@ -145,6 +145,32 @@ El proyecto RicoSaborCubanoMiLuGui puede utilizarse como referencia conceptual c
 
 No copiar código automáticamente.
 
+## Stack UI objetivo
+
+El frontend utiliza:
+
+* Tailwind CSS;
+* shadcn/ui;
+* Base UI;
+* Magic UI;
+* Lucide Icons.
+
+Chakra UI queda retirado y no debe utilizarse en nuevos desarrollos.
+
+## Dirección visual
+
+La dirección visual es `Premium Compact Commerce`.
+
+Priorizar densidad, jerarquía, claridad, velocidad, responsive, accesibilidad, imágenes de producto y consistencia.
+
+Evitar padding excesivo, cards sobredimensionadas, glassmorphism indiscriminado, animaciones continuas, blur innecesario, botones gigantes, radios excesivos y efectos gratuitos.
+
+## Magic UI
+
+Usar Magic UI únicamente en hero, marketing, promociones, microinteracciones justificadas y detalles visuales de alto impacto.
+
+No usar Magic UI en carrito, checkout, formularios críticos, administración ni tablas de datos.
+
 ## Seguridad
 
 Nunca incluir:

@@ -1,18 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-
-import {
-  Box,
-  SimpleGrid,
-  Input,
-  Select,
-  HStack,
-  Button,
-  IconButton,
-  FormControl,
-  FormLabel,
-} from "@chakra-ui/react";
-import { RepeatIcon } from "@chakra-ui/icons";
+import { RotateCcw } from "lucide-react";
 import { apiGetProducts } from "../../services/products.service";
 import { ProductCard } from "../../components/ProductCard";
 import { PageContainer } from "../../components/ui/PageContainer";
@@ -20,6 +8,9 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Select } from "../../components/ui/select";
 
 const PRODUCTS_SCROLL_KEY = "products_scroll_y";
 const MAX_SCROLL_RESTORE_ATTEMPTS = 30;
@@ -167,98 +158,60 @@ export function Products() {
   };
 
   return (
-    <PageContainer
-      bg="bgSurface"
-      borderWidth="1px"
-      borderColor="borderSubtle"
-      borderRadius="surface"
-      boxShadow="sm"
-      py={{ base: 4, md: 6 }}
-    >
+    <PageContainer>
       <PageHeader
         title="Productos en venta"
         description="Explora el catálogo y añade al carrito lo que quieras comprar."
-        mb={4}
       />
 
-      {/* Filtros */}
-      <Box
-        mb={4}
-        p={3}
-        borderWidth="1px"
-        borderRadius="lg"
-        bg="bgSubtle"
-        borderColor="borderSubtle"
-      >
-        <HStack spacing={3} align="flex-end" flexWrap="wrap">
-          <FormControl flex="1 1 200px">
-            <FormLabel mb={1} fontSize="xs" color="textMuted">
-              Buscar por nombre
-            </FormLabel>
+      <section className="mb-4 rounded-xl border bg-muted/45 p-3">
+        <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(200px,1.5fr)_minmax(160px,1fr)_120px_120px_auto]">
+          <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            Buscar por nombre
             <Input
-              size="sm"
               placeholder="Buscar..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
-          </FormControl>
+          </label>
 
-          <FormControl flex="1 1 160px">
-            <FormLabel mb={1} fontSize="xs" color="textMuted">
-              Categoría
-            </FormLabel>
+          <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            Categoría
             <Select
-              size="sm"
-              placeholder="Todas"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
-              {/* Si quieres, carga categorías desde BD.
-                 De momento, ejemplos fijos: */}
+              <option value="">Todas</option>
               <option value="ropa">Ropa</option>
               <option value="electronica">Electrónica</option>
               <option value="hogar">Hogar</option>
             </Select>
-          </FormControl>
+          </label>
 
-          <FormControl flex="0 0 120px">
-            <FormLabel mb={1} fontSize="xs" color="textMuted">
-              Precio mín.
-            </FormLabel>
+          <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            Precio mín.
             <Input
-              size="sm"
               type="number"
               value={minPrice}
               onChange={(e) => setMinPrice(e.target.value)}
             />
-          </FormControl>
+          </label>
 
-          <FormControl flex="0 0 120px">
-            <FormLabel mb={1} fontSize="xs" color="textMuted">
-              Precio máx.
-            </FormLabel>
+          <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            Precio máx.
             <Input
-              size="sm"
               type="number"
               value={maxPrice}
               onChange={(e) => setMaxPrice(e.target.value)}
             />
-          </FormControl>
+          </label>
 
-          <HStack>
-            <Button size="sm" onClick={handleSearch} isLoading={loading}>
-              Filtrar
-            </Button>
-            <IconButton
-              size="sm"
-              aria-label="Limpiar filtros"
-              icon={<RepeatIcon />}
-              onClick={handleResetFilters}
-              isDisabled={loading}
-            />
-          </HStack>
-        </HStack>
-      </Box>
+          <div className="flex gap-2">
+            <Button onClick={handleSearch} disabled={loading}>Filtrar</Button>
+            <Button variant="outline" size="icon" aria-label="Limpiar filtros" onClick={handleResetFilters} disabled={loading}><RotateCcw /></Button>
+          </div>
+        </div>
+      </section>
 
       {/* Estado de carga / error / lista */}
       {loading && products.length === 0 && (
@@ -266,7 +219,7 @@ export function Products() {
       )}
 
       {error && (
-        <ErrorState description={error} onRetry={handleSearch} mb={4} />
+        <ErrorState description={error} onRetry={handleSearch} className="mb-4" />
       )}
 
       {!loading && products.length === 0 && !error && (
@@ -282,11 +235,11 @@ export function Products() {
       )}
 
       {products.length > 0 && (
-        <SimpleGrid columns={{ base: 1, sm: 2, lg: 3, xl: 4 }} spacing={4}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {products.map((p) => (
             <ProductCard key={p.id || p._id} product={p} />
           ))}
-        </SimpleGrid>
+        </div>
       )}
     </PageContainer>
   );

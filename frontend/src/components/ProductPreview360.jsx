@@ -1,4 +1,4 @@
-/*import { Box, Image } from "@chakra-ui/react";
+/*import { Box, Image } from "@/components/ui/legacy-ui";
 import { useState } from "react";
 
 export function ProductPreview360({
@@ -87,7 +87,7 @@ export function ProductPreview360({
 }
 */
 
-import { Box, Image } from "@chakra-ui/react";
+import { Box, Image } from "@/components/ui/legacy-ui";
 import { useState } from "react";
 
 export function ProductPreview360({
