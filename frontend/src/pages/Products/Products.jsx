@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { RotateCcw } from "lucide-react";
 import { apiGetProducts } from "../../services/products.service";
@@ -38,13 +38,15 @@ export function Products() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const catalogQuery = new URLSearchParams(location.search).get("q") || "";
+
   // filtros
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(() => catalogQuery);
   const [category, setCategory] = useState("");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
 
-  async function loadProducts(params = {}) {
+  const loadProducts = useCallback(async (params = {}) => {
     try {
       setLoading(true);
       setError("");
@@ -56,13 +58,14 @@ export function Products() {
     } finally {
       setLoading(false);
     }
-  }
-
-
-  // primer load
-  useEffect(() => {
-    loadProducts();
   }, []);
+
+
+  // primer load y búsquedas procedentes del shell
+  useEffect(() => {
+    setQ(catalogQuery);
+    loadProducts(catalogQuery ? { q: catalogQuery } : {});
+  }, [catalogQuery, loadProducts]);
 
   // restaurar scroll al volver desde detalle (cuando el listado ya esté pintado)
   useEffect(() => {
@@ -154,7 +157,11 @@ export function Products() {
     setCategory("");
     setMinPrice("");
     setMaxPrice("");
-    loadProducts({});
+    if (location.search) {
+      navigate("/productos", { replace: true });
+    } else {
+      loadProducts({});
+    }
   };
 
   return (

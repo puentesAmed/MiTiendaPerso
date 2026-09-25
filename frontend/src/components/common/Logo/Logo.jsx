@@ -1,6 +1,6 @@
-export function Logo() {
+export function Logo({ className = "" }) {
   return (
-    <span style={{ fontWeight: 700 }}>
+    <span className={`whitespace-nowrap font-extrabold tracking-tight text-foreground ${className}`}>
       MiluguiPerso
     </span>
   )
