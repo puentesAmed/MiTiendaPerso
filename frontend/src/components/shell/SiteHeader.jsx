@@ -6,11 +6,9 @@ import {
   LogOut,
   Menu,
   PackageSearch,
-  Search,
   ShieldCheck,
   ShoppingBag,
   UserRound,
-  X,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useCart } from "../../hooks/useCart";
@@ -24,7 +22,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { Input } from "../ui/input";
 import {
   Sheet,
   SheetContent,
@@ -34,15 +31,12 @@ import {
   SheetTrigger,
 } from "../ui/sheet";
 import { ThemeToggle } from "./ThemeToggle";
+import { GlobalSearchDialog } from "./GlobalSearchDialog";
 
 const primaryNav = [
   ["Inicio", "/"],
   ["Productos", "/productos"],
 ];
-
-function getCatalogQuery(search) {
-  return new URLSearchParams(search).get("q") || "";
-}
 
 function isRouteActive(pathname, to) {
   return to === "/" ? pathname === "/" || pathname === "/Inicio" : pathname === to || pathname.startsWith(`${to}/`);
@@ -64,33 +58,12 @@ function NavLink({ label, to, pathname, mobile = false }) {
   );
 }
 
-function SearchForm({ value, onChange, onSubmit, compact = false }) {
-  return (
-    <form role="search" onSubmit={onSubmit} className="relative w-full">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-      <Input
-        type="search"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="Buscar productos"
-        aria-label="Buscar productos"
-        className={`${compact ? "h-10" : "h-9"} border-border/80 bg-muted/45 pl-9 pr-16 focus:bg-background`}
-      />
-      <Button type="submit" size="sm" className="absolute right-1 top-1/2 h-7 -translate-y-1/2 px-2.5" aria-label="Buscar">
-        Buscar
-      </Button>
-    </form>
-  );
-}
-
 export function SiteHeader() {
   const { user, logout } = useAuth();
   const { items } = useCart();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [search, setSearch] = useState(() => getCatalogQuery(location.search));
   const [scrolled, setScrolled] = useState(false);
 
   const cartCount = useMemo(
@@ -108,17 +81,9 @@ export function SiteHeader() {
   useEffect(() => {
     const syncRoute = setTimeout(() => {
       setMobileOpen(false);
-      setMobileSearchOpen(false);
-      setSearch(getCatalogQuery(location.search));
     }, 0);
     return () => clearTimeout(syncRoute);
-  }, [location.pathname, location.search]);
-
-  const submitSearch = (event) => {
-    event.preventDefault();
-    const query = search.trim();
-    navigate(query ? `/productos?q=${encodeURIComponent(query)}` : "/productos");
-  };
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -169,26 +134,10 @@ export function SiteHeader() {
 
         <nav aria-label="Navegación principal" className="ml-3 hidden items-center gap-0.5 md:flex">
           {primaryNav.map(([label, to]) => <NavLink key={to} label={label} to={to} pathname={location.pathname} />)}
-          {user && <NavLink label="Mis pedidos" to="/mis-pedidos" pathname={location.pathname} />}
-          {user?.role === "admin" && <NavLink label="Admin" to="/admin" pathname={location.pathname} />}
         </nav>
 
-        <div className="mx-auto hidden w-full max-w-md px-3 lg:block">
-          <SearchForm value={search} onChange={setSearch} onSubmit={submitSearch} />
-        </div>
-
         <div className="ml-auto flex items-center gap-0.5">
-          <Button
-            type="button"
-            variant={mobileSearchOpen ? "secondary" : "ghost"}
-            size="icon"
-            className="size-11 lg:hidden"
-            onClick={() => setMobileSearchOpen((open) => !open)}
-            aria-label={mobileSearchOpen ? "Cerrar búsqueda" : "Abrir búsqueda"}
-            aria-expanded={mobileSearchOpen}
-          >
-            {mobileSearchOpen ? <X aria-hidden="true" /> : <Search aria-hidden="true" />}
-          </Button>
+          <GlobalSearchDialog />
 
           <div className="hidden md:block"><ThemeToggle /></div>
 
@@ -217,13 +166,6 @@ export function SiteHeader() {
         </div>
       </div>
 
-      {mobileSearchOpen && (
-        <div className="border-t px-3 py-2 lg:hidden">
-          <div className="mx-auto max-w-2xl">
-            <SearchForm value={search} onChange={setSearch} onSubmit={submitSearch} compact />
-          </div>
-        </div>
-      )}
     </header>
   );
 }
