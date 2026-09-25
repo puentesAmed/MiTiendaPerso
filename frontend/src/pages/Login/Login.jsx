@@ -128,10 +128,10 @@ export function Login() {
 
   const [showPwd, setShowPwd] = React.useState(false);
   
-  const cardBg = useColorModeValue("white", "neutral.800");
-  const border = useColorModeValue("neutral.200", "neutral.700");
-  const btnBg = useColorModeValue("brand.500", "accent.500");
-  const btnHover = useColorModeValue("brand.600", "accent.600");
+  const cardBg = "bgSurface";
+  const border = "borderSubtle";
+  const btnBg = "actionPrimary";
+  const btnHover = "actionPrimaryHover";
 
   const {
     register,
@@ -212,7 +212,7 @@ export function Login() {
           <Button 
             type="submit" 
             bg={btnBg} 
-            color={border} 
+            color="textInverse"
             _hover={{ bg: btnHover }} 
             isDisabled={isSubmitting} 
             width="full" 

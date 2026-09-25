@@ -300,8 +300,9 @@ export function ProductDetail() {
             </NumberInput>
 
             <Button
-              bg="brand"
-              color="white"
+              bg="actionPrimary"
+              color="textInverse"
+              _hover={{ bg: "actionPrimaryHover" }}
               flex="1"
               onClick={handleAddToCart}
               isDisabled={!canAddToCart}

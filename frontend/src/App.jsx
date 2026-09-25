@@ -406,7 +406,12 @@ export function App() {
         boxShadow={scrolled ? "sm" : "none"}
         transition="all 0.3s ease"
       >
-        <Flex align="center" px={{ base: 4, md: 6 }} py={3} gap={4}>
+        <Flex
+          align="center"
+          px={{ base: 2, sm: 4, md: 6 }}
+          py={3}
+          gap={{ base: 2, md: 4 }}
+        >
           {/* Menú móvil */}
           <IconButton
             aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
@@ -423,7 +428,7 @@ export function App() {
               w="10"
               h="10"
               borderRadius="xl"
-              bg="brand"
+              bg="actionPrimary"
               boxShadow="md"
               display="flex"
               alignItems="center"
@@ -434,7 +439,7 @@ export function App() {
               <Logo />
             </Box>
 
-            <Box lineHeight="short">
+            <Box lineHeight="short" display={{ base: "none", sm: "block" }}>
               <Text fontWeight="extrabold" fontSize="lg">
                 MiTiendaPerso
               </Text>
@@ -451,7 +456,7 @@ export function App() {
               to="/"
               variant="ghost"
               size="sm"
-              _hover={{ color: "brand", transform: "translateY(-2px)" }}
+              _hover={{ color: "actionPrimary", transform: "translateY(-2px)" }}
             >
               Inicio
             </Button>
@@ -461,7 +466,7 @@ export function App() {
               to="/productos"
               variant="ghost"
               size="sm"
-              _hover={{ color: "brand", transform: "translateY(-2px)" }}
+              _hover={{ color: "actionPrimary", transform: "translateY(-2px)" }}
             >
               Productos
             </Button>
@@ -472,7 +477,7 @@ export function App() {
               variant="ghost"
               size="sm"
               position="relative"
-              _hover={{ color: "brand", transform: "translateY(-2px)" }}
+              _hover={{ color: "actionPrimary", transform: "translateY(-2px)" }}
             >
               Carrito
               {cartCount > 0 && (
@@ -494,7 +499,7 @@ export function App() {
                 to="/admin"
                 variant="ghost"
                 size="sm"
-                _hover={{ color: "brand", transform: "translateY(-2px)" }}
+                _hover={{ color: "actionPrimary", transform: "translateY(-2px)" }}
               >
                 Admin
               </Button>
@@ -504,7 +509,7 @@ export function App() {
           <Spacer />
 
           {/* Zona derecha */}
-          <HStack spacing={3}>
+          <HStack spacing={{ base: 1, md: 3 }}>
             {/* Tema */}
             <IconButton
               aria-label="Cambiar tema"
@@ -547,11 +552,11 @@ export function App() {
                 as={RouterLink}
                 to="/login"
                 size="sm"
-                bg="brand"
-                color="white"
+                bg="actionPrimary"
+                color="textInverse"
                 borderRadius="full"
                 px={4}
-                _hover={{ opacity: 0.9 }}
+                _hover={{ bg: "actionPrimaryHover" }}
               >
                 Entrar
               </Button>

@@ -3,19 +3,23 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import {
   Box,
-  Heading,
-  Text,
   SimpleGrid,
   Input,
   Select,
   HStack,
   Button,
   IconButton,
-  useColorModeValue,
+  FormControl,
+  FormLabel,
 } from "@chakra-ui/react";
 import { RepeatIcon } from "@chakra-ui/icons";
 import { apiGetProducts } from "../../services/products.service";
 import { ProductCard } from "../../components/ProductCard";
+import { PageContainer } from "../../components/ui/PageContainer";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { LoadingState } from "../../components/ui/LoadingState";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { ErrorState } from "../../components/ui/ErrorState";
 
 const PRODUCTS_SCROLL_KEY = "products_scroll_y";
 const MAX_SCROLL_RESTORE_ATTEMPTS = 30;
@@ -48,8 +52,6 @@ export function Products() {
   const [category, setCategory] = useState("");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
-
-  const bg = useColorModeValue("gray.50", "gray.900");
 
   async function loadProducts(params = {}) {
     try {
@@ -165,13 +167,19 @@ export function Products() {
   };
 
   return (
-    <Box bg={bg} borderRadius="xl" p={{ base: 4, md: 6 }} boxShadow="md">
-      <Box mb={4}>
-        <Heading size="lg">Productos en venta</Heading>
-        <Text fontSize="sm" color="gray.500" mt={1}>
-          Explora el catálogo y añade al carrito lo que quieras comprar.
-        </Text>
-      </Box>
+    <PageContainer
+      bg="bgSurface"
+      borderWidth="1px"
+      borderColor="borderSubtle"
+      borderRadius="surface"
+      boxShadow="sm"
+      py={{ base: 4, md: 6 }}
+    >
+      <PageHeader
+        title="Productos en venta"
+        description="Explora el catálogo y añade al carrito lo que quieras comprar."
+        mb={4}
+      />
 
       {/* Filtros */}
       <Box
@@ -179,25 +187,26 @@ export function Products() {
         p={3}
         borderWidth="1px"
         borderRadius="lg"
-        bg={useColorModeValue("white", "gray.800")}
+        bg="bgSubtle"
+        borderColor="borderSubtle"
       >
         <HStack spacing={3} align="flex-end" flexWrap="wrap">
-          <Box flex="1 1 200px">
-            <Text mb={1} fontSize="xs" color="gray.500">
+          <FormControl flex="1 1 200px">
+            <FormLabel mb={1} fontSize="xs" color="textMuted">
               Buscar por nombre
-            </Text>
+            </FormLabel>
             <Input
               size="sm"
               placeholder="Buscar..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
-          </Box>
+          </FormControl>
 
-          <Box flex="1 1 160px">
-            <Text mb={1} fontSize="xs" color="gray.500">
+          <FormControl flex="1 1 160px">
+            <FormLabel mb={1} fontSize="xs" color="textMuted">
               Categoría
-            </Text>
+            </FormLabel>
             <Select
               size="sm"
               placeholder="Todas"
@@ -210,34 +219,34 @@ export function Products() {
               <option value="electronica">Electrónica</option>
               <option value="hogar">Hogar</option>
             </Select>
-          </Box>
+          </FormControl>
 
-          <Box flex="0 0 120px">
-            <Text mb={1} fontSize="xs" color="gray.500">
+          <FormControl flex="0 0 120px">
+            <FormLabel mb={1} fontSize="xs" color="textMuted">
               Precio mín.
-            </Text>
+            </FormLabel>
             <Input
               size="sm"
               type="number"
               value={minPrice}
               onChange={(e) => setMinPrice(e.target.value)}
             />
-          </Box>
+          </FormControl>
 
-          <Box flex="0 0 120px">
-            <Text mb={1} fontSize="xs" color="gray.500">
+          <FormControl flex="0 0 120px">
+            <FormLabel mb={1} fontSize="xs" color="textMuted">
               Precio máx.
-            </Text>
+            </FormLabel>
             <Input
               size="sm"
               type="number"
               value={maxPrice}
               onChange={(e) => setMaxPrice(e.target.value)}
             />
-          </Box>
+          </FormControl>
 
           <HStack>
-            <Button size="sm" colorScheme="blue" onClick={handleSearch} isLoading={loading}>
+            <Button size="sm" onClick={handleSearch} isLoading={loading}>
               Filtrar
             </Button>
             <IconButton
@@ -252,23 +261,33 @@ export function Products() {
       </Box>
 
       {/* Estado de carga / error / lista */}
+      {loading && products.length === 0 && (
+        <LoadingState message="Cargando productos…" />
+      )}
+
       {error && (
-        <Text color="red.400" mb={3} fontSize="sm">
-          {error}
-        </Text>
+        <ErrorState description={error} onRetry={handleSearch} mb={4} />
       )}
 
       {!loading && products.length === 0 && !error && (
-        <Text fontSize="sm" color="gray.500">
-          No hay productos disponibles.
-        </Text>
+        <EmptyState
+          title="No hay productos disponibles"
+          description="Prueba a cambiar o limpiar los filtros del catálogo."
+          action={
+            <Button variant="outline" onClick={handleResetFilters}>
+              Limpiar filtros
+            </Button>
+          }
+        />
       )}
 
-      <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={4}>
-        {products.map((p) => (
-          <ProductCard key={p.id || p._id} product={p} />
-        ))}
-      </SimpleGrid>
-    </Box>
+      {products.length > 0 && (
+        <SimpleGrid columns={{ base: 1, sm: 2, lg: 3, xl: 4 }} spacing={4}>
+          {products.map((p) => (
+            <ProductCard key={p.id || p._id} product={p} />
+          ))}
+        </SimpleGrid>
+      )}
+    </PageContainer>
   );
 }
