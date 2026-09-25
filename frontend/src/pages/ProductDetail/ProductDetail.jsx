@@ -1,31 +1,71 @@
-// src/pages/ProductDetail/ProductDetail.jsx
-import { useEffect, useState, useMemo } from "react";
-import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
-import {
-  Box,
-  Heading,
-  Text,
-  Image,
-  Stack,
-  HStack,
-  Button,
-  Spinner,
-  Badge,
-  NumberInput,
-  NumberInputField,
-  NumberInputStepper,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
-  FormControl,
-  FormLabel,
-  Select,
-  Divider,
-  useThemeValue,
-} from "@/components/ui/legacy-ui";
-import { ArrowBackIcon } from "@/components/ui/icons";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Minus, Plus, ShoppingCart, Sparkles } from "lucide-react";
 import { apiGetProductById } from "../../services/products.service";
 import { useCart } from "../../hooks/useCart";
 import { normalizeVariant } from "../../utils/cartLineAdapter";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { ErrorState } from "../../components/ui/ErrorState";
+import { PageContainer } from "../../components/ui/PageContainer";
+import { Price } from "../../components/ui/Price";
+import { ProductGallery } from "../../components/ui/ProductGallery";
+import { Skeleton } from "../../components/ui/skeleton";
+
+function DetailSkeleton() {
+  return (
+    <PageContainer>
+      <Skeleton className="mb-4 h-9 w-24" />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.92fr)]">
+        <Skeleton className="aspect-square w-full rounded-xl" />
+        <div className="space-y-4 rounded-xl border p-5">
+          <Skeleton className="h-8 w-4/5" />
+          <Skeleton className="h-9 w-32" />
+          <Skeleton className="h-6 w-24" />
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-11 w-full" />
+        </div>
+      </div>
+    </PageContainer>
+  );
+}
+
+function VariantOptions({ legend, options, value, onChange }) {
+  if (options.length === 0) return null;
+
+  return (
+    <fieldset>
+      <legend className="mb-2 text-sm font-semibold">{legend}</legend>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            aria-pressed={value === option}
+            aria-label={`${legend}: ${option}`}
+            className={`min-h-10 rounded-lg border px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none ${
+              value === option
+                ? "border-primary bg-primary text-primary-foreground"
+                : "bg-background hover:bg-accent"
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
 
 export function ProductDetail() {
   const { id } = useParams();
@@ -36,24 +76,13 @@ export function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
+  const [reloadKey, setReloadKey] = useState(0);
   const [quantity, setQuantity] = useState(1);
-
-  // 🔹 INTERNOS
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
-
-  // 🔹 ALIEXPRESS
   const [selectedAttributes, setSelectedAttributes] = useState({});
   const [selectedVariant, setSelectedVariant] = useState(null);
-
-  const [activeImage, setActiveImage] = useState(null);
-
-  const isAliExpress = product?.provider === "aliexpress";
-
-  const isCustomizable = !!product?.customizable;
-
-  const customBoxBg = useThemeValue("purple.50", "purple.900Alpha.200");
+  const [addedDialogOpen, setAddedDialogOpen] = useState(false);
 
   const handleBackToProducts = () => {
     if (location.state?.fromProducts) {
@@ -76,18 +105,23 @@ export function ProductDetail() {
     let alive = true;
 
     async function load() {
+      if (!id) {
+        setError("Producto no encontrado");
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
+        setError("");
         const data = await apiGetProductById(id);
         if (!alive) return;
-
         setProduct(data);
-
-        const imgs = [
-          ...(data.image ? [data.image] : []),
-          ...(Array.isArray(data.images) ? data.images : []),
-        ];
-        setActiveImage(imgs[0] || null);
+        setQuantity(1);
+        setSelectedSize("");
+        setSelectedColor("");
+        setSelectedAttributes({});
+        setSelectedVariant(null);
       } catch {
         if (alive) setError("No se pudo cargar el producto");
       } finally {
@@ -95,302 +129,235 @@ export function ProductDetail() {
       }
     }
 
-    if (id) load();
-    return () => (alive = false);
-  }, [id]);
+    load();
+    return () => { alive = false; };
+  }, [id, reloadKey]);
 
-  // ─────────────────────────────────────
-  // 🟥 ALIEXPRESS: atributos dinámicos
-  // ─────────────────────────────────────
+  const isAliExpress = product?.provider === "aliexpress";
+  const isCustomizable = Boolean(product?.customizable);
+  const productId = product?.id || product?._id;
+  const availableSizes = Array.isArray(product?.variants?.sizes) ? product.variants.sizes : [];
+  const availableColors = Array.isArray(product?.variants?.colors) ? product.variants.colors : [];
+  const stock = Number.isFinite(Number(product?.stock)) ? Math.max(0, Math.floor(Number(product.stock))) : 0;
+  const hasRequiredVariant =
+    (availableSizes.length === 0 || Boolean(selectedSize)) &&
+    (availableColors.length === 0 || Boolean(selectedColor));
+
   const aliAttributes = useMemo(() => {
     if (!isAliExpress || !Array.isArray(product?.variants)) return {};
-
-    const map = {};
-    product.variants.forEach((v) => {
-      Object.entries(v.attributes || {}).forEach(([key, value]) => {
-        if (!map[key]) map[key] = new Set();
-        map[key].add(value);
+    const valuesByAttribute = {};
+    product.variants.forEach((variant) => {
+      Object.entries(variant.attributes || {}).forEach(([key, value]) => {
+        if (!valuesByAttribute[key]) valuesByAttribute[key] = new Set();
+        valuesByAttribute[key].add(value);
       });
     });
-
-    Object.keys(map).forEach((k) => {
-      map[k] = Array.from(map[k]);
-    });
-
-    return map;
+    return Object.fromEntries(
+      Object.entries(valuesByAttribute).map(([key, values]) => [key, [...values]]),
+    );
   }, [isAliExpress, product]);
 
   useEffect(() => {
-    if (!isAliExpress) return;
-
-    const match = product.variants.find((v) =>
+    if (!isAliExpress || !Array.isArray(product?.variants)) return;
+    const match = product.variants.find((variant) =>
       Object.entries(selectedAttributes).every(
-        ([k, vAttr]) => v.attributes?.[k] === vAttr
-      )
+        ([key, value]) => variant.attributes?.[key] === value,
+      ),
     );
-
     setSelectedVariant(match || null);
-    if (match?.image) setActiveImage(match.image);
   }, [selectedAttributes, isAliExpress, product]);
 
-  if (loading) {
-    return (
-      <Box minH="60vh" display="flex" alignItems="center" justifyContent="center">
-        <Spinner size="lg" />
-      </Box>
-    );
-  }
+  const galleryImages = useMemo(
+    () => [
+      selectedVariant?.image,
+      product?.image,
+      ...(Array.isArray(product?.images) ? product.images : []),
+    ],
+    [product, selectedVariant],
+  );
+
+  if (loading) return <DetailSkeleton />;
 
   if (error || !product) {
     return (
-      <Box p={6}>
-        <Button
-          leftIcon={<ArrowBackIcon />}
-          size="sm"
-          mb={4}
-          variant="ghost"
-          onClick={handleBackToProducts}
-        >
-          Volver
+      <PageContainer>
+        <Button type="button" variant="ghost" size="sm" className="mb-4" onClick={handleBackToProducts}>
+          <ArrowLeft aria-hidden="true" /> Volver
         </Button>
-        <Text color="red.400">{error || "Producto no encontrado"}</Text>
-      </Box>
+        <ErrorState
+          description={error || "Producto no encontrado"}
+          onRetry={() => setReloadKey((current) => current + 1)}
+        />
+      </PageContainer>
     );
   }
 
   const canAddToCart = isAliExpress
-    ? !!selectedVariant
-    : product.stock > 0 &&
-      (!product?.variants?.sizes?.length || selectedSize) &&
-      (!product?.variants?.colors?.length || selectedColor);
-
-  const handleAddToCart = () => {
-    if (isAliExpress) return;
-
-    addItem({
-      product,
-      quantity: Number(quantity) || 1,
-      variant: normalizeVariant(product, {
-        size: selectedSize || null,
-        color: selectedColor || null,
-      }),
-      customization: null,
-    });
-  };
-
-  /*const displayedPrice = isAliExpress
-  ? selectedVariant?.price?.final ?? product.price?.final
-  : product.price?.final;
-*/
+    ? Boolean(selectedVariant)
+    : stock > 0 && hasRequiredVariant;
   const displayedPrice = isAliExpress
     ? selectedVariant?.price?.final ?? product.price?.final
     : product.price?.final ?? product.price;
 
+  const clampQuantity = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isInteger(numericValue)) return 1;
+    return Math.min(Math.max(1, numericValue), Math.max(1, stock));
+  };
+
+  const selectedCanonicalVariant = () => normalizeVariant(product, {
+    size: selectedSize || null,
+    color: selectedColor || null,
+  });
+
+  const handleAddToCart = () => {
+    if (isAliExpress || !canAddToCart) return;
+    addItem({
+      product,
+      quantity: clampQuantity(quantity),
+      variant: selectedCanonicalVariant(),
+      customization: null,
+    });
+    setAddedDialogOpen(true);
+  };
 
   return (
-    <Box>
-      <Button
-        leftIcon={<ArrowBackIcon />}
-        size="sm"
-        mb={4}
-        variant="ghost"
-        onClick={handleBackToProducts}
-      >
-        Volver
+    <PageContainer>
+      <Button type="button" variant="ghost" size="sm" className="mb-4 -ml-2" onClick={handleBackToProducts}>
+        <ArrowLeft aria-hidden="true" /> Volver
       </Button>
 
-      <Box
-        bg="bgSurface"
-        borderRadius="xl"
-        p={{ base: 4, md: 6 }}
-        display="grid"
-        gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }}
-        gap={8}
-      >
-        {/* GALERÍA */}
-        <Box>
-          <Image
-            src={activeImage}
-            alt={product.name}
-            borderRadius="lg"
-            w="100%"
-            h="360px"
-            objectFit="contain"
-          />
-        </Box>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.92fr)] lg:gap-7">
+        <ProductGallery
+          images={galleryImages}
+          productName={product.name || "Producto"}
+          className="lg:sticky lg:top-20"
+        />
 
-        {/* BUY BOX */}
-        <Stack spacing={4}>
-          <Heading size="lg">{product.name}</Heading>
+        <Card className="p-4 sm:p-5">
+          <div className="flex flex-col gap-4">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{product.name}</h1>
+              <Price value={displayedPrice} className="mt-2 text-2xl sm:text-3xl" />
+              <Badge variant={stock > 0 ? "success" : "destructive"} className="mt-2">
+                {stock > 0 ? `Stock: ${stock}` : "Sin stock"}
+              </Badge>
+            </div>
 
-          <Text fontSize="3xl" fontWeight="bold">
-            {displayedPrice?.toFixed(2)} €
-          </Text>
-
-          {/* 🟦 VARIANTES INTERNAS */}
-          {!isAliExpress && product?.variants && (
-            <HStack spacing={4}>
-              {product.variants.sizes?.length > 0 && (
-                <FormControl>
-                  <FormLabel>Talla</FormLabel>
-                  <Select
-                    size="sm"
-                    value={selectedSize}
-                    onChange={(e) => setSelectedSize(e.target.value)}
-                  >
-                    <option value="">Selecciona</option>
-                    {product.variants.sizes.map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </Select>
-                </FormControl>
-              )}
-
-              {product.variants.colors?.length > 0 && (
-                <FormControl>
-                  <FormLabel>Color</FormLabel>
-                  <Select
-                    size="sm"
-                    value={selectedColor}
-                    onChange={(e) => setSelectedColor(e.target.value)}
-                  >
-                    <option value="">Selecciona</option>
-                    {product.variants.colors.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </Select>
-                </FormControl>
-              )}
-            </HStack>
-          )}
-
-          {/* 🟥 VARIANTES ALIEXPRESS */}
-          {isAliExpress &&
-            Object.entries(aliAttributes).map(([attr, values]) => (
-              <FormControl key={attr}>
-                <FormLabel>{attr}</FormLabel>
-                <Select
-                  size="sm"
-                  value={selectedAttributes[attr] || ""}
-                  onChange={(e) =>
-                    setSelectedAttributes((prev) => ({
-                      ...prev,
-                      [attr]: e.target.value,
-                    }))
-                  }
-                >
-                  <option value="">Selecciona</option>
-                  {values.map((v) => (
-                    <option key={v}>{v}</option>
-                  ))}
-                </Select>
-              </FormControl>
-            ))}
-
-          <HStack>
-            <NumberInput
-              size="sm"
-              min={1}
-              value={quantity}
-              onChange={(v) => setQuantity(v)}
-              w="100px"
-            >
-              <NumberInputField />
-              <NumberInputStepper>
-                <NumberIncrementStepper />
-                <NumberDecrementStepper />
-              </NumberInputStepper>
-            </NumberInput>
-
-            <Button
-              bg="actionPrimary"
-              color="textInverse"
-              _hover={{ bg: "actionPrimaryHover" }}
-              flex="1"
-              onClick={handleAddToCart}
-              isDisabled={!canAddToCart}
-            >
-              Añadir al carrito
-            </Button>
-          </HStack>
-
-           {/* Bloque para ir al diseñador avanzado */}
-            {isCustomizable && (
-              <Box
-                mt={4}
-                p={3}
-                borderRadius="lg"
-                borderWidth="1px"
-                borderColor="purple.300"
-                bg={customBoxBg}
-              >
-                <Heading size="sm" mb={2}>
-                  Diseña tu producto
-                </Heading>
-                <Text fontSize="xs" color="gray.600" mb={3}>
-                  Este producto admite personalización avanzada. Puedes añadir
-                  texto, imágenes y ver una previsualización 360º.
-                </Text>
-                <Button
-                  as={Link}
-                  to={`/personalizar/${product._id}`}
-                  state={{
-                    variant: canAddToCart
-                      ? normalizeVariant(product, {
-                          size: selectedSize || null,
-                          color: selectedColor || null,
-                        })
-                      : null,
-                  }}
-                  size="sm"
-                  colorScheme="purple"
-                  isDisabled={!canAddToCart}
-                >
-                  Abrir diseñador avanzado
-                </Button>
-              </Box>
+            {!isAliExpress && (availableSizes.length > 0 || availableColors.length > 0) && (
+              <div className="space-y-4 border-t pt-4">
+                <VariantOptions legend="Talla" options={availableSizes} value={selectedSize} onChange={setSelectedSize} />
+                <VariantOptions legend="Color" options={availableColors} value={selectedColor} onChange={setSelectedColor} />
+              </div>
             )}
 
-          {/* ENVÍO */}
-          <Box
-            p={4}
-            borderRadius="lg"
-            bg="infoSurface"
-            border="1px solid"
-            borderColor="borderSubtle"
-          >
-            <Text fontWeight="semibold">🚚 Envío</Text>
-            <Text fontSize="sm">
-              El precio y el plazo de entrega se calcularán en el checkout.
-            </Text>
-            <Text fontSize="xs" color="textMuted">
-              Puede variar según la dirección de envío (Península, Islas o internacional).
-            </Text>
-          </Box>
+            {isAliExpress && Object.keys(aliAttributes).length > 0 && (
+              <div className="space-y-3 border-t pt-4">
+                {Object.entries(aliAttributes).map(([attribute, values]) => (
+                  <label key={attribute} className="grid gap-1.5 text-sm font-semibold">
+                    {attribute}
+                    <select
+                      value={selectedAttributes[attribute] || ""}
+                      onChange={(event) => setSelectedAttributes((current) => ({
+                        ...current,
+                        [attribute]: event.target.value,
+                      }))}
+                      className="h-10 rounded-lg border bg-background px-3 text-sm"
+                    >
+                      <option value="">Selecciona</option>
+                      {values.map((value) => <option key={value}>{value}</option>)}
+                    </select>
+                  </label>
+                ))}
+              </div>
+            )}
 
+            <div className="border-t pt-4">
+              <p className="mb-2 text-sm font-semibold">Cantidad</p>
+              <div className="flex h-10 w-fit items-stretch overflow-hidden rounded-lg border bg-background" role="group" aria-label="Seleccionar cantidad">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((current) => clampQuantity(current - 1))}
+                  disabled={quantity <= 1 || stock === 0}
+                  aria-label="Reducir cantidad"
+                  className="inline-flex w-10 items-center justify-center hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Minus className="size-4" aria-hidden="true" />
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  max={Math.max(1, stock)}
+                  value={quantity}
+                  onChange={(event) => setQuantity(clampQuantity(event.target.value))}
+                  disabled={stock === 0}
+                  aria-label="Cantidad"
+                  className="w-12 border-x bg-transparent text-center text-sm font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setQuantity((current) => clampQuantity(current + 1))}
+                  disabled={quantity >= stock || stock === 0}
+                  aria-label="Aumentar cantidad"
+                  className="inline-flex w-10 items-center justify-center hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Plus className="size-4" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
 
-          {/* DEVOLUCIONES */}
-          <Box p={4} borderRadius="lg" bg="infoSurface">
-                <Text fontWeight="semibold">🔄 Devoluciones</Text>
-                <Text fontSize="xs" color="textMuted">
-                  Consulta las condiciones de devolución antes de finalizar la compra.
-                </Text>
-              </Box>
-            </Stack>
-          </Box>
+            {!hasRequiredVariant && (
+              <p className="text-sm text-muted-foreground">Selecciona las opciones del producto para continuar.</p>
+            )}
 
-      <Divider my={10} />
+            <Button type="button" size="lg" className="w-full" onClick={handleAddToCart} disabled={!canAddToCart}>
+              <ShoppingCart aria-hidden="true" /> Añadir al carrito
+            </Button>
+
+            {isCustomizable && (
+              canAddToCart && !isAliExpress ? (
+                <Button
+                  as={Link}
+                  to={`/personalizar/${productId}`}
+                  state={{ variant: selectedCanonicalVariant() }}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Sparkles aria-hidden="true" /> Personalizar producto
+                </Button>
+              ) : (
+                <Button type="button" variant="outline" className="w-full" disabled>
+                  <Sparkles aria-hidden="true" /> Personalizar producto
+                </Button>
+              )
+            )}
+          </div>
+        </Card>
+      </div>
 
       {product.description && (
-        <Box>
-          <Heading size="sm" mb={2}>
-            Descripción
-          </Heading>
-          <Text fontSize="sm" color="textMuted">
+        <section className="mt-6 rounded-xl border bg-card p-4 sm:p-5" aria-labelledby="product-description-title">
+          <h2 id="product-description-title" className="text-lg font-semibold">Descripción</h2>
+          <p className="mt-2 max-w-4xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
             {product.description}
-          </Text>
-        </Box>
+          </p>
+        </section>
       )}
-    </Box>
+
+      <Dialog open={addedDialogOpen} onOpenChange={setAddedDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Producto añadido</DialogTitle>
+            <DialogDescription>
+              {product.name} se ha añadido al carrito con la selección indicada.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setAddedDialogOpen(false)}>Seguir comprando</Button>
+            <Button type="button" onClick={() => { setAddedDialogOpen(false); navigate("/carrito"); }}>Ir al carrito</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageContainer>
   );
 }
