@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import { apiGetProducts } from "../../services/products.service";
 import { ProductCard } from "../../components/ProductCard";
 import { PageContainer } from "../../components/ui/PageContainer";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { LoadingState } from "../../components/ui/LoadingState";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
+import { Skeleton } from "../../components/ui/skeleton";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -16,6 +16,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 const PRODUCTS_SCROLL_KEY = "products_scroll_y";
 const MAX_SCROLL_RESTORE_ATTEMPTS = 30;
 const SCROLL_RESTORE_DELAY_MS = 80;
+const PRODUCTS_GRID_CLASS = "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
 
 function sortOutOfStockLast(list = []) {
   return list
@@ -49,6 +50,32 @@ const CATEGORIES = [
   ["electronica", "Electrónica"],
   ["hogar", "Hogar"],
 ];
+
+function categoryLabel(value) {
+  return CATEGORIES.find(([category]) => category === value)?.[1] || value;
+}
+
+function ProductGridSkeleton() {
+  return (
+    <div className={PRODUCTS_GRID_CLASS} aria-label="Cargando productos">
+      {Array.from({ length: 10 }, (_, index) => (
+        <div key={index} className="overflow-hidden rounded-xl border bg-card shadow-card" aria-hidden="true">
+          <Skeleton className="aspect-[4/3] rounded-none" />
+          <div className="space-y-2.5 p-3">
+            <Skeleton className="h-4 w-4/5" />
+            <Skeleton className="h-4 w-2/5" />
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <Skeleton className="h-6 w-20" />
+              <Skeleton className="h-5 w-16" />
+            </div>
+            <Skeleton className="h-9 w-full" />
+          </div>
+        </div>
+      ))}
+      <span className="sr-only" role="status">Cargando productos…</span>
+    </div>
+  );
+}
 
 export function Products() {
   const [products, setProducts] = useState([]);
@@ -216,10 +243,12 @@ export function Products() {
   const activeFilterCount = Number(Boolean(category)) + Number(Boolean(minPrice || maxPrice));
 
   return (
-    <PageContainer>
+    <PageContainer size="wide">
       <PageHeader
         title="Productos en venta"
         description="Explora el catálogo y añade al carrito lo que quieras comprar."
+        actions={<p className="text-sm font-medium text-muted-foreground" aria-live="polite">{loading && products.length === 0 ? "Cargando…" : `${products.length} ${products.length === 1 ? "producto" : "productos"}`}</p>}
+        className="mb-4"
       />
 
       <section className="mb-4" aria-label="Búsqueda y filtros del catálogo">
@@ -241,11 +270,32 @@ export function Products() {
           </div>
           <Button type="button" variant="outline" className="relative shrink-0 px-3" onClick={() => handleFilterOpenChange(true)} aria-label={`Abrir filtros${activeFilterCount ? `, ${activeFilterCount} activos` : ""}`}>
             <SlidersHorizontal />
-            <span className="hidden sm:inline">Filtros</span>
+            <span>Filtros</span>
             {activeFilterCount > 0 && <Badge variant="default" className="min-w-5 justify-center rounded-full px-1">{activeFilterCount}</Badge>}
           </Button>
         </form>
       </section>
+
+      {activeFilterCount > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2" aria-label="Filtros aplicados">
+          {category && (
+            <Badge variant="outline" className="gap-1 py-1 pl-2.5 pr-1">
+              {categoryLabel(category)}
+              <button type="button" onClick={() => setCategory("")} className="inline-flex size-6 items-center justify-center rounded-md hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Quitar filtro de categoría ${categoryLabel(category)}`}>
+                <X className="size-3.5" aria-hidden="true" />
+              </button>
+            </Badge>
+          )}
+          {(minPrice || maxPrice) && (
+            <Badge variant="outline" className="gap-1 py-1 pl-2.5 pr-1">
+              {minPrice && maxPrice ? `${minPrice}–${maxPrice} €` : minPrice ? `Desde ${minPrice} €` : `Hasta ${maxPrice} €`}
+              <button type="button" onClick={() => { setMinPrice(""); setMaxPrice(""); }} className="inline-flex size-6 items-center justify-center rounded-md hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Quitar filtro de precio">
+                <X className="size-3.5" aria-hidden="true" />
+              </button>
+            </Badge>
+          )}
+        </div>
+      )}
 
       <Sheet open={filterOpen} onOpenChange={handleFilterOpenChange}>
         <SheetContent side="right" className="flex w-[min(92vw,24rem)] flex-col p-5">
@@ -285,9 +335,7 @@ export function Products() {
       </Sheet>
 
       {/* Estado de carga / error / lista */}
-      {loading && products.length === 0 && (
-        <LoadingState message="Cargando productos…" />
-      )}
+      {loading && products.length === 0 && <ProductGridSkeleton />}
 
       {error && (
         <ErrorState description={error} onRetry={() => loadProducts({ q: catalogQuery, category, minPrice, maxPrice })} className="mb-4" />
@@ -306,7 +354,7 @@ export function Products() {
       )}
 
       {products.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className={PRODUCTS_GRID_CLASS}>
           {products.map((p) => (
             <ProductCard key={p.id || p._id} product={p} />
           ))}
