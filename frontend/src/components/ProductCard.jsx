@@ -11,7 +11,7 @@ import { ProductImage } from "./ui/ProductImage";
 
 const PRODUCTS_SCROLL_KEY = "products_scroll_y";
 
-export function ProductCard({ product }) {
+export function ProductCard({ product, catalogContext }) {
   const { addItem, items } = useCart();
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
@@ -29,8 +29,27 @@ export function ProductCard({ product }) {
     ? isAvailable ? `Disponibles: ${availableVariantsCount}` : "Sin stock"
     : typeof product?.stock === "number" && product.stock > 0 ? `Stock: ${product.stock}` : "Sin stock";
 
-  const rememberProductsScroll = () => sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
-  const getProductsReturnState = () => ({ fromProducts: true, scrollY: window.scrollY || 0, productId });
+  const rememberProductsScroll = () => {
+    if (catalogContext?.returnTo) {
+      sessionStorage.setItem(PRODUCTS_SCROLL_KEY, JSON.stringify({
+        scrollY: window.scrollY || 0,
+        productId,
+        context: catalogContext.returnTo,
+        filters: catalogContext.filters,
+      }));
+      return;
+    }
+
+    sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
+  };
+  const getProductsReturnState = () => ({
+    fromProducts: true,
+    scrollY: catalogContext ? undefined : window.scrollY || 0,
+    productId,
+    returnTo: catalogContext?.returnTo,
+    restoreContext: catalogContext?.returnTo,
+    restoreFilters: catalogContext?.filters,
+  });
 
   const handleAddToCart = () => {
     if (hasVariants) {

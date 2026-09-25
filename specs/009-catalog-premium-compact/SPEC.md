@@ -2,7 +2,7 @@
 
 ## Estado
 
-**Estado:** implementada y validada el 25 de septiembre de 2026.
+**Estado:** implementada, reabierta para corregir restauración de scroll y revalidada el 25 de septiembre de 2026.
 
 ## Objetivo
 
@@ -22,6 +22,8 @@ Rediseñar `/productos` con la dirección `Premium Compact Commerce`: más produ
 - Los filtros aplicados se muestran como chips removibles compactos. El filtro de precio cuenta como un único filtro.
 - El contador reutiliza `products.length` y no genera peticiones adicionales.
 - La carga inicial usa un grid de skeletons con proporciones próximas a `ProductCard`.
+- Antes de abrir ProductDetail se guarda una instantánea de sesión con posición, producto, pathname, querystring y filtros aplicados.
+- El retorno restaura únicamente una instantánea cuyo contexto coincide, espera a que el grid exista y consume la instantánea después de usarla.
 
 ## Estados
 
@@ -71,10 +73,13 @@ No se añaden dependencias, peticiones ni efectos pesados. Las imágenes siguen 
 - [x] **CA-24.** `npm run lint` finaliza correctamente.
 - [x] **CA-25.** `npm run build` finaliza correctamente.
 - [x] **CA-26.** `git diff --check` finaliza correctamente.
+- [x] **CA-27.** Al volver desde ProductDetail, el catálogo restaura la posición anterior cuando el contexto de búsqueda/filtros sigue siendo el mismo.
 
 ## Fuera de alcance
 
 Global Search, Home, ProductDetail, Cart, Checkout, Admin, backend, APIs, pricing, shipping, pagos, variantes, AliExpress, dropshipping y MONEI.
+
+La corrección posterior solo adapta la acción existente de volver en ProductDetail para transportar el contexto del catálogo; su UI y lógica de producto continúan fuera de alcance.
 
 ## Validación
 
@@ -85,4 +90,4 @@ Global Search, Home, ProductDetail, Cart, Checkout, Admin, backend, APIs, pricin
 - `npm run build`.
 - `git diff --check`.
 
-Resultado: 26/26 criterios cumplidos. El smoke utilizó la API real en `http://localhost:3000`, con 10 productos, y comprobó búsqueda por `q`, filtros de categoría y precio, chips removibles, contador, empty state, cards reales y grid 1/2/3/4/5 en las resoluciones objetivo. Error y loading se verificaron mediante sus ramas independientes y componentes existentes; la respuesta local disponible permitió validar el camino de éxito completo.
+Resultado: 27/27 criterios cumplidos. El smoke utilizó la API real en `http://localhost:3000` y comprobó búsqueda por `q`, filtros de categoría y precio, chips removibles, contador, empty state, cards reales y grid 1/2/3/4/5 en las resoluciones objetivo. La corrección posterior verificó el retorno desde ProductDetail en 375 y 1440 px, con catálogo general, `?q=taza` y filtro Ropa activo; una entrada nueva permanece en el inicio. Error y loading se verificaron mediante sus ramas independientes y componentes existentes.

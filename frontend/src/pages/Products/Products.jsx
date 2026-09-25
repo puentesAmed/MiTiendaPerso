@@ -77,21 +77,39 @@ function ProductGridSkeleton() {
   );
 }
 
+function readProductsReturnSnapshot(context) {
+  const raw = sessionStorage.getItem(PRODUCTS_SCROLL_KEY);
+  if (!raw) return null;
+
+  try {
+    const snapshot = JSON.parse(raw);
+    if (snapshot?.context !== context) return null;
+    return snapshot;
+  } catch {
+    const scrollY = Number(raw);
+    return Number.isFinite(scrollY) ? { scrollY } : null;
+  }
+}
+
 export function Products() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const catalogQuery = new URLSearchParams(location.search).get("q") || "";
+  const catalogContext = `${location.pathname}${location.search}`;
+  const [returnSnapshot] = useState(() => readProductsReturnSnapshot(catalogContext));
+  const stateMatchesContext = !location.state?.restoreContext || location.state.restoreContext === catalogContext;
+  const restoredFilters = stateMatchesContext ? location.state?.restoreFilters : null;
+  const initialFilters = restoredFilters || returnSnapshot?.filters || {};
+
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const hasRestoredScrollRef = useRef(false);
 
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  const catalogQuery = new URLSearchParams(location.search).get("q") || "";
-
   // filtros
-  const [category, setCategory] = useState("");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
+  const [category, setCategory] = useState(initialFilters.category || "");
+  const [minPrice, setMinPrice] = useState(initialFilters.minPrice || "");
+  const [maxPrice, setMaxPrice] = useState(initialFilters.maxPrice || "");
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftCategory, setDraftCategory] = useState("");
   const [draftMinPrice, setDraftMinPrice] = useState("");
@@ -125,15 +143,15 @@ export function Products() {
 
   // restaurar scroll al volver desde detalle (cuando el listado ya esté pintado)
   useEffect(() => {
-    if (hasRestoredScrollRef.current || loading) return;
+    if (hasRestoredScrollRef.current || loading || products.length === 0) return;
 
-    const stateY = location.state?.restoreScrollY;
-    const stateProductId = location.state?.restoreProductId;
-    const raw = sessionStorage.getItem(PRODUCTS_SCROLL_KEY);
-    const target = stateY ?? (raw == null ? null : Number(raw));
+    const stateY = stateMatchesContext ? location.state?.restoreScrollY : null;
+    const stateProductId = stateMatchesContext ? location.state?.restoreProductId : null;
+    const target = stateY ?? returnSnapshot?.scrollY ?? null;
+    const targetProductId = stateProductId ?? returnSnapshot?.productId ?? null;
 
     const hasNumericTarget = Number.isFinite(target) && target >= 0;
-    const hasProductTarget = !!stateProductId;
+    const hasProductTarget = !!targetProductId;
 
     if (!hasNumericTarget && !hasProductTarget) {
       hasRestoredScrollRef.current = true;
@@ -147,7 +165,7 @@ export function Products() {
       let restored = false;
 
       if (hasProductTarget) {
-        const selector = `[data-product-id="${stateProductId}"]`;
+        const selector = `[data-product-id="${targetProductId}"]`;
         const card = document.querySelector(selector);
         if (card) {
           card.scrollIntoView({ block: "center", behavior: "auto" });
@@ -166,9 +184,10 @@ export function Products() {
 
       if (restored || attempts >= MAX_SCROLL_RESTORE_ATTEMPTS) {
         hasRestoredScrollRef.current = true;
+        sessionStorage.removeItem(PRODUCTS_SCROLL_KEY);
 
-        if (location.state?.restoreScrollY != null || location.state?.restoreProductId != null) {
-          navigate(location.pathname, { replace: true, state: null });
+        if (location.state?.restoreScrollY != null || location.state?.restoreProductId != null || location.state?.restoreContext) {
+          navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
         }
         return;
       }
@@ -180,24 +199,7 @@ export function Products() {
     timer = setTimeout(restoreWithRetry, 0);
 
     return () => clearTimeout(timer);
-  }, [loading, products.length, location.state, location.pathname, navigate]);
-
-  // guardar scroll de forma continua mientras se navega el listado
-  useEffect(() => {
-    const onScrollSave = () => {
-      sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
-    };
-
-    window.addEventListener("scroll", onScrollSave, { passive: true });
-    return () => window.removeEventListener("scroll", onScrollSave);
-  }, []);
-
-  // guardar scroll al salir de la página de productos
-  useEffect(() => {
-    return () => {
-      sessionStorage.setItem(PRODUCTS_SCROLL_KEY, String(window.scrollY || 0));
-    };
-  }, []);
+  }, [loading, products.length, location.state, location.pathname, location.search, navigate, returnSnapshot, stateMatchesContext]);
 
   const updateCatalogQuery = (value) => {
     const params = new URLSearchParams(location.search);
@@ -356,7 +358,14 @@ export function Products() {
       {products.length > 0 && (
         <div className={PRODUCTS_GRID_CLASS}>
           {products.map((p) => (
-            <ProductCard key={p.id || p._id} product={p} />
+            <ProductCard
+              key={p.id || p._id}
+              product={p}
+              catalogContext={{
+                returnTo: catalogContext,
+                filters: { category, minPrice, maxPrice },
+              }}
+            />
           ))}
         </div>
       )}
