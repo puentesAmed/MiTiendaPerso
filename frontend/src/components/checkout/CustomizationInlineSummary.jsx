@@ -1,64 +1,23 @@
-import { Box, Text, Button, Image, Stack, Badge } from "@/components/ui/legacy-ui";
+import { Pencil, Sparkles } from "lucide-react";
+import { Button } from "../ui/button";
 
 export function CustomizationInlineSummary({ item, onEdit }) {
   const customization = item?.customization;
   if (!customization) return null;
 
-  const preview = customization.previewImage || null;
   const texts = Array.isArray(customization.textSummary)
-    ? customization.textSummary
+    ? customization.textSummary.filter(Boolean).slice(0, 2)
     : [];
 
   return (
-    <Box
-      mt={3}
-      p={3}
-      border="1px solid"
-      borderColor="purple.200"
-      borderRadius="md"
-      bg="purple.50"
-    >
-      <Stack spacing={2}>
-        <Badge alignSelf="flex-start" colorScheme="purple">
-          Producto personalizado
-        </Badge>
-
-        {/* 🖼 Preview del diseño */}
-        {preview && (
-          <Image
-            src={preview}
-            alt="Preview del diseño"
-            maxH="120px"
-            objectFit="contain"
-            borderRadius="md"
-          />
-        )}
-
-        {/* 📝 Resumen de texto */}
-        {texts.length > 0 && (
-          <Box>
-            <Text fontSize="xs" color="gray.600">
-              Texto añadido:
-            </Text>
-            {texts.slice(0, 2).map((t, i) => (
-              <Text key={i} fontSize="sm" color="gray.700">
-                “{t}”
-              </Text>
-            ))}
-          </Box>
-        )}
-
-        {/* ✏️ Editar */}
-        <Button
-          size="sm"
-          variant="outline"
-          colorScheme="purple"
-          alignSelf="flex-start"
-          onClick={onEdit}
-        >
-          Editar personalización
-        </Button>
-      </Stack>
-    </Box>
+    <div className="mt-1.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+      <Sparkles className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+      <span className="min-w-0 truncate">
+        Personalizado{texts.length > 0 ? ` · ${texts.join(" · ")}` : ""}
+      </span>
+      <Button type="button" variant="link" size="sm" className="h-auto shrink-0 p-0 text-xs" onClick={onEdit}>
+        <Pencil aria-hidden="true" /> Editar
+      </Button>
+    </div>
   );
 }

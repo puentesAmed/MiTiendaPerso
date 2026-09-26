@@ -1,230 +1,226 @@
-import { useLocation, useNavigate } from "react-router-dom";
-import {
-  Box,
-  Heading,
-  Text,
-  Stack,
-  Divider,
-  Button,
-  Alert,
-  AlertIcon,
-  useThemeValue,
-} from "@/components/ui/legacy-ui";
+import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Check, CheckCircle2, Clipboard, Clock3, PackageCheck } from "lucide-react";
+import { Alert } from "../../components/ui/alert";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
+import { PageContainer } from "../../components/ui/PageContainer";
+import { Price } from "../../components/ui/Price";
+import { ProductImage } from "../../components/ui/ProductImage";
+
+function formatMoney(value, currency = "EUR") {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "—";
+  return amount.toLocaleString("es-ES", { style: "currency", currency });
+}
+
+function CopyValue({ label, value, copied, onCopy }) {
+  if (!value) return null;
+  return (
+    <div className="rounded-lg border bg-background p-3">
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-1 flex min-w-0 items-start justify-between gap-2">
+        <span className="min-w-0 break-all text-sm font-semibold">{value}</span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="-mr-1 -mt-1 h-8 shrink-0 px-2"
+          onClick={() => onCopy(value, label)}
+          aria-label={`Copiar ${label.toLowerCase()}`}
+        >
+          {copied === label ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
+          <span className="sr-only sm:not-sr-only">{copied === label ? "Copiado" : "Copiar"}</span>
+        </Button>
+      </dd>
+    </div>
+  );
+}
 
 export function OrderConfirmation() {
   const { state } = useLocation();
   const navigate = useNavigate();
+  const [copied, setCopied] = useState("");
 
-  const cardBg = useThemeValue("white", "gray.800");
-  const mutedText = useThemeValue("gray.600", "gray.400");
-  const successColor = useThemeValue("green.500", "green.300");
-  const infoBg = useThemeValue("blue.50", "blue.900");
-
-  // 🔒 Acceso directo sin pedido
-  if (!state || !state.orderId) {
+  if (!state?.orderId) {
     return (
-      <Box maxW="700px" mx="auto" mt={12} px={4}>
-        <Alert status="warning" borderRadius="md">
-          <AlertIcon />
-          No se ha encontrado ningún pedido.
-        </Alert>
-
-        <Button mt={6} onClick={() => navigate("/")}>
-          Volver a la tienda
-        </Button>
-      </Box>
+      <PageContainer size="narrow" className="py-10">
+        <Card className="p-5 shadow-none">
+          <Alert className="flex items-start gap-2 border-warning/30 bg-warning/10">
+            <PackageCheck className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden="true" />
+            <div>
+              <h1 className="font-semibold">No encontramos la confirmación</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Las instrucciones solo están disponibles justo después de crear el pedido. No inventaremos ni mostraremos datos de pago sin esa respuesta segura.
+              </p>
+            </div>
+          </Alert>
+          <Button type="button" className="mt-4" onClick={() => navigate("/")}>Volver a la tienda</Button>
+        </Card>
+      </PageContainer>
     );
   }
 
-  const {
-    order,
-    orderId,
-    isGuest,
-    email,
-    emailHasAccount, // 🔑 CLAVE
-    paymentInstructions,
-  } = state;
+  const { order, orderId, isGuest, email, emailHasAccount, paymentInstructions } = state;
+  const method = paymentInstructions?.method || order?.payment?.method;
+  const paymentMethodLabel = method === "bank_transfer" ? "Transferencia bancaria" : method === "bizum" ? "Bizum" : "Pago manual";
+  const amount = paymentInstructions?.amount ?? order?.total;
+  const currency = paymentInstructions?.currency || "EUR";
+  const itemCount = order?.items?.reduce((total, item) => total + Number(item.quantity || 0), 0) || 0;
 
-  const paymentMethodLabel =
-    paymentInstructions?.method === "bank_transfer"
-      ? "Transferencia bancaria"
-      : "Bizum";
+  const copyToClipboard = async (value, label) => {
+    try {
+      await navigator.clipboard.writeText(String(value));
+      setCopied(label);
+      window.setTimeout(() => setCopied(""), 1800);
+    } catch {
+      setCopied("");
+    }
+  };
 
   return (
-    <Box maxW="800px" mx="auto" mt={12} px={4}>
-      <Box
-        bg={cardBg}
-        p={6}
-        borderRadius="lg"
-        boxShadow="md"
-        borderWidth="1px"
-      >
-        {/* CABECERA */}
-        <Heading mb={2} color={successColor}>
-          Pedido creado con éxito
-        </Heading>
+    <PageContainer size="default" className="py-8 sm:py-10">
+      <div className="mx-auto max-w-5xl">
+        <header className="mb-5 flex items-start gap-3">
+          <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-success/12 text-success">
+            <CheckCircle2 className="size-6" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-success">Pedido creado</p>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Gracias por tu pedido</h1>
+            <p className="mt-1 break-words text-sm text-muted-foreground">Referencia del pedido: <strong className="text-foreground">#{orderId}</strong></p>
+          </div>
+        </header>
 
-        <Text mb={4} color={mutedText}>
-          Tu pedido <strong>#{orderId}</strong> se ha creado correctamente.
-        </Text>
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:gap-7">
+          <main className="min-w-0 space-y-4">
+            <Card className="p-4 shadow-none">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">Importe final</p>
+                  <Price value={amount} currency={currency} className="text-2xl" />
+                </div>
+                <Badge variant="warning" className="gap-1.5 px-2.5 py-1 text-xs">
+                  <Clock3 className="size-3.5" aria-hidden="true" /> Pendiente de pago
+                </Badge>
+              </div>
+              <dl className="mt-4 grid gap-2 border-t pt-4 text-sm sm:grid-cols-2">
+                <div><dt className="text-muted-foreground">Método</dt><dd className="font-semibold">{paymentMethodLabel}</dd></div>
+                <div><dt className="text-muted-foreground">Artículos</dt><dd className="font-semibold">{itemCount}</dd></div>
+              </dl>
+            </Card>
 
-        {/* INFO INVITADO */}
-        {isGuest && email && (
-          <Alert status="info" mb={4} borderRadius="md">
-            <AlertIcon />
-            Hemos enviado los detalles del pedido al email&nbsp;
-            <strong>{email}</strong>.
-          </Alert>
-        )}
+            {paymentInstructions ? (
+              <Card className="p-4 shadow-none" aria-labelledby="payment-instructions-title">
+                <div className="flex items-center gap-2">
+                  <PackageCheck className="size-5 text-primary" aria-hidden="true" />
+                  <h2 id="payment-instructions-title" className="font-semibold">Completa el pago</h2>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Usa exactamente estos datos enviados por el servidor para identificar tu pedido.
+                </p>
+                <dl className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {method === "bizum" ? (
+                    <CopyValue label="Destinatario Bizum" value={paymentInstructions.recipient} copied={copied} onCopy={copyToClipboard} />
+                  ) : (
+                    <>
+                      {paymentInstructions.accountHolder && (
+                        <div className="rounded-lg border bg-background p-3">
+                          <dt className="text-xs font-medium text-muted-foreground">Titular</dt>
+                          <dd className="mt-1 break-words text-sm font-semibold">{paymentInstructions.accountHolder}</dd>
+                        </div>
+                      )}
+                      <CopyValue label="IBAN" value={paymentInstructions.iban} copied={copied} onCopy={copyToClipboard} />
+                    </>
+                  )}
+                  <CopyValue label="Concepto" value={paymentInstructions.reference} copied={copied} onCopy={copyToClipboard} />
+                  <div className="rounded-lg border bg-background p-3">
+                    <dt className="text-xs font-medium text-muted-foreground">Importe</dt>
+                    <dd className="mt-1 text-sm font-semibold">{formatMoney(paymentInstructions.amount, currency)}</dd>
+                  </div>
+                </dl>
+                {paymentInstructions.instructions && (
+                  <div className="mt-3 rounded-lg bg-muted p-3 text-sm leading-relaxed">
+                    {paymentInstructions.instructions}
+                  </div>
+                )}
+                <p className="mt-3 text-sm font-medium">
+                  Indica el concepto y espera la verificación manual. El estado cambiará cuando confirmemos el pago.
+                </p>
+                <span className="sr-only" role="status" aria-live="polite">{copied ? `${copied} copiado` : ""}</span>
+              </Card>
+            ) : (
+              <Alert className="border-warning/30 bg-warning/10">
+                No se recibieron instrucciones de pago. Conserva la referencia y contacta con la tienda antes de realizar ningún envío de dinero.
+              </Alert>
+            )}
 
-        {/* 🟢 CASO 1: INVITADO + EMAIL SIN CUENTA → CTA REGISTRO */}
-        {isGuest && email && !emailHasAccount && (
-          <Box
-            mt={4}
-            p={4}
-            borderRadius="md"
-            borderWidth="1px"
-            bg={infoBg}
-          >
-            <Heading size="sm" mb={2}>
-              ¿Quieres crear una cuenta?
-            </Heading>
+            {isGuest && email && (
+              <Card className="p-4 shadow-none">
+                <h2 className="font-semibold">Confirmación por email</h2>
+                <p className="mt-1 break-words text-sm text-muted-foreground">Hemos enviado los detalles a <strong className="text-foreground">{email}</strong>.</p>
+                {!emailHasAccount && (
+                  <Button as={Link} to="/register" state={{ fromGuest: true, email }} variant="outline" size="sm" className="mt-3">
+                    Crear cuenta y vincular pedidos
+                  </Button>
+                )}
+                {emailHasAccount && <p className="mt-2 text-xs text-muted-foreground">El pedido aparecerá en tu cuenta cuando inicies sesión.</p>}
+              </Card>
+            )}
+          </main>
 
-            <Text fontSize="sm" mb={3} color={mutedText}>
-              Crear una cuenta te permitirá:
-            </Text>
+          <aside className="min-w-0">
+            <Card className="overflow-hidden shadow-none lg:sticky lg:top-20">
+              <div className="border-b p-4">
+                <h2 className="font-semibold">Resumen del pedido</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">{itemCount} {itemCount === 1 ? "artículo" : "artículos"}</p>
+              </div>
+              <div className="divide-y">
+                {order?.items?.map((item, index) => (
+                  <article key={item._id || item.productId || index} className="flex min-w-0 gap-3 p-3">
+                    <ProductImage src={item.image} alt="" ratio="1 / 1" className="size-12 shrink-0 rounded-md border" />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-sm font-semibold">{item.name}</h3>
+                      {(item.selectedVariant?.size || item.selectedVariant?.color) && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {item.selectedVariant.size && `Talla: ${item.selectedVariant.size}`}
+                          {item.selectedVariant.size && item.selectedVariant.color && " · "}
+                          {item.selectedVariant.color && `Color: ${item.selectedVariant.color}`}
+                        </p>
+                      )}
+                      <p className="mt-1 text-xs text-muted-foreground">x{item.quantity} · {formatMoney(Number(item.price) * Number(item.quantity))}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <div className="border-t p-4">
+                <div className="flex items-end justify-between gap-3">
+                  <span className="text-sm font-semibold">Total servidor</span>
+                  <Price value={amount} currency={currency} className="text-xl" />
+                </div>
+              </div>
+            </Card>
+          </aside>
+        </div>
 
-            <Stack fontSize="sm" spacing={1} mb={4}>
-              <Text>• Consultar el estado de tus pedidos</Text>
-              <Text>• Guardar tus diseños personalizados</Text>
-              <Text>• Mantener tu historial de compras</Text>
-            </Stack>
-
-            <Button
-              colorScheme="blue"
-              onClick={() =>
-                navigate("/register", {
-                  state: {
-                    fromGuest: true,
-                    email,
-                  },
-                })
-              }
-            >
-              Crear cuenta y vincular pedidos
-            </Button>
-          </Box>
-        )}
-
-        {/* 🟢 CASO 2: INVITADO + EMAIL CON CUENTA EXISTENTE */}
-        {isGuest && email && emailHasAccount && (
-          <Alert status="success" mt={4} borderRadius="md">
-            <AlertIcon />
-            Este pedido aparecerá automáticamente en tu cuenta cuando inicies
-            sesión.
-          </Alert>
-        )}
-
-        <Divider my={6} />
-
-        {/* RESUMEN */}
-        <Heading size="md" mb={3}>
-          Resumen del pedido
-        </Heading>
-
-        <Stack spacing={3}>
-          {order?.items?.map((item) => (
-            <Box key={item.productId}>
-              <Text fontWeight="semibold">{item.name}</Text>
-              <Text fontSize="sm" color={mutedText}>
-                Cantidad: {item.quantity} · Precio:{" "}
-                {item.price.toFixed(2)} €
-              </Text>
-            </Box>
-          ))}
-        </Stack>
-
-        <Divider my={4} />
-
-        <Text fontWeight="bold">
-          Total: {order?.total?.toFixed(2)} €
-        </Text>
-
-        {paymentInstructions && (
-          <Box mt={5} p={4} borderWidth="1px" borderRadius="md" bg={infoBg}>
-            <Heading size="sm" mb={3}>
-              Pago pendiente
-            </Heading>
-            <Stack spacing={2} fontSize="sm">
-              <Text><strong>Método:</strong> {paymentMethodLabel}</Text>
-              <Text>
-                <strong>Importe:</strong>{" "}
-                {paymentInstructions.amount.toFixed(2)} {paymentInstructions.currency}
-              </Text>
-              <Text>
-                <strong>Concepto:</strong> {paymentInstructions.reference}
-              </Text>
-              {paymentInstructions.method === "bizum" ? (
-                <Text>
-                  <strong>Destinatario:</strong> {paymentInstructions.recipient}
-                </Text>
-              ) : (
-                <>
-                  <Text>
-                    <strong>Titular:</strong> {paymentInstructions.accountHolder}
-                  </Text>
-                  <Text><strong>IBAN:</strong> {paymentInstructions.iban}</Text>
-                </>
-              )}
-              <Text>{paymentInstructions.instructions}</Text>
-              <Text fontWeight="semibold">
-                Realiza el pago indicando la referencia y espera la confirmación
-                manual del pedido.
-              </Text>
-            </Stack>
-          </Box>
-        )}
-
-        {/* DIRECCIÓN */}
         {order?.shippingAddress && (
-          <>
-            <Divider my={4} />
-            <Heading size="sm" mb={2}>
-              Dirección de envío
-            </Heading>
-            <Text fontSize="sm" color={mutedText}>
-              {order.shippingAddress.fullName}
-              <br />
-              {order.shippingAddress.street}
-              <br />
-              {order.shippingAddress.postalCode}{" "}
-              {order.shippingAddress.city}
-              <br />
-              {order.shippingAddress.state} ·{" "}
-              {order.shippingAddress.country}
-            </Text>
-          </>
+          <Card className="mt-5 p-4 shadow-none">
+            <h2 className="font-semibold">Dirección de entrega</h2>
+            <address className="mt-2 break-words text-sm not-italic text-muted-foreground">
+              {order.shippingAddress.fullName}<br />
+              {order.shippingAddress.street}<br />
+              {order.shippingAddress.postalCode} {order.shippingAddress.city}<br />
+              {order.shippingAddress.state}{order.shippingAddress.country ? ` · ${order.shippingAddress.country}` : ""}
+            </address>
+          </Card>
         )}
 
-        {/* NOTAS */}
-        {order?.notes && (
-          <>
-            <Divider my={4} />
-            <Heading size="sm" mb={2}>
-              Notas del pedido
-            </Heading>
-            <Text fontSize="sm" color={mutedText}>
-              {order.notes}
-            </Text>
-          </>
-        )}
-
-        <Divider my={6} />
-
-        <Button colorScheme="blue" onClick={() => navigate("/")}>
-          Volver a la tienda
-        </Button>
-      </Box>
-    </Box>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button as={Link} to="/productos">Seguir comprando</Button>
+          {!isGuest && <Button as={Link} to="/mis-pedidos" variant="outline">Ver mis pedidos</Button>}
+        </div>
+      </div>
+    </PageContainer>
   );
 }

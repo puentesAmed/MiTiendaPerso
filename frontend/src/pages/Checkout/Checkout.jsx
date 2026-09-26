@@ -1,6 +1,14 @@
-// src/pages/Checkout/Checkout.jsx
-import { useCallback, useEffect, useState } from "react";
-import { useNavigate, Link as RouterLink} from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  AlertCircle,
+  CreditCard,
+  Minus,
+  PackageCheck,
+  Plus,
+  ShoppingBag,
+  Truck,
+} from "lucide-react";
 import { useCart } from "../../hooks/useCart";
 import { useAuth } from "../../hooks/useAuth";
 import {
@@ -8,55 +16,28 @@ import {
   getManualPaymentMethodsRequest,
   getShippingQuoteRequest,
 } from "../../services/orders.service";
-import { CustomizationInlineSummary } from "../../components/checkout/CustomizationInlineSummary";
-//import { createPayment } from "../../services/payments.service";
-
-import {
-  Box,
-  Button,
-  Heading,
-  Text,
-  Stack,
-  Card,
-  CardBody,
-  Flex,
-  HStack,
-  VStack,
-  Input,
-  IconButton,
-  Alert,
-  AlertIcon,
-  Divider,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  ModalCloseButton,
-  Accordion,
-  AccordionItem,
-  AccordionButton,
-  AccordionPanel,
-  AccordionIcon,
-  Checkbox,
-  Textarea,
-  Link,
-  FormControl,
-  FormLabel,
-  FormErrorMessage,
-  Select,
-} from "@/components/ui/legacy-ui";
 import { loadGuestSession, saveGuestSession } from "../../services/guestSession.service";
-import { GuestSessionNotice } from "../../components/checkout/GuestSessionNotice";
-import { useThemeValue } from "@/components/ui/legacy-ui";
-import { DeleteIcon } from "@/components/ui/icons";
 import { checkEmailExists } from "../../services/auth.service";
-//import { createMoneiPayment } from "../../services/payments.service";
-
+import { CustomizationInlineSummary } from "../../components/checkout/CustomizationInlineSummary";
+import { Alert } from "../../components/ui/alert";
+import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { Input } from "../../components/ui/input";
+import { PageContainer } from "../../components/ui/PageContainer";
+import { Price } from "../../components/ui/Price";
+import { ProductImage } from "../../components/ui/ProductImage";
+import { Textarea } from "../../components/ui/textarea";
 
 const GUEST_KEY = "guest_id";
-//const CHECKOUT_DRAFT_KEY = "checkout_draft_v1";
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function getGuestId() {
   let id = localStorage.getItem(GUEST_KEY);
@@ -67,31 +48,281 @@ function getGuestId() {
   return id;
 }
 
+function formatMoney(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "—";
+  return amount.toLocaleString("es-ES", {
+    style: "currency",
+    currency: "EUR",
+  });
+}
+
+function Field({ id, label, error, required = false, className = "", ...props }) {
+  const errorId = `${id}-error`;
+  return (
+    <div className={className}>
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium">
+        {label}{required && <span className="text-destructive"> *</span>}
+      </label>
+      <Input
+        id={id}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+        className={error ? "border-destructive" : undefined}
+        {...props}
+      />
+      {error && <p id={errorId} className="mt-1 text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function AddressFields({ prefix, value, onChange, showErrors = false, required = false }) {
+  const update = (field) => (event) => onChange({ ...value, [field]: event.target.value });
+  const fieldError = (field, label) => showErrors && required && !value[field]?.trim() ? `${label} es obligatorio.` : "";
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Field
+        id={`${prefix}-fullName`}
+        label="Nombre completo"
+        required={required}
+        value={value.fullName}
+        onChange={update("fullName")}
+        error={fieldError("fullName", "El nombre")}
+        autoComplete={prefix === "shipping" ? "shipping name" : "billing name"}
+        className="sm:col-span-2"
+      />
+      <Field
+        id={`${prefix}-street`}
+        label="Dirección"
+        required={required}
+        value={value.street}
+        onChange={update("street")}
+        error={fieldError("street", "La dirección")}
+        autoComplete={prefix === "shipping" ? "shipping street-address" : "billing street-address"}
+        className="sm:col-span-2"
+      />
+      <Field
+        id={`${prefix}-postalCode`}
+        label="Código postal"
+        required={required}
+        value={value.postalCode}
+        onChange={update("postalCode")}
+        error={fieldError("postalCode", "El código postal")}
+        autoComplete={prefix === "shipping" ? "shipping postal-code" : "billing postal-code"}
+        inputMode="numeric"
+      />
+      <Field
+        id={`${prefix}-city`}
+        label="Ciudad"
+        required={required}
+        value={value.city}
+        onChange={update("city")}
+        error={fieldError("city", "La ciudad")}
+        autoComplete={prefix === "shipping" ? "shipping address-level2" : "billing address-level2"}
+      />
+      <Field
+        id={`${prefix}-state`}
+        label="Provincia"
+        required={required}
+        value={value.state}
+        onChange={update("state")}
+        error={fieldError("state", "La provincia")}
+        autoComplete={prefix === "shipping" ? "shipping address-level1" : "billing address-level1"}
+      />
+      <Field
+        id={`${prefix}-country`}
+        label="País"
+        value={value.country}
+        onChange={update("country")}
+        autoComplete={prefix === "shipping" ? "shipping country-name" : "billing country-name"}
+      />
+    </div>
+  );
+}
+
+function PaymentMethods({ methods, value, onChange, loading, error }) {
+  const description = (id) => id === "bank_transfer"
+    ? "Recibirás los datos bancarios y el concepto al crear el pedido."
+    : "Recibirás el destinatario y el concepto al crear el pedido.";
+
+  return (
+    <fieldset disabled={loading} aria-describedby="payment-help">
+      <legend className="text-base font-semibold">Método de pago</legend>
+      <p id="payment-help" className="mt-1 text-sm text-muted-foreground">
+        El pedido quedará pendiente hasta que comprobemos el pago manual.
+      </p>
+      <div className="mt-3 space-y-2">
+        {methods.map((method) => {
+          const selected = value === method.id;
+          return (
+            <label
+              key={method.id}
+              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors motion-reduce:transition-none ${selected ? "border-primary bg-primary/5" : "hover:bg-muted/60"}`}
+            >
+              <input
+                type="radio"
+                name="paymentMethod"
+                value={method.id}
+                checked={selected}
+                onChange={(event) => onChange(event.target.value)}
+                className="mt-1 size-4 accent-primary"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{method.label}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{description(method.id)}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      {loading && <p className="mt-3 text-sm text-muted-foreground" role="status">Cargando métodos de pago…</p>}
+      {!loading && methods.length === 0 && (
+        <Alert variant="destructive" className="mt-3 flex items-start gap-2" role="alert">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>{error || "No hay métodos de pago disponibles en este momento."}</span>
+        </Alert>
+      )}
+    </fieldset>
+  );
+}
+
+function OrderSummary({ items, totalAmount, shippingQuote, shippingLoading, shippingError, onUpdate, onRemove, onEdit }) {
+  const totalItems = items.reduce((total, item) => total + item.quantity, 0);
+  const subtotal = shippingQuote?.subtotal ?? totalAmount;
+
+  return (
+    <Card className="overflow-hidden shadow-none lg:sticky lg:top-20">
+      <div className="flex items-center justify-between gap-3 border-b p-4">
+        <div className="flex items-center gap-2">
+          <ShoppingBag className="size-5 text-primary" aria-hidden="true" />
+          <h2 className="font-semibold">Resumen del pedido</h2>
+        </div>
+        <span className="text-xs text-muted-foreground">{totalItems} {totalItems === 1 ? "artículo" : "artículos"}</span>
+      </div>
+
+      <div className="max-h-[22rem] divide-y overflow-y-auto">
+        {items.map((item) => (
+          <article key={item.lineKey} className="p-3">
+            <div className="flex min-w-0 gap-3">
+              <ProductImage src={item.presentation.image} alt="" ratio="1 / 1" className="size-14 shrink-0 rounded-md border" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold">{item.presentation.name}</h3>
+                    {(item.variant?.size || item.variant?.color) && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {item.variant.size && `Talla: ${item.variant.size}`}
+                        {item.variant.size && item.variant.color && " · "}
+                        {item.variant.color && `Color: ${item.variant.color}`}
+                      </p>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold">{formatMoney(item.presentation.displayPrice * item.quantity)}</span>
+                </div>
+                <div className="mt-2 flex items-center gap-1" role="group" aria-label={`Cantidad de ${item.presentation.name}`}>
+                  <button
+                    type="button"
+                    className="inline-flex size-7 items-center justify-center rounded-md border hover:bg-muted disabled:opacity-40"
+                    onClick={() => item.quantity > 1 ? onUpdate(item.lineKey, item.quantity - 1) : onRemove(item.lineKey)}
+                    aria-label={`Reducir cantidad de ${item.presentation.name}`}
+                  >
+                    <Minus className="size-3.5" aria-hidden="true" />
+                  </button>
+                  <span className="min-w-7 text-center text-xs font-medium" aria-live="polite">{item.quantity}</span>
+                  <button
+                    type="button"
+                    className="inline-flex size-7 items-center justify-center rounded-md border hover:bg-muted"
+                    onClick={() => onUpdate(item.lineKey, item.quantity + 1)}
+                    aria-label={`Aumentar cantidad de ${item.presentation.name}`}
+                  >
+                    <Plus className="size-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+                {item.customization && <CustomizationInlineSummary item={item} onEdit={() => onEdit(item)} />}
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="border-t p-4">
+        <dl className="space-y-2 text-sm">
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">Subtotal {shippingQuote ? "" : "estimado"}</dt>
+            <dd className="font-medium">{formatMoney(subtotal)}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">Envío</dt>
+            <dd className="max-w-48 text-right font-medium">
+              {shippingLoading ? "Calculando…" : shippingQuote ? (shippingQuote.isFree ? "Gratis" : formatMoney(shippingQuote.price)) : "Pendiente de dirección"}
+            </dd>
+          </div>
+          {shippingQuote?.estimatedDays && (
+            <div className="flex justify-between gap-3 text-xs">
+              <dt className="text-muted-foreground">Plazo estimado</dt>
+              <dd>{shippingQuote.estimatedDays.min}–{shippingQuote.estimatedDays.max} días laborables</dd>
+            </div>
+          )}
+        </dl>
+        {shippingError && <p className="mt-2 text-xs text-destructive" role="alert">{shippingError}</p>}
+        <div className="my-3 border-t" />
+        <div className="flex items-end justify-between gap-3">
+          <span className="font-semibold">{shippingQuote ? "Total servidor" : "Total estimado"}</span>
+          <Price value={shippingQuote?.total ?? subtotal} className="text-xl" />
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {shippingQuote ? "Importes calculados por el servidor; se validarán de nuevo al crear el pedido." : "Completa la dirección para calcular el envío."}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
 export function Checkout() {
   const { user } = useAuth();
   const { items, totalAmount, clearCart, updateQuantity, removeItem } = useCart();
-  const nav = useNavigate();
-  const session = loadGuestSession();
+  const navigate = useNavigate();
+  const guestSession = loadGuestSession();
+  const submitLock = useRef(false);
 
   const [guestEmail, setGuestEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(true);
   const [paymentMethodsError, setPaymentMethodsError] = useState("");
   const [checkoutHydrated, setCheckoutHydrated] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [emailHasAccount, setEmailHasAccount] = useState(false);
-  // Control de estructura básica de email
-  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const [shippingQuote, setShippingQuote] = useState(null);
+  const [shippingLoading, setShippingLoading] = useState(false);
+  const [shippingError, setShippingError] = useState("");
+  const [shippingAddress, setShippingAddress] = useState({
+    fullName: "",
+    street: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "España",
+  });
+  const [useSameBilling, setUseSameBilling] = useState(true);
+  const [billingAddress, setBillingAddress] = useState({
+    fullName: "",
+    street: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "España",
+  });
+  const [notes, setNotes] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pendingProduct, setPendingProduct] = useState(null);
 
   useEffect(() => {
     let active = true;
-
     getManualPaymentMethodsRequest()
       .then((data) => {
         if (!active) return;
@@ -106,10 +337,7 @@ export function Checkout() {
       .finally(() => {
         if (active) setPaymentMethodsLoading(false);
       });
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -119,210 +347,98 @@ export function Checkout() {
     }
   }, [paymentMethod, paymentMethods, paymentMethodsLoading]);
 
-
-  // --- ENVÍO ---
-  const [shippingQuote, setShippingQuote] = useState(null);
-  const [shippingLoading, setShippingLoading] = useState(false);
-  const [shippingError, setShippingError] = useState("");
-
-
-  const [shippingAddress, setShippingAddress] = useState({
-    fullName: "",
-    street: "",
-    city: "",
-    state: "",
-    postalCode: "",
-    country: "España",
-  });
-
-  const [useSameBilling, setUseSameBilling] = useState(true);
-  const [billingAddress, setBillingAddress] = useState({ ...shippingAddress });
-  const [notes, setNotes] = useState("");
-
-  const isGuestEmailInvalid =
-  !user &&
-  attemptedSubmit &&
-  (!guestEmail || !EMAIL_REGEX.test(guestEmail));
-
-
-  // ✅ Comprobar si el email de invitado ya tiene cuenta
   useEffect(() => {
-    if (!guestEmail) return;
-
-    const t = setTimeout(async () => {
+    if (!guestEmail) {
+      setEmailHasAccount(false);
+      return undefined;
+    }
+    const timer = setTimeout(async () => {
       try {
-        const exists = await checkEmailExists(guestEmail);
-        setEmailHasAccount(exists);
+        setEmailHasAccount(await checkEmailExists(guestEmail));
       } catch {
         setEmailHasAccount(false);
       }
     }, 500);
-
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [guestEmail]);
-  
-  // 💾 Guardar borrador del checkout automáticamente
- 
+
+  useEffect(() => {
+    const draft = loadGuestSession()?.checkoutDraft;
+    if (draft) {
+      if (draft.guestEmail) setGuestEmail(draft.guestEmail);
+      if (draft.shippingAddress) setShippingAddress(draft.shippingAddress);
+      if (draft.billingAddress) setBillingAddress(draft.billingAddress);
+      if (typeof draft.useSameBilling === "boolean") setUseSameBilling(draft.useSameBilling);
+      if (draft.notes) setNotes(draft.notes);
+      if (["bizum", "bank_transfer"].includes(draft.paymentMethod)) setPaymentMethod(draft.paymentMethod);
+    }
+    setCheckoutHydrated(true);
+  }, []);
+
   useEffect(() => {
     if (!checkoutHydrated) return;
     saveGuestSession({
-      
-      checkoutDraft: {
-        guestEmail,
-        shippingAddress,
-        billingAddress,
-        useSameBilling,
-        notes,
-        paymentMethod,
-      },
+      checkoutDraft: { guestEmail, shippingAddress, billingAddress, useSameBilling, notes, paymentMethod },
     });
   }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes, paymentMethod, checkoutHydrated]);
 
-  
-  // 🔁 Restaurar borrador del checkout (volver del diseñador)
-  
-  useEffect(() => {
-    const session = loadGuestSession();
-    if (session?.checkoutDraft) {
-      const d = session.checkoutDraft;
-      if (d.guestEmail) setGuestEmail(d.guestEmail);
-      if (d.shippingAddress) setShippingAddress(d.shippingAddress);
-      if (d.billingAddress) setBillingAddress(d.billingAddress);
-      if (typeof d.useSameBilling === "boolean") setUseSameBilling(d.useSameBilling);
-      if (d.notes) setNotes(d.notes);
-      if (["bizum", "bank_transfer"].includes(d.paymentMethod)) {
-        setPaymentMethod(d.paymentMethod);
-      }
-    }
-    
-    setCheckoutHydrated(true);
-  }, []);
-  
+  const isShippingAddressValid = useCallback(() => Boolean(
+    shippingAddress.fullName.trim()
+    && shippingAddress.street.trim()
+    && shippingAddress.city.trim()
+    && shippingAddress.state.trim()
+    && shippingAddress.postalCode.trim()
+  ), [shippingAddress]);
 
-  const isShippingAddressValid = useCallback(() => {
-    return (
-      shippingAddress.fullName.trim() &&
-      shippingAddress.street.trim() &&
-      shippingAddress.city.trim() &&
-      shippingAddress.state.trim() &&
-      shippingAddress.postalCode.trim()
-    );
-  }, [shippingAddress]);
-
-  // --- ENVÍO ---
   useEffect(() => {
-    if (
-      !isShippingAddressValid() ||
-      !items.length ||
-      loading
-    ) {
+    if (!isShippingAddressValid() || !items.length || loading) {
       setShippingQuote(null);
-      return;
+      return undefined;
     }
-
     const controller = new AbortController();
-
-    const fetchShippingQuote = async () => {
+    const fetchQuote = async () => {
       try {
         setShippingLoading(true);
         setShippingError("");
-
-        const data = await getShippingQuoteRequest(
-          items,
-          shippingAddress,
-          controller.signal
-        );
-        if (!data.ok) throw new Error(data.message || "Error envío");
-
+        const data = await getShippingQuoteRequest(items, shippingAddress, controller.signal);
+        if (!data.ok) throw new Error(data.message || "Error de envío");
         setShippingQuote(data.quote);
-      } catch (err) {
-        if (err.name !== "CanceledError" && err.code !== "ERR_CANCELED") {
-          setShippingError(
-            err.response?.data?.message || "No se pudo calcular el envío"
-          );
+      } catch (quoteError) {
+        if (quoteError.name !== "CanceledError" && quoteError.code !== "ERR_CANCELED") {
+          setShippingError(quoteError.response?.data?.message || "No se pudo calcular el envío.");
           setShippingQuote(null);
         }
       } finally {
-        setShippingLoading(false);
+        if (!controller.signal.aborted) setShippingLoading(false);
       }
     };
-
-    fetchShippingQuote();
+    fetchQuote();
     return () => controller.abort();
   }, [shippingAddress, items, isShippingAddressValid, loading]);
 
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [pendingProduct, setPendingProduct] = useState(null);
-
   const productNeedsCustomization = (item) => {
     if (!item.customizationRequired) return false;
-    if (!item.customization) return true;
-    if (item.customization.type !== "designer") return true;
-    const design = item.customization.design;
-    if (!design) return true;
-    const sides = design.elementsBySide || {};
-    const front = Array.isArray(sides.front) ? sides.front : [];
-    const back = Array.isArray(sides.back) ? sides.back : [];
-    return front.length === 0 && back.length === 0;
+    if (!item.customization || item.customization.type !== "designer") return true;
+    const sides = item.customization.design?.elementsBySide || {};
+    return !(Array.isArray(sides.front) && sides.front.length) && !(Array.isArray(sides.back) && sides.back.length);
   };
 
-  const handleConfirmOrder = async () => {
-    setError("");
-    setSuccessMsg("");
-    setAttemptedSubmit(true);
-
-
-    if (!items.length) {
-      setError("El carrito está vacío");
-      return;
-    }
-
-    if (!user && !EMAIL_REGEX.test(guestEmail)) {
-      setError("El email no tiene un formato válido");
-      return;
-    }
-
-
-    if (!acceptedTerms) {
-      setError("Debes aceptar los Términos y Condiciones para continuar");
-      return;
-    }
-
-    if (!paymentMethod) {
-      setError("No hay ningún método de pago disponible");
-      return;
-    }
-
-    if (!isShippingAddressValid()) {
-      setError("Debes completar todos los datos de la dirección de envío");
-      return;
-    }
-
-
-
-    const notCustomized = items.find((i) => productNeedsCustomization(i));
-    if (notCustomized) {
-      setPendingProduct(notCustomized);
-      setModalOpen(true);
-      return;
-    }
-
-    if (!shippingQuote) {
-      setError("No se ha podido calcular el envío. Revisa la dirección.");
-      return;
-    }
-
-
-    await processOrder();
+  const editCustomization = (item) => {
+    navigate(`/personalizar/${item.productId}`, {
+      state: {
+        customization: item.customization,
+        lineKey: item.lineKey,
+        variant: item.variant,
+        returnTo: "/checkout",
+      },
+    });
   };
 
   const processOrder = async () => {
-    if (loading) return; // ⛔ evita doble ejecución
-
+    if (submitLock.current) return;
+    submitLock.current = true;
+    setLoading(true);
     try {
-      setLoading(true);
-
       const data = await createOrderRequest(items, {
         paymentMethod,
         guestId: user ? null : getGuestId(),
@@ -331,582 +447,192 @@ export function Checkout() {
         billingAddress: useSameBilling ? shippingAddress : billingAddress,
         notes,
       });
-
-      
-
       if (!data.ok) {
-        setError(data.message || "Error al procesar pedido");
+        setError(data.message || "No se pudo crear el pedido.");
         return;
       }
-
-      /*// 🔴 PASO 4: INICIAR PAGO CON MONEI
-      const payment = await createMoneiPayment(data.orderId);
-
-      if (!payment?.ok || !payment.paymentUrl) {
-        setError("No se pudo iniciar el pago");
-        return;
-      }
-
-      // 🔁 Redirigir a MONEI
-      window.location.href = payment.paymentUrl;
-      return;
-
-
-      */
-
-      
-
-      
-
-      /*clearCart();
-      localStorage.removeItem("guest_session_v1");
-
-      setSuccessMsg(`Pedido nº ${data.orderId} creado correctamente.`);
-      setShippingQuote(null);
-
-      //nav("/mis-pedidos");
-      nav("/confirmacion-pedido", {
+      navigate("/confirmacion-pedido", {
+        replace: true,
         state: {
           order: data.order,
           orderId: data.orderId,
           isGuest: !user,
           email: !user ? guestEmail : null,
           emailHasAccount,
+          paymentInstructions: data.paymentInstructions,
         },
       });
-      setOrderCreated({
-        order: data.order,
-        orderId: data.orderId,
-        isGuest: !user,
-        email: !user ? guestEmail : null,
-        emailHasAccount,
-      });
-      
-      // Limpieza ligera, SIN desmontar UI crítica
-      /*setTimeout(() => {
+      setTimeout(() => {
         clearCart();
         localStorage.removeItem("guest_session_v1");
-      }, 0);*/
-
-    // 1️ ⃣ Navega PRIMERO 
-    setSuccessMsg(`Pedido nº ${data.orderId} creado correctamente.`); 
-    nav("/confirmacion-pedido", { 
-      replace: true, 
-      state: { 
-        order: data.order, 
-        orderId: data.orderId, 
-        isGuest: !user,
-        email: !user ? guestEmail : null, 
-        emailHasAccount, 
-        paymentInstructions: data.paymentInstructions,
-      }, 
-    }); 
-    
-    // 2️ ⃣ Limpia el carrito DESPUÉS (fuera del ciclo de render) 
-    
-    setTimeout(() => { 
-      clearCart(); 
-      localStorage.removeItem("guest_session_v1"); 
-    }, 0);
-
-    } catch (err) {
-      console.error("Error procesando pedido:", err);
-      setError(
-        err.response?.data?.message || "Error inesperado al procesar pedido"
-      );
+      }, 0);
+    } catch (submitError) {
+      setError(submitError.response?.data?.message || "Error inesperado al crear el pedido.");
     } finally {
+      submitLock.current = false;
       setLoading(false);
     }
   };
 
+  const handleConfirmOrder = async () => {
+    setError("");
+    setAttemptedSubmit(true);
+    if (!items.length) return setError("El carrito está vacío.");
+    if (!user && !EMAIL_REGEX.test(guestEmail)) return setError("Revisa el email antes de continuar.");
+    if (!isShippingAddressValid()) return setError("Completa los campos obligatorios de la dirección de envío.");
+    if (!paymentMethod) return setError("No hay ningún método de pago disponible.");
+    if (!acceptedTerms) return setError("Debes aceptar los Términos y Condiciones para continuar.");
+    const notCustomized = items.find(productNeedsCustomization);
+    if (notCustomized) {
+      setPendingProduct(notCustomized);
+      setModalOpen(true);
+      return;
+    }
+    if (!shippingQuote) return setError("No se ha podido calcular el envío. Revisa la dirección.");
+    await processOrder();
+  };
+
+  const emailInvalid = !user && attemptedSubmit && !EMAIL_REGEX.test(guestEmail);
+  const summaryProps = {
+    items,
+    totalAmount,
+    shippingQuote,
+    shippingLoading,
+    shippingError,
+    onUpdate: updateQuantity,
+    onRemove: removeItem,
+    onEdit: editCustomization,
+  };
+
   return (
-    <Box maxW="900px" mx="auto" mt={10} p={5}>
-      <Heading mb={3}>Checkout</Heading>
+    <PageContainer>
+      <header className="mb-5">
+        <p className="text-sm font-medium text-primary">Compra segura</p>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Finalizar pedido</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Confirma tus datos y recibe las instrucciones del pago manual.</p>
+      </header>
 
-     
-      {!user && (
-        <>
-          <FormControl isInvalid={isGuestEmailInvalid} isRequired mb={2}>
-            <Input
-              type="email"
-              placeholder="Email para recibir el pedido"
-              value={guestEmail}
-              onChange={(e) => setGuestEmail(e.target.value.toLowerCase())}
-            />
-            {isGuestEmailInvalid && (
-              <Text fontSize="xs" color="red.400" mt={1}>
-                Introduce un email válido (ej: nombre@correo.com)
-              </Text>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-7">
+        <main className="min-w-0 space-y-4">
+          {!user && (
+            <Card className="p-4 shadow-none">
+              <div className="flex items-center gap-2">
+                <PackageCheck className="size-5 text-primary" aria-hidden="true" />
+                <h2 className="font-semibold">Tus datos</h2>
+              </div>
+              <div className="mt-3">
+                <Field
+                  id="guest-email"
+                  label="Email del pedido"
+                  required
+                  type="email"
+                  value={guestEmail}
+                  onChange={(event) => setGuestEmail(event.target.value.toLowerCase())}
+                  error={emailInvalid ? "Introduce un email válido, por ejemplo nombre@correo.com." : ""}
+                  autoComplete="email"
+                />
+                {emailHasAccount && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Este email ya tiene una cuenta. <Button as={Link} to="/login" state={{ email: guestEmail }} variant="link" size="sm" className="h-auto p-0 text-xs">Iniciar sesión</Button>
+                  </p>
+                )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Guardamos temporalmente estos datos en tu dispositivo para completar el pedido.
+                  {guestSession?.expiresInDays !== undefined && ` La sesión caduca en ${guestSession.expiresInDays} ${guestSession.expiresInDays === 1 ? "día" : "días"}.`}
+                </p>
+              </div>
+            </Card>
+          )}
+
+          <Card className="p-4 shadow-none">
+            <div className="flex items-center gap-2">
+              <Truck className="size-5 text-primary" aria-hidden="true" />
+              <h2 className="font-semibold">Dirección de entrega</h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">La utilizaremos para calcular el envío en el servidor.</p>
+            <div className="mt-4">
+              <AddressFields prefix="shipping" value={shippingAddress} onChange={setShippingAddress} showErrors={attemptedSubmit} required />
+            </div>
+            <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" checked={useSameBilling} onChange={(event) => setUseSameBilling(event.target.checked)} className="size-4 rounded accent-primary" />
+              Usar la misma dirección para facturación
+            </label>
+            {!useSameBilling && (
+              <div className="mt-4 border-t pt-4">
+                <h3 className="mb-3 text-sm font-semibold">Dirección de facturación</h3>
+                <AddressFields prefix="billing" value={billingAddress} onChange={setBillingAddress} />
+              </div>
             )}
+            <div className="mt-4 border-t pt-4">
+              <label htmlFor="order-notes" className="mb-1.5 block text-sm font-medium">Notas del pedido <span className="font-normal text-muted-foreground">(opcional)</span></label>
+              <Textarea id="order-notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Indicaciones útiles para preparar o entregar el pedido" />
+            </div>
+          </Card>
 
-          </FormControl>
+          <Card className="p-4 shadow-none">
+            <div className="mb-3 flex items-center gap-2">
+              <CreditCard className="size-5 text-primary" aria-hidden="true" />
+              <span className="sr-only">Pago manual</span>
+            </div>
+            <PaymentMethods
+              methods={paymentMethods}
+              value={paymentMethod}
+              onChange={setPaymentMethod}
+              loading={paymentMethodsLoading}
+              error={paymentMethodsError}
+            />
+          </Card>
 
-          {emailHasAccount && (
-            <Alert status="info" mt={2} borderRadius="md">
-              <AlertIcon />
-              Este email ya tiene una cuenta.
-              <Button
-                ml={3}
-                size="sm"
-                variant="link"
-                colorScheme="blue"
-                onClick={() =>
-                  nav("/login", {
-                    state: { email: guestEmail },
-                  })
-                }
-              >
-                Iniciar sesión
-              </Button>
+          <div className="lg:hidden"><OrderSummary {...summaryProps} /></div>
+
+          {error && (
+            <Alert variant="destructive" className="flex items-start gap-2" role="alert">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span>{error}</span>
             </Alert>
           )}
 
-          <GuestSessionNotice />
-          {session?.expiresInDays !== undefined && (
-            <Text
-              fontSize="xs"
-              color={
-                session.expiresInDays <= 1
-                  ? "red.400"
-                  : session.expiresInDays <= 3
-                  ? "orange.400"
-                  : "gray.400"
-              }
-            >
-              {session.expiresInDays > 1 && (
-                <>Sesión de invitado válida durante {session.expiresInDays} días.</>
-              )}
-
-              {session.expiresInDays === 1 && (
-                <>⚠️ Tu sesión de invitado caduca mañana.</>
-              )}
-
-              {session.expiresInDays === 0 && (
-                <>⚠️ Tu sesión de invitado caduca hoy.</>
-              )}
-            </Text>
-          )}
-
-        </>
-      )}
-
-
-
-
-      <Stack spacing={4}>
-        {items.map((it) => (
-          <Card key={it.lineKey} boxShadow="md">
-            <CardBody>
-              <Flex
-                direction={{ base: "column", md: "row" }}
-                justify="space-between"
-                align={{ md: "center" }}
-                gap={4}
-              >
-                <HStack>
-                  <img
-                    src={it.presentation.image || "/no-image.png"}
-                    width="70"
-                    onError={(e) => (e.target.src = "/no-image.png")}
-                    style={{ borderRadius: "6px" }}
-                  />
-                  <VStack align="start" spacing={1}>
-                    <Heading size="sm">{it.presentation.name}</Heading>
-
-                    {it.variant && (
-                      <Text fontSize="xs" color="gray.500">
-                        {it.variant.size && <>Talla: {it.variant.size}</>}
-                        {it.variant.size && it.variant.color && " · "}
-                        {it.variant.color && <>Color: {it.variant.color}</>}
-                      </Text>
-                    )}
-
-                    <Text fontSize="sm" color="gray.400">
-                      Precio estimado: {it.presentation.displayPrice.toFixed(2)} €
-                    </Text>
-                  </VStack>
-                </HStack>
-
-                <HStack spacing={2}>
-                  {/* Botón menos */}
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      it.quantity > 1
-                        ? updateQuantity(it.lineKey, it.quantity - 1)
-                        : removeItem(it.lineKey)
-                    }
-                  >
-                    −
-                  </Button>
-
-                  {/* Cantidad actual */}
-                  <Text minW="24px" textAlign="center">
-                    {it.quantity}
-                  </Text>
-
-                  {/* Botón más */}
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      updateQuantity(it.lineKey, it.quantity + 1)
-                    }
-                  >
-                    +
-                  </Button>
-
-                  {/* Precio línea */}
-                  <Text fontWeight="bold" ml={2}>
-                    {(it.presentation.displayPrice * it.quantity).toFixed(2)} €
-                  </Text>
-
-                  {/* Eliminar */}
-                  <IconButton
-                    aria-label="Eliminar"
-                    icon={<DeleteIcon />}
-                    colorScheme="red"
-                    variant="ghost"
-                    onClick={() => removeItem(it.lineKey)}
-                  />
-                </HStack>
-
-              </Flex>
-
-                      
-              {it.customization && (
-                <CustomizationInlineSummary
-                  item={it}
-                  onEdit={() => {
-                    nav(`/personalizar/${it.productId}`, {
-                      state: {
-                        customization: it.customization,
-                        lineKey: it.lineKey,
-                        variant: it.variant,
-                        returnTo: "/checkout",
-                      },
-                    });
-                  }}
-                />
-              )}
-                    
-
-            </CardBody>
-          </Card>
-        ))}
-      </Stack>
-
-      <Divider my={6} />
-
-      <Box mt={4}>
-        <Text fontSize="lg" fontWeight="bold">
-          Subtotal productos: {shippingQuote
-            ? shippingQuote.subtotal.toFixed(2)
-            : totalAmount.toFixed(2)} €
-        </Text>
-
-        {!isShippingAddressValid() && (
-          <Text fontSize="sm" color="textMuted">
-            El coste de envío se calculará al completar la dirección.
-          </Text>
-        )}
-
-        {shippingLoading && (
-          <Text fontSize="sm">Calculando coste de envío…</Text>
-        )}
-
-        {shippingError && (
-          <Text fontSize="sm" color="red.400">
-            {shippingError}
-          </Text>
-        )}
-
-        {shippingQuote && (
-          <>
-            <Text fontSize="sm">
-              Envío:{" "}
-              {shippingQuote.isFree ? (
-                <strong>GRATIS</strong>
-              ) : (
-                `${shippingQuote.price.toFixed(2)} €`
-              )}
-            </Text>
-
-            <Text fontSize="xs" color="textMuted">
-              Entrega estimada: {shippingQuote.estimatedDays.min}–
-              {shippingQuote.estimatedDays.max} días laborables
-            </Text>
-
-            {/* ENVÍO GRATIS APLICADO */}
-            {shippingQuote.isFree && (
-              <Text fontSize="xs" color="green.400" mt={1}>
-                🎉 Envío gratis aplicado automáticamente a tu pedido
-              </Text>
-            )}
-
-            {/* FALTA PARA ENVÍO GRATIS */}
-            {!shippingQuote.isFree &&
-              shippingQuote.freeFrom &&
-              shippingQuote.subtotal < shippingQuote.freeFrom && (
-                <Text fontSize="xs" color="textMuted" mt={1}>
-                  Añade{" "}
-                  <strong>
-                    {(shippingQuote.freeFrom - shippingQuote.subtotal).toFixed(2)} €
-                  </strong>{" "}
-                  más para conseguir envío gratis
-                </Text>
-              )}
-
-            <Divider my={2} />
-
-            <Text fontSize="xl" fontWeight="bold">
-              Total: {shippingQuote.total.toFixed(2)} €
-            </Text>
-            <Text fontSize="xs" color="textMuted">
-              Importes calculados y confirmados por el servidor.
-            </Text>
-          </>
-        )}
-
-      </Box>
-
-
-
-      {error && (
-        <Alert mt={4} status="error">
-          <AlertIcon />
-          {error}
-        </Alert>
-      )}
-
-      {successMsg && (
-        <Alert mt={4} status="success">
-          <AlertIcon />
-          {successMsg}
-        </Alert>
-      )}
-
-      <Accordion allowMultiple defaultIndex={[0]}>
-        {/* DIRECCIÓN DE ENVÍO */}
-        <AccordionItem>
-          <AccordionButton>
-            <Box flex="1" textAlign="left">Dirección de envío</Box>
-            <AccordionIcon />
-          </AccordionButton>
-          <Text fontSize="sm" color="textMuted" mb={3}>
-            Introduce la dirección donde deseas recibir tu pedido.  
-            El coste y el plazo de entrega se calcularán automáticamente según esta información
-            y se mostrarán antes de finalizar la compra.
-          </Text>
-
-          <AccordionPanel>
-            <Stack spacing={3}>
-              <Input placeholder="Nombre completo *"
-                value={shippingAddress.fullName}
-                isInvalid={attemptedSubmit && !shippingAddress.fullName}
-                onChange={(e) => setShippingAddress({ ...shippingAddress, fullName: e.target.value })}
-              />
-              <Input placeholder="Dirección *"
-                value={shippingAddress.street}
-                isInvalid={attemptedSubmit && !shippingAddress.street}
-                onChange={(e) => setShippingAddress({ ...shippingAddress, street: e.target.value })}
-              />
-              <Input placeholder="Ciudad *"
-                value={shippingAddress.city}
-                isInvalid={attemptedSubmit && !shippingAddress.city}
-                onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })}
-              />
-              <Input placeholder="Provincia *"
-                value={shippingAddress.state}
-                isInvalid={attemptedSubmit && !shippingAddress.state}
-                onChange={(e) => setShippingAddress({ ...shippingAddress, state: e.target.value })}
-              />
-              <Input placeholder="Código postal *"
-                value={shippingAddress.postalCode}
-                isInvalid={attemptedSubmit && !shippingAddress.postalCode}
-                onChange={(e) => setShippingAddress({ ...shippingAddress, postalCode: e.target.value })}
-              />
-            </Stack>
-          </AccordionPanel>
-        </AccordionItem>
-
-        {/* FACTURACIÓN */}
-        <AccordionItem>
-          <AccordionButton>
-            <Box flex="1" textAlign="left">Dirección de facturación</Box>
-            <AccordionIcon />
-          </AccordionButton>
-          <AccordionPanel>
-            <Checkbox
-              mb={3}
-              isChecked={useSameBilling}
-              onChange={(e) => setUseSameBilling(e.target.checked)}
-            >
-              Usar la misma que envío
-            </Checkbox>
-
-            {!useSameBilling && (
-              <Stack spacing={3}>
-                <Input placeholder="Nombre completo"
-                  value={billingAddress.fullName}
-                  onChange={(e) => setBillingAddress({ ...billingAddress, fullName: e.target.value })}
-                />
-                <Input placeholder="Dirección"
-                  value={billingAddress.street}
-                  onChange={(e) => setBillingAddress({ ...billingAddress, street: e.target.value })}
-                />
-              </Stack>
-            )}
-          </AccordionPanel>
-        </AccordionItem>
-
-        {/* NOTAS */}
-        <AccordionItem>
-          <AccordionButton>
-            <Box flex="1" textAlign="left">Notas del pedido</Box>
-            <AccordionIcon />
-          </AccordionButton>
-          <AccordionPanel>
-            <Textarea
-              placeholder="Indicaciones adicionales para el pedido"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </AccordionPanel>
-        </AccordionItem>
-      </Accordion>
-
-      <FormControl mt={6} isRequired>
-        <FormLabel>Método de pago</FormLabel>
-        <Select
-          value={paymentMethod}
-          onChange={(event) => setPaymentMethod(event.target.value)}
-          isDisabled={paymentMethodsLoading || paymentMethods.length === 0}
-        >
-          {paymentMethods.map((method) => (
-            <option key={method.id} value={method.id}>
-              {method.label}
-            </option>
-          ))}
-        </Select>
-        {paymentMethodsLoading && (
-          <Text fontSize="xs" color="textMuted" mt={1}>
-            Cargando métodos de pago…
-          </Text>
-        )}
-        {!paymentMethodsLoading && paymentMethods.length === 0 && (
-          <Text fontSize="sm" color="red.400" mt={1}>
-            {paymentMethodsError || "No hay métodos de pago disponibles."}
-          </Text>
-        )}
-        <Text fontSize="xs" color="textMuted" mt={1}>
-          El pedido quedará pendiente de pago. Verás las instrucciones después
-          de confirmarlo.
-        </Text>
-      </FormControl>
-
-      <Stack
-        mt={6}
-        spacing={2}
-        fontSize="sm"
-        color={useThemeValue("gray.600", "gray.400")}
-      >
-        <Text>🔒 Pago manual: recibirás instrucciones para el método seleccionado.</Text>
-        <Text>📦 Envío: el coste y el plazo se confirman antes de crear el pedido.</Text>
-        <Text>🎨 Personalización: revisa tu diseño antes de confirmar el pedido.</Text>
-        <Text>🕒 Privacidad: los datos de invitados se conservan solo para finalizar el pedido.</Text>
-      </Stack>
-
-
-
-      <Checkbox
-        mt={4}
-        isChecked={acceptedTerms}
-        onChange={(e) => setAcceptedTerms(e.target.checked)}
-        colorScheme="blue"
-      >
-        He leído y acepto los{" "}
-        <Link as={RouterLink} to="/terminos-condiciones" color="blue.500">
-          Términos y Condiciones de Venta.
-        </Link>
-      </Checkbox>
-      {!acceptedTerms && (
-        <Text fontSize="xs" color="gray.500" mt={1}>
-          Es obligatorio aceptar los términos para confirmar el pedido.
-        </Text>
-      )}
-
-      {attemptedSubmit && !user && !EMAIL_REGEX.test(guestEmail) && (
-        <Alert status="error" borderRadius="md" mb={3}>
-          <AlertIcon />
-          No puedes continuar porque el email introducido no tiene un formato válido.
-        </Alert>
-      )}
-
-
-
-      <Button 
-        mt={6} 
-        width="100%" 
-        colorScheme="blue" 
-        size="lg" 
-        onClick={handleConfirmOrder} 
-        isDisabled={
-          loading ||
-          paymentMethodsLoading ||
-          !paymentMethod ||
-          !acceptedTerms
-        }
-        > 
-          {loading ? "Procesando pedido…" : "Confirmar pedido"}
-        </Button>
-
-      <Text fontSize="xs" color="gray.500" mt={2}>
-        Los datos introducidos se utilizarán únicamente para gestionar este pedido.
-        Se guardan de forma temporal en tu dispositivo y se eliminarán automáticamente
-        al finalizar el proceso o tras un periodo de inactividad. El coste total,
-        incluyendo el envío, será recalculado al confirmar el pedido.{" "}
-        <Link as={RouterLink} to="/politica-privacidad" textDecoration="underline">
-          Política de Privacidad
-        </Link>
-      </Text>
-
-
-      {/* Modal de aviso */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} isCentered>
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Falta personalización</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <Text>
-              El producto <strong>{pendingProduct?.presentation.name}</strong> debe
-              personalizarse antes de completar el pedido.
-            </Text>
-          </ModalBody>
-          <ModalFooter>
+          <div className="space-y-3 rounded-xl border bg-card p-4">
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <input type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded accent-primary" />
+              <span>He leído y acepto los <Link to="/terminos-condiciones" className="font-medium text-primary underline-offset-4 hover:underline">Términos y Condiciones de Venta</Link>.</span>
+            </label>
+            {attemptedSubmit && !acceptedTerms && <p className="text-xs text-destructive">Debes aceptar los términos para continuar.</p>}
             <Button
-              colorScheme="blue"
-              mr={3}
-              onClick={() => {
-                setModalOpen(false);
-                nav(`/personalizar/${pendingProduct.productId}`, {
-                  state: {
-                    lineKey: pendingProduct.lineKey,
-                    variant: pendingProduct.variant,
-                    customization: pendingProduct.customization,
-                    returnTo: "/checkout",
-                  },
-                });
-              }}
+              type="button"
+              size="lg"
+              className="w-full"
+              onClick={handleConfirmOrder}
+              disabled={loading || paymentMethodsLoading || !paymentMethod || paymentMethods.length === 0}
+              aria-busy={loading}
             >
+              {loading ? "Creando pedido…" : "Confirmar pedido"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              No se realizará un cobro online. Tras crear el pedido verás las instrucciones del método elegido. Consulta la <Link to="/politica-privacidad" className="underline underline-offset-2">Política de Privacidad</Link>.
+            </p>
+          </div>
+        </main>
+
+        <aside className="hidden lg:block"><OrderSummary {...summaryProps} /></aside>
+      </div>
+
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Falta la personalización</DialogTitle>
+            <DialogDescription>
+              Completa el diseño de {pendingProduct?.presentation.name} antes de confirmar el pedido.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            <Button type="button" onClick={() => { setModalOpen(false); editCustomization(pendingProduct); }}>
               Personalizar ahora
             </Button>
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-    </Box>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageContainer>
   );
 }
