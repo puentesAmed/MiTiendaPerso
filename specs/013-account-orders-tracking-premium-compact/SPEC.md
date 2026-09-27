@@ -2,7 +2,7 @@
 
 ## Estado
 
-**Estado:** en implementación.
+**Estado:** cerrada — 30/30 criterios validados el 27 de septiembre de 2026.
 
 **Dependencias:** SPEC-002, SPEC-003 y SPEC-012 cerradas.
 
@@ -94,34 +94,34 @@ Cada fila compacta muestra `_id`, fecha, número de artículos, total, estado de
 
 ## Criterios de aceptación
 
-- [ ] **CA-01.** Cuenta usa un shell compacto y solo navegación real.
-- [ ] **CA-02.** Mis pedidos presenta un listado compacto ordenado por backend.
-- [ ] **CA-03.** Listado muestra referencia, fecha, artículos, total, estados y método reales.
-- [ ] **CA-04.** Estados logísticos usan exclusivamente valores soportados.
-- [ ] **CA-05.** Estados de pago usan exclusivamente valores soportados y texto visible.
-- [ ] **CA-06.** Sin pedidos usa `EmptyState` con CTA `Ver productos`.
-- [ ] **CA-07.** Loading usa skeleton compacto y anuncio accesible.
-- [ ] **CA-08.** Error usa `ErrorState` con reintento.
-- [ ] **CA-09.** Existe detalle navegable desde cada pedido.
-- [ ] **CA-10.** Detalle usa snapshots históricos y no catálogo actual.
-- [ ] **CA-11.** Variantes usan `variant` con fallback `selectedVariant`.
-- [ ] **CA-12.** Personalización se resume sin abrir el editor.
-- [ ] **CA-13.** Resumen muestra subtotal derivado por backend, shipping y total históricos.
-- [ ] **CA-14.** Dirección usa el snapshot almacenado en Order.
-- [ ] **CA-15.** Método de pago representa métodos manuales actuales e históricos legibles.
-- [ ] **CA-16.** Pending manual recupera instrucciones desde backend autenticado.
-- [ ] **CA-17.** Paid no muestra instrucciones ni CTA de pago.
-- [ ] **CA-18.** Endpoint valida autenticación y ownership en backend.
-- [ ] **CA-19.** Pedido ajeno responde 404 sin filtrar datos.
-- [ ] **CA-20.** Recuperación guest queda documentada fuera de alcance.
-- [ ] **CA-21.** No existe tracking, carrier o timeline ficticio.
-- [ ] **CA-22.** No existe pago online ni botón `Pagar ahora`.
-- [ ] **CA-23.** No hay overflow a 320, 375, 768, 1024 y 1440 px.
-- [ ] **CA-24.** Light/dark usa tokens semánticos.
-- [ ] **CA-25.** Headings, foco, links, badges, errores, loading y copy actions son accesibles.
-- [ ] **CA-26.** MONEI, AliExpress y dropshipping permanecen fuera del flujo.
-- [ ] **CA-27.** Tests backend localizados pasan.
-- [ ] **CA-28.** `npm run lint` pasa.
-- [ ] **CA-29.** `npm run build` pasa.
-- [ ] **CA-30.** `git diff --check` pasa.
+- [x] **CA-01.** Cuenta usa un shell compacto y solo navegación real.
+- [x] **CA-02.** Mis pedidos presenta un listado compacto ordenado por backend.
+- [x] **CA-03.** Listado muestra referencia, fecha, artículos, total, estados y método reales.
+- [x] **CA-04.** Estados logísticos usan exclusivamente valores soportados.
+- [x] **CA-05.** Estados de pago usan exclusivamente valores soportados y texto visible.
+- [x] **CA-06.** Sin pedidos usa `EmptyState` con CTA `Ver productos`.
+- [x] **CA-07.** Loading usa skeleton compacto y anuncio accesible.
+- [x] **CA-08.** Error usa `ErrorState` con reintento.
+- [x] **CA-09.** Existe detalle navegable desde cada pedido.
+- [x] **CA-10.** Detalle usa snapshots históricos y no catálogo actual.
+- [x] **CA-11.** Variantes usan `variant` con fallback `selectedVariant`.
+- [x] **CA-12.** Personalización se resume sin abrir el editor.
+- [x] **CA-13.** Resumen muestra subtotal derivado por backend, shipping y total históricos.
+- [x] **CA-14.** Dirección usa el snapshot almacenado en Order.
+- [x] **CA-15.** Método de pago representa métodos manuales actuales e históricos legibles.
+- [x] **CA-16.** Pending manual recupera instrucciones desde backend autenticado.
+- [x] **CA-17.** Paid no muestra instrucciones ni CTA de pago.
+- [x] **CA-18.** Endpoint valida autenticación y ownership en backend.
+- [x] **CA-19.** Pedido ajeno responde 404 sin filtrar datos.
+- [x] **CA-20.** Recuperación guest queda documentada fuera de alcance.
+- [x] **CA-21.** No existe tracking, carrier o timeline ficticio.
+- [x] **CA-22.** No existe pago online ni botón `Pagar ahora`.
+- [x] **CA-23.** No hay overflow a 320, 375, 768, 1024 y 1440 px.
+- [x] **CA-24.** Light/dark usa tokens semánticos.
+- [x] **CA-25.** Headings, foco, links, badges, errores, loading y copy actions son accesibles.
+- [x] **CA-26.** MONEI, AliExpress y dropshipping permanecen fuera del flujo.
+- [x] **CA-27.** Tests backend localizados pasan.
+- [x] **CA-28.** `npm run lint` pasa.
+- [x] **CA-29.** `npm run build` pasa.
+- [x] **CA-30.** `git diff --check` pasa.
 
