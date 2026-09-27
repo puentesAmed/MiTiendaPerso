@@ -5,6 +5,7 @@ import { requireAdmin } from "../middleware/admin.middleware.js";
 import {
   createOrder,
   getOrdersByUser,
+  getOrderByIdForUser,
   adminGetAllOrders,
   adminUpdateOrderStatus,
   trackOrderByEmail,
@@ -22,6 +23,7 @@ ordersRouter.get("/track", trackOrderByEmail);
 // usuario normal
 ordersRouter.post("/", optionalAuth, createOrder); // público
 ordersRouter.get("/mine", requireAuth, getOrdersByUser);
+ordersRouter.get("/mine/:id", requireAuth, getOrderByIdForUser);
 ordersRouter.post("/:id/mark-paid", requireAuth, requireAdmin, markOrderAsPaid);
 
 // ADMIN: lista todos los pedidos

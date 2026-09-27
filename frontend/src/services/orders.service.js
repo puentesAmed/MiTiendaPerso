@@ -54,6 +54,11 @@ export async function getMyOrdersRequest() {
   return data; // { ok, orders }
 }
 
+export async function getMyOrderDetailRequest(orderId) {
+  const { data } = await http.get(`/api/orders/mine/${orderId}`);
+  return data;
+}
+
 // ADMIN: listar pedidos (con filtros opcionales)
 export async function adminGetOrders(params = {}) {
   const { data } = await http.get("/api/orders", { params });

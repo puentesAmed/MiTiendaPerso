@@ -3,6 +3,7 @@
 import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
 import { Customization } from "../models/Customization.js";
+import mongoose from "mongoose";
 
 import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
 import { calculateEstimatedDelivery } from "../utils/calculateEstimatedDelivery.js";
@@ -286,6 +287,96 @@ export async function getOrdersByUser(req, res) {
     return res
       .status(500)
       .json({ ok: false, message: "Error al obtener pedidos" });
+  }
+}
+
+function summarizeCustomization(customization) {
+  if (!customization || typeof customization !== "object") return null;
+
+  const elementsBySide = customization.design?.elementsBySide || {};
+  const textSummary = [
+    ...(Array.isArray(elementsBySide.front) ? elementsBySide.front : []),
+    ...(Array.isArray(elementsBySide.back) ? elementsBySide.back : []),
+  ]
+    .filter((element) => element?.type === "text" && element.text?.trim())
+    .map((element) => element.text.trim())
+    .slice(0, 2);
+
+  return {
+    previewImage:
+      customization.previewImage ||
+      customization.previewsBySide?.front ||
+      customization.previewsBySide?.back ||
+      null,
+    textSummary,
+    notes: customization.design?.notes?.trim() || null,
+  };
+}
+
+export async function getOrderByIdForUser(req, res) {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ ok: false, message: "ID de pedido inválido" });
+    }
+
+    const order = await Order.findOne({ _id: id, userId })
+      .populate({
+        path: "items.customizationId",
+        select: "previewImage previewsBySide design.elementsBySide design.notes",
+      })
+      .lean();
+
+    if (!order) {
+      return res.status(404).json({ ok: false, message: "Pedido no encontrado" });
+    }
+
+    const items = order.items.map((item) => {
+      const customizationDocument =
+        item.customizationId && typeof item.customizationId === "object"
+          ? item.customizationId
+          : null;
+
+      return {
+        ...item,
+        customizationId: customizationDocument?._id || item.customizationId || null,
+        customization: summarizeCustomization(customizationDocument),
+      };
+    });
+
+    const paymentStatus = order.payment?.status || order.paymentStatus;
+    const paymentMethod = order.payment?.method || order.paymentMethod;
+    const canShowInstructions =
+      paymentStatus === "pending" &&
+      ["bizum", "bank_transfer"].includes(paymentMethod);
+
+    let paymentInstructions = null;
+    if (canShowInstructions) {
+      try {
+        paymentInstructions = buildManualPaymentInstructions(order);
+      } catch (error) {
+        if (!(error instanceof ManualPaymentError)) throw error;
+      }
+    }
+
+    const shippingPrice = Number(order.shipping?.price) || 0;
+    const total = Number(order.total) || 0;
+
+    return res.json({
+      ok: true,
+      order: { ...order, items },
+      summary: {
+        subtotal: roundCurrency(Math.max(0, total - shippingPrice)),
+        shipping: shippingPrice,
+        total,
+      },
+      paymentInstructions,
+    });
+  } catch (err) {
+    console.error("Error en getOrderByIdForUser:", err);
+    return res.status(500).json({ ok: false, message: "Error al obtener pedido" });
   }
 }
 

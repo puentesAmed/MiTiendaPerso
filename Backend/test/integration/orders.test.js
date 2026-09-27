@@ -266,6 +266,82 @@ test("mark-paid en pedido ya pagado devuelve 409", async () => {
   assert.equal(res.status, 409);
 });
 
+test("detalle de pedido propio devuelve snapshot, resumen e instrucciones manuales pendientes", async () => {
+  const user = await createUser({ email: "owner-detail@test.com" });
+  const order = await Order.create(
+    baseOrder({
+      userId: user._id,
+      total: 15.99,
+      items: [
+        {
+          productId: productId(),
+          name: "Producto histórico",
+          quantity: 1,
+          price: 10,
+          variant: { size: "M", color: "Negro" },
+        },
+      ],
+      shipping: {
+        zone: "peninsula",
+        price: 5.99,
+        isFree: false,
+        estimatedDays: { min: 2, max: 3 },
+        estimatedDeliveryDate: new Date(),
+        deliveryStatus: "estimated",
+      },
+      payment: { status: "pending", method: "bizum", provider: "manual" },
+      paymentStatus: "pending",
+    })
+  );
+
+  const res = await request(app)
+    .get(`/api/orders/mine/${order._id}`)
+    .set("Authorization", `Bearer ${createTokenForUser(user)}`);
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.order._id, order._id.toString());
+  assert.equal(res.body.order.items[0].name, "Producto histórico");
+  assert.deepEqual(res.body.order.items[0].variant, { size: "M", color: "Negro" });
+  assert.deepEqual(res.body.summary, { subtotal: 10, shipping: 5.99, total: 15.99 });
+  assert.equal(res.body.paymentInstructions.method, "bizum");
+  assert.equal(res.body.paymentInstructions.status, "pending");
+  assert.equal(res.body.paymentInstructions.amount, 15.99);
+  assert.match(res.body.paymentInstructions.reference, /^PEDIDO-/);
+});
+
+test("detalle autenticado no expone pedidos ajenos y exige token", async () => {
+  const owner = await createUser({ email: "owner-private@test.com" });
+  const other = await createUser({ email: "other-private@test.com" });
+  const order = await Order.create(baseOrder({ userId: owner._id }));
+
+  const anonymousResponse = await request(app).get(`/api/orders/mine/${order._id}`);
+  assert.equal(anonymousResponse.status, 401);
+
+  const otherResponse = await request(app)
+    .get(`/api/orders/mine/${order._id}`)
+    .set("Authorization", `Bearer ${createTokenForUser(other)}`);
+  assert.equal(otherResponse.status, 404);
+  assert.equal(otherResponse.body.message, "Pedido no encontrado");
+});
+
+test("detalle pagado no devuelve instrucciones de pago", async () => {
+  const user = await createUser({ email: "owner-paid@test.com" });
+  const order = await Order.create(
+    baseOrder({
+      userId: user._id,
+      payment: { status: "paid", method: "bank_transfer", provider: "manual" },
+      paymentStatus: "paid",
+    })
+  );
+
+  const res = await request(app)
+    .get(`/api/orders/mine/${order._id}`)
+    .set("Authorization", `Bearer ${createTokenForUser(user)}`);
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.paymentInstructions, null);
+});
+
 function productId() {
   return "507f1f77bcf86cd799439011";
 }

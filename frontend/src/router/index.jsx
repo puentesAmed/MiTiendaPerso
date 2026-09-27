@@ -54,6 +54,7 @@ import { ProductDesignerPage } from "../pages/ProductDesigner/ProductDesignerPag
 import { Cart } from "../pages/Cart/Cart.jsx";
 import { Checkout } from "../pages/Checkout/Checkout";
 import { MyOrders } from "../pages/MyOrders/MyOrders.jsx";
+import { OrderDetail } from "../pages/OrderDetail/OrderDetail.jsx";
 import { ProtectedRoute } from "./ProtectedRoute.jsx";
 import { Admin } from "../pages/Admin/Admin.jsx";
 import { OrderConfirmation } from "../pages/OrderConfirmation/OrderConfirmation.jsx";
@@ -92,6 +93,7 @@ export const router = createBrowserRouter([
       { path: "carrito", element: <Cart /> },
       { path: "checkout", element: <Checkout /> },
       { path: "mis-pedidos", element: (<MyOrders />),},
+      { path: "mis-pedidos/:id", element: <OrderDetail /> },
       //{ path: "/perfil", element: (<ProfilePage />)},
       //{ path: "/ayuda", element: (<HelpPage />)},
       { path: "confirmacion-pedido", element: <OrderConfirmation /> },
