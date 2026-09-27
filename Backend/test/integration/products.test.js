@@ -6,7 +6,7 @@ import mongoose from "mongoose";
 import { createApp } from "../../src/app.js";
 import { Product } from "../../src/models/Product.js";
 import { setupTestDB, clearTestDB, teardownTestDB } from "../setup/test-db.js";
-import { createAdminAuthHeader } from "../setup/test-auth.js";
+import { createAdminAuthHeader, createTokenForUser, createUser } from "../setup/test-auth.js";
 
 const app = createApp();
 
@@ -80,6 +80,33 @@ test("GET /api/products/:id inexistente devuelve 404", async () => {
 
   assert.equal(res.status, 404);
   assert.equal(res.body.ok, false);
+});
+
+test("GET /api/products/admin exige admin y devuelve productos locales activos e inactivos", async () => {
+  const active = await Product.create(localProductFixture({ name: "Activo" }));
+  const inactive = await Product.create(localProductFixture({ name: "Oculto", active: false }));
+  const user = await createUser({ email: "products-user@test.com" });
+  const userHeader = `Bearer ${createTokenForUser(user)}`;
+
+  const anonymousResponse = await request(app).get("/api/products/admin");
+  assert.equal(anonymousResponse.status, 401);
+
+  const userResponse = await request(app)
+    .get("/api/products/admin")
+    .set("Authorization", userHeader);
+  assert.equal(userResponse.status, 403);
+
+  const adminHeader = await createAdminAuthHeader();
+  const adminResponse = await request(app)
+    .get("/api/products/admin")
+    .set("Authorization", adminHeader);
+
+  assert.equal(adminResponse.status, 200);
+  assert.equal(adminResponse.body.ok, true);
+  const ids = adminResponse.body.products.map((product) => String(product._id));
+  assert.ok(ids.includes(String(active._id)));
+  assert.ok(ids.includes(String(inactive._id)));
+  assert.equal(adminResponse.body.products.find((product) => String(product._id) === String(inactive._id)).active, false);
 });
 
 test("POST /api/products sin token devuelve 401", async () => {

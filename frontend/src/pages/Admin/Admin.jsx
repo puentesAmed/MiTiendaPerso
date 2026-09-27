@@ -1,1555 +1,328 @@
-
-// src/pages/Admin/Admin.jsx
-import { useEffect, useMemo, useState, useCallback } from "react";
-import {
-  Box,
-  Heading,
-  Text,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
-  Flex,
-  Button,
-  IconButton,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-  Badge,
-  useToast,
-  useThemeValue,
-  FormControl,
-  FormLabel,
-  Input,
-  NumberInput,
-  NumberInputField,
-  Textarea,
-  Switch,
-  Stack,
-  Spacer,
-  Select,
-  Image,
-  Modal,
-  ModalBody,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalCloseButton,
-  ModalFooter,
-} from "@/components/ui/legacy-ui";
-
-import { AddIcon, EditIcon, DeleteIcon, RepeatIcon, DownloadIcon } from "@/components/ui/icons";
-
+import { createElement, useCallback, useEffect, useMemo, useState } from "react";
+import { Boxes, CheckCircle2, ClipboardCheck, Download, Edit3, Eye, Package, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { http } from "../../services/http";
-import {
-  adminGetOrders,
-  adminUpdateOrderStatus,
-  adminConfirmDeliveryDate,
-  confirmOrderPayment,
-} from "../../services/orders.service";
+import { adminConfirmDeliveryDate, adminGetOrders, adminUpdateOrderStatus, confirmOrderPayment } from "../../services/orders.service";
 import { getOrderItemVariant } from "../../utils/orderVariantAdapter";
+import { formatOrderDate, getPaymentMethod, getPaymentStatus, OrderStatusBadge, paymentMethodLabel, PaymentStatusBadge } from "../../components/orders/orderPresentation";
+import { Alert } from "../../components/ui/alert";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../components/ui/dialog";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { ErrorState } from "../../components/ui/ErrorState";
+import { Input } from "../../components/ui/input";
+import { LoadingState } from "../../components/ui/LoadingState";
+import { PageContainer } from "../../components/ui/PageContainer";
+import { Price } from "../../components/ui/Price";
+import { ProductImage } from "../../components/ui/ProductImage";
+import { Select } from "../../components/ui/select";
+import { Textarea } from "../../components/ui/textarea";
 
-/* 🔧 Helper: nombre del usuario del pedido */
+const SECTIONS = [
+  { id: "summary", label: "Resumen", icon: Boxes },
+  { id: "orders", label: "Pedidos", icon: ClipboardCheck },
+  { id: "products", label: "Productos", icon: Package },
+  { id: "customizations", label: "Personalizaciones", icon: Edit3 },
+];
+
+const ORDER_STATUS_OPTIONS = [
+  { value: "processing", label: "En preparación" },
+  { value: "shipped", label: "Enviado" },
+  { value: "delivered", label: "Entregado" },
+  { value: "cancelled", label: "Cancelado" },
+];
+
 function getOrderUserLabel(order) {
   if (order.userEmail) return order.userEmail;
   if (order.user) return order.user.name || order.user.email;
-  if (order.userId) {
-    if (typeof order.userId === "string") return order.userId;
-    return order.userId.name || order.userId.email;
-  }
-  return "—";
+  if (order.userId && typeof order.userId !== "string") return order.userId.name || order.userId.email;
+  if (order.guestEmail) return order.guestEmail;
+  return typeof order.userId === "string" ? order.userId : "Invitado";
 }
 
+function getOrderEmail(order) {
+  return order.userEmail || order.user?.email || order.userId?.email || order.guestEmail || "—";
+}
 
 function getNumericPrice(price) {
   if (typeof price === "number") return price;
-  if (price && typeof price.final === "number") return price.final;
+  if (typeof price?.value === "number") return price.value;
+  if (typeof price?.final === "number") return price.final;
   return 0;
 }
 
-function getOrderPaymentStatus(order) {
-  return order?.payment?.status || order?.paymentStatus || "pending";
+function getOrderTotal(order) { return Number(order.total ?? order.totalAmount ?? 0); }
+function getOrderItemCount(order) { return order.items?.reduce((total, item) => total + Number(item.quantity || 0), 0) || 0; }
+function shortId(value) { const id = String(value || ""); return id ? `#${id.slice(-8)}` : "—"; }
+
+function Field({ label, children }) {
+  return <label className="grid gap-1.5 text-sm"><span className="font-medium">{label}</span>{children}</label>;
 }
 
-function getPaymentStatusLabel(status) {
-  switch (status) {
-    case "paid":
-      return "Pagado";
-    case "failed":
-      return "Fallido";
-    case "refunded":
-      return "Reembolsado";
-    case "pending":
-    default:
-      return "Pendiente";
-  }
+function Metric({ label, value, hint, icon }) {
+  return <Card className="p-4 shadow-none"><div className="flex items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{label}</p>{createElement(icon, { className: "size-4 text-primary", "aria-hidden": true })}</div><p className="mt-2 text-2xl font-bold tabular-nums">{value}</p><p className="mt-1 text-xs text-muted-foreground">{hint}</p></Card>;
 }
 
 export function Admin() {
-  const toast = useToast();
+  const [section, setSection] = useState("orders");
+  const [notice, setNotice] = useState(null);
 
-  // ---------------------------
-  //  ESTADOS: PRODUCTOS
-  // ---------------------------
   const [products, setProducts] = useState([]);
-  const [loadingProducts, setLoadingProducts] = useState(false);
-  const [savingProduct, setSavingProduct] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [errorProducts, setErrorProducts] = useState("");
-
-  // Formulario de producto
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [productFormOpen, setProductFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [formName, setFormName] = useState("");
-  const [formPrice, setFormPrice] = useState("");
-  const [formCategory, setFormCategory] = useState("");
-  const [formStock, setFormStock] = useState("");
-  const [formDescription, setFormDescription] = useState("");
-  const [formImage, setFormImage] = useState("");
-  const [formImages, setFormImages] = useState("");
+  const [deleteProductTarget, setDeleteProductTarget] = useState(null);
+  const [deletingProduct, setDeletingProduct] = useState(false);
+  const [productQuery, setProductQuery] = useState("");
+  const [form, setForm] = useState({ name: "", price: "", category: "", stock: "", description: "", image: "", images: "", active: true, sizes: "", colors: "", customizable: false, customizationType: "tshirt", customizationConfig: "" });
 
-  const [formActive, setFormActive] = useState(true);
-  const [formSizes, setFormSizes] = useState("");
-  const [formColors, setFormColors] = useState("");
-
-
-  // Personalización
-  const [formCustomizable, setFormCustomizable] = useState(false);
-  const [formCustomizationType, setFormCustomizationType] =
-    useState("tshirt");
-  const [formCustomizationConfig, setFormCustomizationConfig] =
-    useState(`{
-  "maxImages": 1,
-  "maxTextLength": 50,
-  "allowedPositions": ["front", "back"],
-  "allowedColors": ["black", "white", "red"],
-  "notes": "Ejemplo de configuración de personalización"
-}`);
-
-  // ---------------------------
-  //  ESTADOS: PEDIDOS
-  // ---------------------------
   const [orders, setOrders] = useState([]);
-  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(true);
   const [errorOrders, setErrorOrders] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-
-  // Confirmación de entrega
+  const [paymentFilter, setPaymentFilter] = useState("");
+  const [methodFilter, setMethodFilter] = useState("");
+  const [orderQuery, setOrderQuery] = useState("");
+  const [savingOrderId, setSavingOrderId] = useState("");
+  const [paymentTarget, setPaymentTarget] = useState(null);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [deliveryDateInput, setDeliveryDateInput] = useState("");
   const [savingDeliveryDate, setSavingDeliveryDate] = useState(false);
 
-
-  // ---------------------------
-  //  ESTADOS: PERSONALIZACIONES
-  // ---------------------------
   const [customizations, setCustomizations] = useState([]);
-  const [loadingCustomizations, setLoadingCustomizations] = useState(false);
+  const [loadingCustomizations, setLoadingCustomizations] = useState(true);
   const [errorCustomizations, setErrorCustomizations] = useState("");
-
-  
-  const [filterProduct, setFilterProduct] = useState("");
-  const [filterUser, setFilterUser] = useState("");
-  
-  // Modal detalle
+  const [customizationQuery, setCustomizationQuery] = useState("");
   const [selectedCustomization, setSelectedCustomization] = useState(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [orderDetailOpen, setOrderDetailOpen] = useState(false);
 
-  
-  // Chakra UI colors
-  const cardBg = useThemeValue("white", "gray.800");
-  const headerBg = useThemeValue("gray.100", "gray.700");
+  const showNotice = useCallback((type, title, message = "") => setNotice({ type, title, message }), []);
 
-  // ---------------------------
-  //  RESET FORM PRODUCTO
-  // ---------------------------
-  const resetForm = useCallback(() => {
-    setEditingProduct(null);
-    setFormName("");
-    setFormPrice("");
-    setFormCategory("");
-    setFormStock("");
-    setFormDescription("");
-    setFormImage("");
-    setFormImages("");
-    setFormSizes("");
-    setFormColors("");
-
-    setFormActive(true);
-
-    setFormCustomizable(false);
-    setFormCustomizationType("tshirt");
-    setFormCustomizationConfig(`{
-  "maxImages": 1,
-  "maxTextLength": 50,
-  "allowedPositions": ["front", "back"],
-  "allowedColors": ["black", "white", "red"]
-}`);
-  }, []);
-
-  // ---------------------------
-  //  LLENAR FORM DESDE PRODUCTO
-  // ---------------------------
-  const fillFormFromProduct = useCallback((p) => {
-    setEditingProduct(p);
-    setFormName(p.name || "");
-    setFormPrice(String(p.price ?? ""));
-    setFormCategory(p.category || "");
-    setFormStock(String(p.stock ?? ""));
-    setFormDescription(p.description || "");
-    setFormImage(p.image || "");
-    setFormImages(
-      Array.isArray(p.images) && p.images.length
-        ? p.images.join("\n")
-        : ""
-    );
-    setFormSizes(
-      Array.isArray(p.variants?.sizes)
-        ? p.variants.sizes.join(", ")
-        : ""
-    );
-
-    setFormColors(
-      Array.isArray(p.variants?.colors)
-        ? p.variants.colors.join(", ")
-        : ""
-    );
-
-
-    setFormActive(!!p.active);
-
-    setFormCustomizable(!!p.customizable);
-    setFormCustomizationType(p.customizationType || "tshirt");
-
-    if (p.customizationConfig) {
-      try {
-        setFormCustomizationConfig(
-          JSON.stringify(p.customizationConfig, null, 2)
-        );
-      } catch {
-        setFormCustomizationConfig("");
-      }
-    } else {
-      setFormCustomizationConfig("");
-    }
-  }, []);
-
-  // ---------------------------
-  //  CARGA DE PRODUCTOS
-  // ---------------------------
   const loadProducts = useCallback(async () => {
     try {
-      setLoadingProducts(true);
-      setErrorProducts("");
-      const { data } = await http.get("/api/products");
-
-      if (data?.ok) {
-        setProducts(data.products || []);
-      } else {
-        setErrorProducts("No se pudieron cargar los productos.");
-      }
-    } catch (err) {
-      console.error("Error cargando productos:", err);
-      setErrorProducts("Error al cargar productos.");
-    } finally {
-      setLoadingProducts(false);
-    }
+      setLoadingProducts(true); setErrorProducts("");
+      const { data } = await http.get("/api/products/admin");
+      if (!data?.ok) throw new Error(data?.message || "No se pudieron cargar los productos.");
+      setProducts(data.products || []);
+    } catch (error) {
+      setErrorProducts(error.response?.data?.message || error.message || "Error al cargar productos.");
+    } finally { setLoadingProducts(false); }
   }, []);
 
-  useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
-
-  // ---------------------------
-  //  EDITAR PRODUCTO
-  // ---------------------------
-  const handleEditProduct = (p) => fillFormFromProduct(p);
-
-  // ---------------------------
-  //  ELIMINAR PRODUCTO
-  // ---------------------------
-  const handleDeleteProduct = async (p) => {
-    if (!window.confirm(`¿Eliminar el producto "${p.name}"?`)) return;
-
+  const loadOrders = useCallback(async (status = "") => {
     try {
-      await http.delete(`/api/products/${p._id}`);
-      toast({
-        title: "Producto eliminado",
-        status: "success",
-        duration: 2000,
-      });
-      loadProducts();
-    } catch (err) {
-      console.error("Error eliminando producto:", err);
-      toast({
-        title: "Error",
-        description: "No se pudo eliminar el producto",
-        status: "error",
-        duration: 3000,
-      });
-    }
-  };
-
-  // ---------------------------
-  //  GUARDAR PRODUCTO (CREAR/EDITAR)
-  // ---------------------------
-  const handleSubmitProduct = async (e) => {
-    e.preventDefault();
-    setSavingProduct(true);
-
-    let customizationConfigObj = null;
-    if (formCustomizable && formCustomizationConfig.trim()) {
-      try {
-        customizationConfigObj = JSON.parse(formCustomizationConfig);
-      } catch {
-        toast({
-          title: "JSON inválido",
-          description: "Revisa la configuración de personalización.",
-          status: "error",
-          duration: 4000,
-        });
-        setSavingProduct(false);
-        return;
-      }
-    }
-
-    const imagesArray = formImages
-      .split("\n")
-      .map((i) => i.trim())
-      .filter(Boolean);
-
-    const sizesArray = formSizes
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    const colorsArray = formColors
-      .split(",")
-      .map((c) => c.trim())
-      .filter(Boolean);
-
-
-    const payload = {
-      name: formName.trim(),
-      price: Number(formPrice),
-      category: formCategory.trim(),
-      stock: Number(formStock),
-      description: formDescription.trim(),
-      image: formImage.trim() || imagesArray[0] || "",
-      images: imagesArray,
-      variants: {
-        sizes: sizesArray,
-        colors: colorsArray,
-      },
-
-      active: formActive,
-      customizable: formCustomizable,
-      customizationType: formCustomizationType,
-      customizationConfig: customizationConfigObj,
-    };
-
-    try {
-      if (editingProduct) {
-        await http.put(`/api/products/${editingProduct._id}`, payload);
-        toast({ title: "Producto actualizado", status: "success" });
-      } else {
-        await http.post("/api/products", payload);
-        toast({ title: "Producto creado", status: "success" });
-      }
-
-      resetForm();
-      loadProducts();
-    } catch (err) {
-      console.error("Error guardando producto:", err);
-      toast({
-        title: "Error al guardar",
-        status: "error",
-        duration: 3000,
-      });
-    } finally {
-      setSavingProduct(false);
-    }
-  };
-
-  // ---------------------------
-  //  RESUMEN PRODUCTOS
-  // ---------------------------
-  const summary = useMemo(() => {
-    const total = products.length;
-    const activos = products.filter((p) => p.active).length;
-    const sinStock = products.filter((p) => (p.stock || 0) <= 0).length;
-    return { total, activos, sinStock };
-  }, [products]);
-
-  // ---------------------------
-  //  PEDIDOS ADMIN
-  // ---------------------------
-  const loadAdminOrders = useCallback(async (params = {}) => {
-    try {
-      setLoadingOrders(true);
-      setErrorOrders("");
-
-      const data = await adminGetOrders(params);
-      if (data?.ok) {
-        setOrders(data.orders || []);
-      } else {
-        setErrorOrders("No se pudieron cargar los pedidos.");
-      }
-    } catch (err) {
-      console.error("Error cargando pedidos:", err);
-      setErrorOrders("Error al cargar pedidos.");
-    } finally {
-      setLoadingOrders(false);
-    }
+      setLoadingOrders(true); setErrorOrders("");
+      const data = await adminGetOrders({ status: status || undefined });
+      if (!data?.ok) throw new Error(data?.message || "No se pudieron cargar los pedidos.");
+      setOrders(data.orders || []);
+    } catch (error) {
+      setErrorOrders(error.response?.data?.message || error.message || "Error al cargar pedidos.");
+    } finally { setLoadingOrders(false); }
   }, []);
 
-  useEffect(() => {
-    loadAdminOrders();
-  }, [loadAdminOrders]);
+  const loadCustomizations = useCallback(async () => {
+    try {
+      setLoadingCustomizations(true); setErrorCustomizations("");
+      const { data } = await http.get("/api/customizations");
+      if (!data?.ok) throw new Error(data?.message || "No se pudieron cargar las personalizaciones.");
+      setCustomizations(data.customizations || []);
+    } catch (error) {
+      setErrorCustomizations(error.response?.data?.message || error.message || "Error al cargar personalizaciones.");
+    } finally { setLoadingCustomizations(false); }
+  }, []);
 
-  /* ---------------------------------------------------------
-   * CAMBIAR ESTADO DE PEDIDO
-   * --------------------------------------------------------- */
+  useEffect(() => { loadProducts(); loadOrders(); loadCustomizations(); }, [loadProducts, loadOrders, loadCustomizations]);
+
+  const summary = useMemo(() => ({
+    orders: orders.length,
+    pendingPayments: orders.filter((order) => getPaymentStatus(order) === "pending").length,
+    activeProducts: products.filter((product) => product.active).length,
+    outOfStock: products.filter((product) => Number(product.stock || 0) <= 0).length,
+  }), [orders, products]);
+
+  const filteredOrders = useMemo(() => {
+    const query = orderQuery.trim().toLowerCase();
+    return orders.filter((order) => {
+      const matchesQuery = !query || [order._id, getOrderUserLabel(order), getOrderEmail(order)].some((value) => String(value || "").toLowerCase().includes(query));
+      return matchesQuery && (!paymentFilter || getPaymentStatus(order) === paymentFilter) && (!methodFilter || getPaymentMethod(order) === methodFilter);
+    });
+  }, [orders, orderQuery, paymentFilter, methodFilter]);
+
+  const filteredProducts = useMemo(() => {
+    const query = productQuery.trim().toLowerCase();
+    return products.filter((product) => !query || [product.name, product.category, product._id].some((value) => String(value || "").toLowerCase().includes(query)));
+  }, [products, productQuery]);
+
+  const filteredCustomizations = useMemo(() => {
+    const query = customizationQuery.trim().toLowerCase();
+    return customizations.filter((customization) => !query || [customization._id, customization.productName, customization.productId?.name, customization.userEmail, customization.userId?.email].some((value) => String(value || "").toLowerCase().includes(query)));
+  }, [customizations, customizationQuery]);
+
+  const resetProductForm = useCallback(() => {
+    setEditingProduct(null);
+    setForm({ name: "", price: "", category: "", stock: "", description: "", image: "", images: "", active: true, sizes: "", colors: "", customizable: false, customizationType: "tshirt", customizationConfig: "" });
+  }, []);
+
+  const openNewProduct = () => { resetProductForm(); setProductFormOpen(true); };
+  const openEditProduct = (product) => {
+    setEditingProduct(product);
+    setForm({
+      name: product.name || "", price: String(getNumericPrice(product.price)), category: product.category || "", stock: String(product.stock ?? ""), description: product.description || "", image: product.image || "", images: Array.isArray(product.images) ? product.images.join("\n") : "", active: product.active !== false, sizes: Array.isArray(product.variants?.sizes) ? product.variants.sizes.join(", ") : "", colors: Array.isArray(product.variants?.colors) ? product.variants.colors.join(", ") : "", customizable: Boolean(product.customizable), customizationType: product.customizationType || "tshirt", customizationConfig: product.customizationConfig ? JSON.stringify(product.customizationConfig, null, 2) : "",
+    });
+    setProductFormOpen(true);
+  };
+  const updateForm = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  const handleSubmitProduct = async (event) => {
+    event.preventDefault();
+    if (savingProduct) return;
+    let customizationConfig = null;
+    if (form.customizable && form.customizationConfig.trim()) {
+      try { customizationConfig = JSON.parse(form.customizationConfig); }
+      catch { showNotice("error", "Configuración inválida", "El JSON de personalización no es válido."); return; }
+    }
+    const splitValues = (value, separator) => value.split(separator).map((item) => item.trim()).filter(Boolean);
+    const images = splitValues(form.images, "\n");
+    const payload = { name: form.name.trim(), price: Number(form.price), category: form.category.trim(), stock: Number(form.stock), description: form.description.trim(), image: form.image.trim() || images[0] || "", images, variants: { sizes: splitValues(form.sizes, ","), colors: splitValues(form.colors, ",") }, active: form.active, customizable: form.customizable, customizationType: form.customizationType, customizationConfig };
+    const wasEditing = Boolean(editingProduct);
+    try {
+      setSavingProduct(true);
+      if (editingProduct) await http.put(`/api/products/${editingProduct._id}`, payload); else await http.post("/api/products", payload);
+      setProductFormOpen(false); resetProductForm(); await loadProducts();
+      showNotice("success", wasEditing ? "Producto actualizado" : "Producto creado");
+    } catch (error) { showNotice("error", "No se pudo guardar el producto", error.response?.data?.message || "Revisa los datos e inténtalo de nuevo."); }
+    finally { setSavingProduct(false); }
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!deleteProductTarget || deletingProduct) return;
+    try { setDeletingProduct(true); await http.delete(`/api/products/${deleteProductTarget._id}`); setDeleteProductTarget(null); await loadProducts(); showNotice("success", "Producto eliminado"); }
+    catch (error) { showNotice("error", "No se pudo eliminar el producto", error.response?.data?.message || "Inténtalo de nuevo."); }
+    finally { setDeletingProduct(false); }
+  };
 
   const handleChangeOrderStatus = async (orderId, status) => {
+    if (!status || savingOrderId) return;
     try {
+      setSavingOrderId(orderId);
       const data = await adminUpdateOrderStatus(orderId, status);
-      if (data?.ok) {
-        setOrders((prev) =>
-          prev.map((o) => (o._id === orderId ? { ...o, status } : o))
-        );
-        toast({ title: "Estado actualizado", status: "success" });
-      } else {
-        toast({ title: "No se pudo actualizar", status: "error" });
-      }
-    } catch (err) {
-      console.error("Error actualizando pedido:", err);
-      toast({ title: "Error", status: "error" });
-    }
+      if (!data?.ok) throw new Error(data?.message || "No se pudo actualizar el estado.");
+      setOrders((current) => current.map((order) => order._id === orderId ? { ...order, status } : order));
+      setSelectedOrder((current) => current?._id === orderId ? { ...current, status } : current);
+      showNotice("success", "Estado del pedido actualizado");
+    } catch (error) { showNotice("error", "No se pudo actualizar el pedido", error.response?.data?.message || error.message); }
+    finally { setSavingOrderId(""); }
   };
 
-  const handleConfirmOrderPayment = async (order) => {
-    const isPending = getOrderPaymentStatus(order) === "pending";
-    if (!isPending) return;
-
-    const ok = window.confirm("¿Confirmar pago manual de este pedido?");
-    if (!ok) return;
-
+  const handleConfirmPayment = async () => {
+    if (!paymentTarget || confirmingPayment || getPaymentStatus(paymentTarget) !== "pending") return;
     try {
-      const data = await confirmOrderPayment(order._id);
-      if (data?.ok) {
-        toast({ title: "Pago confirmado", status: "success" });
-        loadAdminOrders();
-      } else {
-        toast({
-          title: "No se pudo confirmar el pago",
-          description: data?.message || "Error inesperado",
-          status: "error",
-        });
-      }
-    } catch (err) {
-      const status = err?.response?.status;
-      const message = err?.response?.data?.message || "Error confirmando el pago";
-      if (status === 401 || status === 403 || status === 409) {
-        toast({ title: "No permitido", description: message, status: "error" });
-      } else {
-        toast({ title: "Error", description: message, status: "error" });
-      }
-    }
+      setConfirmingPayment(true);
+      const data = await confirmOrderPayment(paymentTarget._id);
+      if (!data?.ok) throw new Error(data?.message || "No se pudo confirmar el pago.");
+      const markPaid = (order) => order._id === paymentTarget._id ? { ...order, payment: { ...order.payment, status: "paid" }, paymentStatus: "paid" } : order;
+      setOrders((current) => current.map(markPaid)); setSelectedOrder((current) => current ? markPaid(current) : current); setPaymentTarget(null);
+      showNotice("success", "Pago confirmado", "El pedido figura ahora como pagado.");
+    } catch (error) { showNotice("error", "No se pudo confirmar el pago", error.response?.data?.message || error.message); }
+    finally { setConfirmingPayment(false); }
   };
 
-  //Confirmar fecha de entrega
-  const handleConfirmDeliveryDate = async (orderId) => {
-    if (!deliveryDateInput) {
-      toast({
-        title: "Fecha requerida",
-        description: "Debes indicar una fecha de entrega",
-        status: "warning",
-      });
-      return;
-    }
-
+  const handleConfirmDelivery = async () => {
+    if (!selectedOrder || !deliveryDateInput || savingDeliveryDate) return;
     try {
       setSavingDeliveryDate(true);
-
-      const data = await adminConfirmDeliveryDate(orderId, deliveryDateInput);
-
-      if (data?.ok) {
-        toast({
-          title: "Entrega confirmada",
-          description: "La fecha de entrega ha sido notificada al cliente",
-          status: "success",
-        });
-
-        // Actualizar pedido en memoria
-        setOrders((prev) =>
-          prev.map((o) =>
-            o._id === orderId ? data.order : o
-          )
-        );
-
-        setDeliveryDateInput("");
-        setOrderDetailOpen(false);
-      }
-    } catch (err) {
-      console.error(err);
-      toast({
-        title: "Error",
-        description: "No se pudo confirmar la fecha de entrega",
-        status: "error",
-      });
-    } finally {
-      setSavingDeliveryDate(false);
-    }
+      const data = await adminConfirmDeliveryDate(selectedOrder._id, deliveryDateInput);
+      if (!data?.ok) throw new Error(data?.message || "No se pudo confirmar la entrega.");
+      setOrders((current) => current.map((order) => order._id === selectedOrder._id ? data.order : order)); setSelectedOrder(data.order); setDeliveryDateInput(""); showNotice("success", "Fecha de entrega confirmada");
+    } catch (error) { showNotice("error", "No se pudo confirmar la entrega", error.response?.data?.message || error.message); }
+    finally { setSavingDeliveryDate(false); }
   };
 
-
-  /* ---------------------------------------------------------
-   * PERSONALIZACIONES (CUSTOMIZATIONS)
-   * --------------------------------------------------------- */
-
-    const loadCustomizations = useCallback(async (params = {}) => {
+  const handleDownloadZip = async (customization) => {
+    if (!customization.zipUrl) return;
     try {
-      setLoadingCustomizations(true);
-      setErrorCustomizations("");
-
-      const { data } = await http.get("/api/customizations", {
-        params,
-      });
-
-      if (data?.ok) {
-        setCustomizations(data.customizations || []);
-      } else {
-        setErrorCustomizations("No se pudieron cargar las personalizaciones");
-      }
-    } catch (err) {
-      console.error("Error cargando personalizaciones:", err);
-      setErrorCustomizations("Error al cargar diseños");
-    } finally {
-      setLoadingCustomizations(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadCustomizations();
-  }, [loadCustomizations]);
-
-  /* ---------------------------------------------------------
-   * ABRIR MODAL DE DETALLES DEL DISEÑO
-   * --------------------------------------------------------- */
-
-  const openCustomizationDetail = (c) => {
-    setSelectedCustomization(c);
-    setDetailOpen(true);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}${customization.zipUrl}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const url = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a"); anchor.href = url; anchor.download = `custom_${customization._id}.zip`; document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
+    } catch { showNotice("error", "No se pudo descargar el ZIP"); }
   };
- 
-
-const handleDownloadZip = async (customization) => {
-  if (!customization.zipUrl) return;
-
-  try {
-    const API_URL = import.meta.env.VITE_API_URL;
-
-    const response = await fetch(
-      `${API_URL}${customization.zipUrl}`,
-      { cache: "no-store" }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const blob = await response.blob();
-
-
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `custom_${customization._id}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    URL.revokeObjectURL(a.href);
-  } catch (err) {
-    console.error("Error descargando ZIP:", err);
-  }
-};
-
 
   return (
-    <Box>
-      <Heading size="lg" mb={2}>
-        Panel de administración
-      </Heading>
+    <PageContainer size="wide" className="py-5 sm:py-6">
+      <header className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-end sm:justify-between"><div><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary"><ShieldCheck className="size-4" aria-hidden="true" /> Administración</div><h1 className="mt-1 text-2xl font-bold tracking-tight">Operaciones de la tienda</h1><p className="mt-1 text-sm text-muted-foreground">Pedidos, pagos manuales, productos y diseños.</p></div></header>
+      <nav aria-label="Navegación de administración" className="-mx-4 overflow-x-auto border-b px-4 sm:mx-0 sm:px-0"><div className="flex min-w-max gap-1 py-2">{SECTIONS.map(({ id, label, icon }) => <Button key={id} type="button" variant={section === id ? "secondary" : "ghost"} size="sm" aria-current={section === id ? "page" : undefined} onClick={() => setSection(id)}>{createElement(icon, { "aria-hidden": true })} {label}</Button>)}</div></nav>
+      {notice && <Alert variant={notice.type === "error" ? "destructive" : "default"} className="mt-4 flex items-start justify-between gap-3" role="status"><div><p className="font-semibold">{notice.title}</p>{notice.message && <p className="mt-0.5 text-muted-foreground">{notice.message}</p>}</div><Button type="button" variant="ghost" size="sm" onClick={() => setNotice(null)}>Cerrar</Button></Alert>}
 
-      <Text fontSize="sm" color="gray.500" mb={6}>
-        Gestiona el catálogo, pedidos y la información general de la tienda.
-      </Text>
+      {section === "summary" && <section aria-labelledby="admin-summary-title" className="mt-5"><h2 id="admin-summary-title" className="text-lg font-semibold">Resumen operativo</h2><p className="mt-1 text-sm text-muted-foreground">Datos reales derivados de los listados actuales.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Pedidos cargados" value={summary.orders} hint="Según el filtro operativo actual" icon={ClipboardCheck} /><Metric label="Pagos pendientes" value={summary.pendingPayments} hint="Requieren revisión manual" icon={CheckCircle2} /><Metric label="Productos activos" value={summary.activeProducts} hint="Visibles en catálogo" icon={Package} /><Metric label="Sin stock" value={summary.outOfStock} hint="Stock global igual o inferior a cero" icon={Boxes} /></div></section>}
 
-      <Tabs variant="enclosed" colorScheme="blue">
-        <TabList>
-          <Tab>Resumen</Tab>
-          <Tab>Productos</Tab>
-          <Tab>Pedidos</Tab>
-          <Tab>Personalizaciones</Tab> {/* NUEVA PESTAÑA */}
-        </TabList>
+      {section === "orders" && <section aria-labelledby="admin-orders-title" className="mt-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 id="admin-orders-title" className="text-lg font-semibold">Pedidos</h2><p className="mt-1 text-sm text-muted-foreground">Revisa cobros manuales y estado operativo.</p></div><Button type="button" variant="outline" size="sm" onClick={() => loadOrders(statusFilter)} disabled={loadingOrders}><RefreshCw aria-hidden="true" /> Recargar</Button></div><div className="mt-4 grid gap-3 rounded-xl border bg-card p-3 sm:grid-cols-2 lg:grid-cols-[minmax(15rem,1fr)_repeat(3,minmax(10rem,auto))_auto]"><Field label="Buscar"><div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input value={orderQuery} onChange={(event) => setOrderQuery(event.target.value)} placeholder="Referencia, cliente o email" className="pl-9" /></div></Field><Field label="Estado del pedido"><Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">Todos</option><option value="created">Pedido recibido</option>{ORDER_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select></Field><Field label="Estado del pago"><Select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)}><option value="">Todos</option><option value="pending">Pendiente</option><option value="paid">Pagado</option><option value="failed">Fallido</option><option value="refunded">Reembolsado</option></Select></Field><Field label="Método"><Select value={methodFilter} onChange={(event) => setMethodFilter(event.target.value)}><option value="">Todos</option><option value="bizum">Bizum</option><option value="bank_transfer">Transferencia</option><option value="cash">Efectivo</option><option value="card">Tarjeta</option><option value="paypal">PayPal</option></Select></Field><Button type="button" size="sm" className="self-end" onClick={() => loadOrders(statusFilter)} disabled={loadingOrders}>Aplicar estado</Button></div>{loadingOrders && <LoadingState message="Cargando pedidos…" />}{!loadingOrders && errorOrders && <ErrorState title="No se pudieron cargar los pedidos" description={errorOrders} onRetry={() => loadOrders(statusFilter)} />}{!loadingOrders && !errorOrders && filteredOrders.length === 0 && <EmptyState title="No hay pedidos" description="No existen pedidos que coincidan con los filtros actuales." />}{!loadingOrders && !errorOrders && filteredOrders.length > 0 && <OrdersList orders={filteredOrders} savingOrderId={savingOrderId} onStatusChange={handleChangeOrderStatus} onView={setSelectedOrder} onConfirmPayment={setPaymentTarget} />}</section>}
 
-        <TabPanels mt={4}>
-          {/* ---------------------------------------------------- */}
-          {/* 🟦 TAB 1 — RESUMEN */}
-          {/* ---------------------------------------------------- */}
-          <TabPanel>
-            <Flex gap={4} flexWrap="wrap">
-              {/* Tarjeta: Productos totales */}
-              <Box flex="1 1 220px" bg={cardBg} borderRadius="lg" p={4} boxShadow="md">
-                <Heading size="sm" mb={2}>Productos totales</Heading>
-                <Text fontSize="3xl" fontWeight="bold">{summary.total}</Text>
-                <Text fontSize="xs" color="gray.500">Número total de productos registrados</Text>
-              </Box>
+      {section === "products" && <section aria-labelledby="admin-products-title" className="mt-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 id="admin-products-title" className="text-lg font-semibold">Productos locales</h2><p className="mt-1 text-sm text-muted-foreground">Precio, stock y visibilidad según el modelo actual.</p></div><div className="flex gap-2"><Button type="button" variant="outline" size="sm" onClick={loadProducts} disabled={loadingProducts}><RefreshCw aria-hidden="true" /> Recargar</Button><Button type="button" size="sm" onClick={openNewProduct}><Plus aria-hidden="true" /> Nuevo producto</Button></div></div><div className="relative mt-4 max-w-md"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input value={productQuery} onChange={(event) => setProductQuery(event.target.value)} placeholder="Buscar por nombre, categoría o ID" className="pl-9" aria-label="Buscar productos" /></div>{loadingProducts && <LoadingState message="Cargando productos…" />}{!loadingProducts && errorProducts && <ErrorState title="No se pudieron cargar los productos" description={errorProducts} onRetry={loadProducts} />}{!loadingProducts && !errorProducts && filteredProducts.length === 0 && <EmptyState title="No hay productos" description="No existen productos locales que coincidan con la búsqueda." />}{!loadingProducts && !errorProducts && filteredProducts.length > 0 && <ProductsList products={filteredProducts} onEdit={openEditProduct} onDelete={setDeleteProductTarget} />}</section>}
 
-              {/* Tarjeta: Activos */}
-              <Box flex="1 1 220px" bg={cardBg} borderRadius="lg" p={4} boxShadow="md">
-                <Heading size="sm" mb={2}>Activos</Heading>
-                <Text fontSize="3xl" fontWeight="bold" color="green.400">
-                  {summary.activos}
-                </Text>
-                <Text fontSize="xs" color="gray.500">Visibles para los clientes</Text>
-              </Box>
+      {section === "customizations" && <section aria-labelledby="admin-customizations-title" className="mt-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 id="admin-customizations-title" className="text-lg font-semibold">Personalizaciones</h2><p className="mt-1 text-sm text-muted-foreground">Previews y archivos ya generados.</p></div><Button type="button" variant="outline" size="sm" onClick={loadCustomizations} disabled={loadingCustomizations}><RefreshCw aria-hidden="true" /> Recargar</Button></div><div className="relative mt-4 max-w-md"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input value={customizationQuery} onChange={(event) => setCustomizationQuery(event.target.value)} placeholder="Buscar producto, usuario o ID" className="pl-9" aria-label="Buscar personalizaciones" /></div>{loadingCustomizations && <LoadingState message="Cargando personalizaciones…" />}{!loadingCustomizations && errorCustomizations && <ErrorState title="No se pudieron cargar las personalizaciones" description={errorCustomizations} onRetry={loadCustomizations} />}{!loadingCustomizations && !errorCustomizations && filteredCustomizations.length === 0 && <EmptyState title="No hay personalizaciones" description="No existen diseños que coincidan con la búsqueda." />}{!loadingCustomizations && !errorCustomizations && filteredCustomizations.length > 0 && <CustomizationsList customizations={filteredCustomizations} onView={setSelectedCustomization} onDownload={handleDownloadZip} />}</section>}
 
-              {/* Tarjeta: Sin stock */}
-              <Box flex="1 1 220px" bg={cardBg} borderRadius="lg" p={4} boxShadow="md">
-                <Heading size="sm" mb={2}>Sin stock</Heading>
-                <Text fontSize="3xl" fontWeight="bold" color="red.400">
-                  {summary.sinStock}
-                </Text>
-                <Text fontSize="xs" color="gray.500">Productos agotados</Text>
-              </Box>
-            </Flex>
-          </TabPanel>
-
-          {/* ---------------------------------------------------- */}
-          {/* 🟦 TAB 2 — PRODUCTOS */}
-          {/* ---------------------------------------------------- */}
-          <TabPanel>
-            <Flex
-              gap={6}
-              align="flex-start"
-              flexWrap={{ base: "wrap", lg: "nowrap" }}
-            >
-              {/* 🟩 LISTA DE PRODUCTOS */}
-              <Box
-                flex="3 1 0"
-                bg={cardBg}
-                borderRadius="lg"
-                boxShadow="md"
-                overflow="hidden"
-              >
-                <Flex
-                  align="center"
-                  px={4}
-                  py={3}
-                  bg={headerBg}
-                  borderBottom="1px solid"
-                  borderColor="gray.300"
-                >
-                  <Heading size="sm">Productos</Heading>
-                  <Spacer />
-                  <IconButton
-                    aria-label="Recargar productos"
-                    icon={<RepeatIcon />}
-                    size="sm"
-                    onClick={loadProducts}
-                    isLoading={loadingProducts}
-                  />
-                </Flex>
-
-                {errorProducts && (
-                  <Box px={4} py={2}>
-                    <Text color="red.400" fontSize="sm">{errorProducts}</Text>
-                  </Box>
-                )}
-
-                <Box maxH="420px" overflowY="auto">
-                  <Table size="sm">
-                    <Thead position="sticky" top={0} bg={headerBg} zIndex={2}>
-                      <Tr>
-                        <Th>Nombre</Th>
-                        <Th>Precio</Th>
-                        <Th>Stock</Th>
-                        <Th>Estado</Th>
-                        <Th>Personalizable</Th>
-                        <Th>Categoria</Th>
-                        <Th textAlign="right">Acciones</Th>
-                      </Tr>
-                    </Thead>
-
-                    <Tbody>
-                      {products.map((p) => (
-                        <Tr key={p._id}>
-                          <Td maxW="180px">
-                            <Text noOfLines={1} title={p.name}>{p.name}</Text>
-                          </Td>
-
-                          <Td>{getNumericPrice(p.price).toFixed(2)} €</Td>
-
-                          <Td>{p.stock ?? 0}</Td>
-
-                          <Td>
-                            {p.active ? (
-                              <Badge colorScheme="green">Activo</Badge>
-                            ) : (
-                              <Badge colorScheme="gray">Oculto</Badge>
-                            )}
-                          </Td>
-
-                          <Td>
-                            {p.customizable ? (
-                              <Badge colorScheme="purple">Sí</Badge>
-                            ) : (
-                              <Badge colorScheme="gray">No</Badge>
-                            )}
-                          </Td>
-
-                          <Td>{p.category || "-"}</Td>
-
-                          <Td textAlign="right">
-                            <IconButton
-                              aria-label="Editar"
-                              icon={<EditIcon />}
-                              size="xs"
-                              mr={2}
-                              onClick={() => handleEditProduct(p)}
-                            />
-
-                            <IconButton
-                              aria-label="Eliminar"
-                              icon={<DeleteIcon />}
-                              size="xs"
-                              colorScheme="red"
-                              variant="outline"
-                              onClick={() => handleDeleteProduct(p)}
-                            />
-                          </Td>
-                        </Tr>
-                      ))}
-
-                      {!loadingProducts && products.length === 0 && (
-                        <Tr>
-                          <Td colSpan={7}>
-                            <Text fontSize="sm" color="gray.500" textAlign="center">
-                              No hay productos registrados.
-                            </Text>
-                          </Td>
-                        </Tr>
-                      )}
-                    </Tbody>
-                  </Table>
-                </Box>
-              </Box>
-
-              {/* 🟧 FORMULARIO DEL PRODUCTO */}
-              <Box
-                flex="2 1 0"
-                bg={cardBg}
-                borderRadius="lg"
-                boxShadow="md"
-                p={4}
-              >
-                <Flex align="center" mb={3}>
-                  <Heading size="sm">
-                    {editingProduct ? "Editar producto" : "Nuevo producto"}
-                  </Heading>
-
-                  <Spacer />
-
-                  {editingProduct && (
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      leftIcon={<AddIcon />}
-                      onClick={resetForm}
-                    >
-                      Nuevo
-                    </Button>
-                  )}
-                </Flex>
-
-                <form onSubmit={handleSubmitProduct}>
-                  <Stack spacing={3}>
-                    {/* Nombre */}
-                    <FormControl isRequired>
-                      <FormLabel>Nombre</FormLabel>
-                      <Input
-                        size="sm"
-                        value={formName}
-                        onChange={(e) => setFormName(e.target.value)}
-                      />
-                    </FormControl>
-
-                    {/* Precio */}
-                    <FormControl isRequired>
-                      <FormLabel>Precio (€)</FormLabel>
-                      <NumberInput
-                        size="sm"
-                        min={0}
-                        precision={2}
-                        value={formPrice}
-                        onChange={(v) => setFormPrice(v)}
-                      >
-                        <NumberInputField />
-                      </NumberInput>
-                    </FormControl>
-
-                    {/* Categoría */}
-                    <FormControl>
-                      <FormLabel>Categoría</FormLabel>
-                      <Input
-                        size="sm"
-                        value={formCategory}
-                        onChange={(e) => setFormCategory(e.target.value)}
-                        placeholder="ropa, hogar, electrónica..."
-                      />
-                    </FormControl>
-
-                    {/* Stock */}
-                    <FormControl>
-                      <FormLabel>Stock</FormLabel>
-                      <NumberInput
-                        size="sm"
-                        min={0}
-                        value={formStock}
-                        onChange={(v) => setFormStock(v)}
-                      >
-                        <NumberInputField />
-                      </NumberInput>
-                    </FormControl>
-
-                    {/* Tallas y colores */}
-                    <FormControl>
-                      <FormLabel>Tallas (separadas por coma)</FormLabel>
-                      <Input
-                        size="sm"
-                        value={formSizes}
-                        onChange={(e) => setFormSizes(e.target.value)}
-                        placeholder="S, M, L, XL"
-                      />
-                    </FormControl>
-
-                    <FormControl>
-                      <FormLabel>Colores (separados por coma)</FormLabel>
-                      <Input
-                        size="sm"
-                        value={formColors}
-                        onChange={(e) => setFormColors(e.target.value)}
-                        placeholder="Negro, Blanco, Rojo"
-                      />
-                    </FormControl>
-
-
-                    {/* Imagen */}
-                    <FormControl>
-                      <FormLabel>Imagen (URL)</FormLabel>
-                      <Input
-                        size="sm"
-                        value={formImage}
-                        onChange={(e) => setFormImage(e.target.value)}
-                        placeholder="https://..."
-                      />
-                    </FormControl>
-                    {/* Imágenes adicionales */}
-                    <FormControl>
-                      <FormLabel>Imágenes adicionales (una por línea)</FormLabel>
-                      <Textarea
-                        size="sm"
-                        rows={4}
-                        value={formImages}
-                        onChange={(e) => setFormImages(e.target.value)}
-                        placeholder={`https://...\nhttps://...\nhttps://...`}
-                      />
-                    </FormControl>
-
-
-                    {/* Descripción */}
-                    <FormControl>
-                      <FormLabel>Descripción</FormLabel>
-                      <Textarea
-                        size="sm"
-                        rows={3}
-                        value={formDescription}
-                        onChange={(e) => setFormDescription(e.target.value)}
-                      />
-                    </FormControl>
-
-                    {/* Visible */}
-                    <FormControl display="flex" alignItems="center">
-                      <FormLabel mb="0">Visible en catálogo</FormLabel>
-                      <Switch
-                        isChecked={formActive}
-                        onChange={(e) => setFormActive(e.target.checked)}
-                        colorScheme="green"
-                      />
-                    </FormControl>
-
-                    {/* Personalizable */}
-                    <FormControl display="flex" alignItems="center">
-                      <FormLabel mb="0">Producto personalizable</FormLabel>
-                      <Switch
-                        isChecked={formCustomizable}
-                        onChange={(e) => setFormCustomizable(e.target.checked)}
-                        colorScheme="purple"
-                      />
-                    </FormControl>
-
-                    {/* Configuración de personalización */}
-                    {formCustomizable && (
-                      <>
-                        <FormControl>
-                          <FormLabel>Tipo de diseño</FormLabel>
-                          <Select
-                            size="sm"
-                            value={formCustomizationType}
-                            onChange={(e) => setFormCustomizationType(e.target.value)}
-                          >
-                            <option value="tshirt">Camiseta</option>
-                            <option value="hoodie">Sudadera</option>
-                            <option value="mug">Taza</option>
-                          </Select>
-                        </FormControl>
-
-                        <FormControl>
-                          <FormLabel>Configuración JSON</FormLabel>
-                          <Textarea
-                            size="sm"
-                            rows={6}
-                            fontFamily="mono"
-                            value={formCustomizationConfig}
-                            onChange={(e) => setFormCustomizationConfig(e.target.value)}
-                          />
-                        </FormControl>
-                      </>
-                    )}
-
-                    {/* Guardar */}
-                    <Button
-                      type="submit"
-                      colorScheme="blue"
-                      size="sm"
-                      isLoading={savingProduct}
-                    >
-                      {editingProduct ? "Guardar cambios" : "Crear producto"}
-                    </Button>
-                  </Stack>
-                </form>
-              </Box>
-            </Flex>
-          </TabPanel>
-          {/* ---------------------------------------------------- */}
-          {/* 🟦 TAB 3 — PEDIDOS */}
-          {/* ---------------------------------------------------- */}
-          <TabPanel>
-            <Flex
-              direction="column"
-              gap={4}
-              bg={cardBg}
-              borderRadius="lg"
-              p={4}
-              boxShadow="md"
-            >
-              {/* Header */}
-              <Flex align="center" mb={2}>
-                <Heading size="sm">Pedidos</Heading>
-                <Spacer />
-                <Button
-                  size="xs"
-                  leftIcon={<RepeatIcon />}
-                  onClick={loadAdminOrders}
-                  isLoading={loadingOrders}
-                >
-                  Recargar
-                </Button>
-              </Flex>
-
-              {/* Filtros */}
-              <Flex gap={3} wrap="wrap" mb={2}>
-                <FormControl maxW="200px">
-                  <FormLabel fontSize="xs" mb={1}>Estado</FormLabel>
-                  <Select
-                    size="sm"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                  >
-                    <option value="">Todos</option>
-                    <option value="created">Creado</option>
-                    <option value="processing">En preparación</option>
-                    
-                    <option value="shipped">Enviado</option>
-                    <option value="delivered">Entregado</option>
-                    <option value="cancelled">Cancelado</option>
-                  </Select>
-                </FormControl>
-
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    loadAdminOrders({
-                      status: statusFilter || undefined,
-                    })
-                  }
-                  isLoading={loadingOrders}
-                >
-                  Filtrar
-                </Button>
-              </Flex>
-
-              {errorOrders && (
-                <Text color="red.400" fontSize="sm">
-                  {errorOrders}
-                </Text>
-              )}
-
-              {/* Tabla de pedidos */}
-              <Box maxH="420px" overflowY="auto">
-                <Table size="sm">
-                  <Thead
-                    position="sticky"
-                    top={0}
-                    bg={headerBg}
-                    zIndex={2}
-                  >
-                    <Tr>
-                      <Th>Nº Pedido</Th>
-                      <Th>Cliente</Th>
-                      <Th>Total</Th>
-                      <Th>Estado</Th>
-                      <Th>Pago</Th>
-                      <Th>Fecha</Th>
-                      <Th>Acciones</Th>
-                    </Tr>
-                  </Thead>
-
-                  <Tbody>
-                    {orders.map((o) => (
-                      <Tr key={o._id}>
-                        {/* Número pedido */}
-                        <Td>
-                          <Text fontSize="xs" fontFamily="mono">
-                            {String(o._id).slice(-8)}
-                          </Text>
-                        </Td>
-
-                        {/* Cliente */}
-                        <Td>
-                          <Text fontSize="sm">{getOrderUserLabel(o)}</Text>
-                        </Td>
-
-                        {/* Total */}
-                        <Td>
-                          {(o.totalAmount ?? o.total ?? 0).toFixed(2)} €
-                        </Td>
-
-                        {/* Cambiar estado */}
-                        <Td>
-                          <Select
-                            size="xs"
-                            value={o.status}
-                            onChange={(e) =>
-                              handleChangeOrderStatus(o._id, e.target.value)
-                            }
-                          >
-                            <option value="created">Creado</option>
-                            <option value="processing">En preparación</option>
-                            <option value="shipped">Enviado</option>
-                            <option value="delivered">Entregado</option>
-                            <option value="cancelled">Cancelado</option>
-                          </Select>
-                        </Td>
-
-	                        {/* Fecha */}
-	                        <Td>
-                            <Badge
-                              colorScheme={
-                                getOrderPaymentStatus(o) === "paid"
-                                  ? "green"
-                                  : getOrderPaymentStatus(o) === "failed"
-                                    ? "red"
-                                    : getOrderPaymentStatus(o) === "refunded"
-                                      ? "purple"
-                                      : "yellow"
-                              }
-                            >
-                              {getPaymentStatusLabel(getOrderPaymentStatus(o))}
-                            </Badge>
-                          </Td>
-
-	                        {/* Fecha */}
-	                        <Td fontSize="xs">
-                          {o.createdAt
-                            ? new Date(o.createdAt).toLocaleString()
-                            : "—"}
-                        </Td>
-
-	                        {/* Botón ver detalles (opcional futuro) */}
-	                        <Td>
-                            <Flex gap={2} wrap="wrap">
-	                            <Button
-	                              size="xs"
-	                              variant="outline"
-	                              onClick={() => {
-	                                setSelectedOrder(o);
-	                                setOrderDetailOpen(true);
-	                              }}
-	                            >
-	                              Ver
-	                            </Button>
-                              {getOrderPaymentStatus(o) === "pending" && (
-                                <Button
-                                  size="xs"
-                                  colorScheme="green"
-                                  variant="outline"
-                                  onClick={() => handleConfirmOrderPayment(o)}
-                                  isDisabled={o.status === "cancelled"}
-                                >
-                                  Confirmar pago
-                                </Button>
-                              )}
-                            </Flex>
-	                        </Td>
-                      </Tr>
-                    ))}
-
-                    {!loadingOrders && orders.length === 0 && (
-                      <Tr>
-	                        <Td colSpan={7}>
-                          <Text
-                            fontSize="sm"
-                            color="gray.500"
-                            textAlign="center"
-                          >
-                            No hay pedidos registrados.
-                          </Text>
-                        </Td>
-                      </Tr>
-                    )}
-                  </Tbody>
-                </Table>
-              </Box>
-            </Flex>
-          </TabPanel>
-          {/* ---------------------------------------------------- */}
-          {/* 🟣 TAB 4 — PERSONALIZACIONES */}
-          {/* ---------------------------------------------------- */}
-          <TabPanel>
-            <Flex
-              direction="column"
-              gap={4}
-              bg={cardBg}
-              borderRadius="lg"
-              p={4}
-              boxShadow="md"
-            >
-              {/* --------------------------------------------------- */}
-              {/* ENCABEZADO */}
-              {/* --------------------------------------------------- */}
-              <Flex align="center" mb={2}>
-                <Heading size="sm">Diseños personalizados</Heading>
-                <Spacer />
-                <Button
-                  size="xs"
-                  leftIcon={<RepeatIcon />}
-                  onClick={loadCustomizations}
-                  isLoading={loadingCustomizations}
-                >
-                  Recargar
-                </Button>
-              </Flex>
-
-              {/* --------------------------------------------------- */}
-              {/* FILTROS */}
-              {/* --------------------------------------------------- */}
-              <Flex gap={3} wrap="wrap" mb={2}>
-                <FormControl maxW="240px">
-                  <FormLabel fontSize="xs" mb={1}>Producto</FormLabel>
-                  <Input
-                    size="sm"
-                    placeholder="ID o nombre del producto"
-                    value={filterProduct}
-                    onChange={(e) => setFilterProduct(e.target.value)}
-                  />
-                </FormControl>
-
-                <FormControl maxW="240px">
-                  <FormLabel fontSize="xs" mb={1}>Usuario</FormLabel>
-                  <Input
-                    size="sm"
-                    placeholder="email o id"
-                    value={filterUser}
-                    onChange={(e) => setFilterUser(e.target.value)}
-                  />
-                </FormControl>
-
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    loadCustomizations({
-                      product: filterProduct || undefined,
-                      user: filterUser || undefined,
-                    })
-                  }
-                >
-                  Filtrar
-                </Button>
-              </Flex>
-
-              {errorCustomizations && (
-                <Text color="red.400" fontSize="sm">{errorCustomizations}</Text>
-              )}
-
-              {/* --------------------------------------------------- */}
-              {/* TABLA DE PERSONALIZACIONES */}
-              {/* --------------------------------------------------- */}
-              <Box maxH="420px" overflowY="auto">
-                <Table size="sm">
-                  <Thead position="sticky" top={0} bg={headerBg} zIndex={1}>
-                    <Tr>
-                      <Th>ID</Th>
-                      <Th>Preview</Th>
-                      <Th>Producto</Th>
-                      <Th>Usuario</Th>
-                      <Th>Fecha</Th>
-                      <Th>ZIP</Th>
-                      <Th>Acciones</Th>
-                    </Tr>
-                  </Thead>
-
-                  <Tbody>
-                    {customizations.map((c) => (
-                      <Tr key={c._id}>
-                        {/* ID recortado */}
-                        <Td fontSize="xs" fontFamily="mono">
-                          {String(c._id).slice(-8)}
-                        </Td>
-
-                        {/* PREVIEW */}
-                        <Td>
-                          {c.previewImage ? (
-                            <Image
-                              src={c.previewLowQuality || c.previewImage}
-                              alt="preview"
-                              boxSize="60px"
-                              objectFit="cover"
-                              borderRadius="6px"
-                              border="1px solid #ddd"
-                            />
-                          ) : (
-                            <Text fontSize="xs" color="gray.500">
-                              Sin preview
-                            </Text>
-                          )}
-                        </Td>
-
-                        {/* PRODUCTO */}
-                        <Td>
-                          {c.productName ||
-                            c.productId?.name ||
-                            c.productId ||
-                            "—"}
-                        </Td>
-
-                        {/* USUARIO */}
-                        <Td>
-                          {c.userEmail ||
-                            c.userId?.email ||
-                            c.userId?._id ||
-                            "—"}
-                        </Td>
-
-                        {/* FECHA */}
-                        <Td fontSize="xs">
-                          {c.createdAt
-                            ? new Date(c.createdAt).toLocaleString()
-                            : "—"}
-                        </Td>
-
-                        {/* DESCARGAR ZIP */}
-                        <Td>
-                          {c.zipUrl ? (
-                            <Button
-                              size="xs"
-                              colorScheme="purple"
-                              onClick={() => handleDownloadZip(c)}
-                            >
-                              Descargar
-                            </Button>
-                          ) : (
-                            <Badge colorScheme="gray">Pendiente</Badge>
-                          )}
-                        </Td>
-
-                        {/* VER DETALLES */}
-                        <Td>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={() => openCustomizationDetail(c)}
-                          >
-                            Ver
-                          </Button>
-                        </Td>
-                      </Tr>
-                    ))}
-
-                    {!loadingCustomizations && customizations.length === 0 && (
-                      <Tr>
-                        <Td colSpan={6}>
-                          <Text fontSize="sm" color="gray.500" textAlign="center">
-                            No hay personalizaciones registradas.
-                          </Text>
-                        </Td>
-                      </Tr>
-                    )}
-                  </Tbody>
-                </Table>
-              </Box>
-            </Flex>
-
-            {/* --------------------------------------------------- */}
-            {/* MODAL DETALLE */}
-            {/* --------------------------------------------------- */}
-            <Modal
-              isOpen={detailOpen}
-              onClose={() => setDetailOpen(false)}
-              size="xl"
-              isCentered
-            >
-              <ModalOverlay />
-              <ModalContent>
-                <ModalHeader>Detalles del diseño</ModalHeader>
-                <ModalCloseButton />
-
-                <ModalBody>
-                  {selectedCustomization ? (
-                    <Stack spacing={4}>
-                      {/* Información base */}
-                      <Text fontSize="sm">
-                        <strong>ID:</strong> {selectedCustomization._id}
-                      </Text>
-
-                      <Text fontSize="sm">
-                        <strong>Producto:</strong>{" "}
-                        {selectedCustomization.productName ||
-                          selectedCustomization.productId?.name ||
-                          "—"}
-                      </Text>
-
-                      <Text fontSize="sm">
-                        <strong>Usuario:</strong>{" "}
-                        {selectedCustomization.userEmail ||
-                          selectedCustomization.userId?.email ||
-                          "—"}
-                      </Text>
-
-                      {/* PREVIEW HD */}
-                      <Box>
-                        <Text fontWeight="bold" mb={1}>
-                          Vista previa HD
-                        </Text>
-
-                        {selectedCustomization.previewImage ? (
-                          <Image
-                            src={selectedCustomization.previewImage}
-                            alt="preview HD"
-                            width="100%"
-                            borderRadius="8px"
-                            border="1px solid #ddd"
-                          />
-                        ) : (
-                          <Text fontSize="sm" color="gray.500">
-                            Sin imagen generada
-                          </Text>
-                        )}
-                      </Box>
-
-                      {/* JSON DEL DISEÑO */}
-                      <Box>
-                        <Text fontWeight="bold" mb={1}>
-                          JSON del diseño
-                        </Text>
-
-                        <pre
-                          style={{
-                            background: "#000000",
-                            padding: "12px",
-                            borderRadius: "8px",
-                            fontSize: "12px",
-                            maxHeight: "300px",
-                            overflowY: "auto",
-                          }}
-                        >
-                          {JSON.stringify(selectedCustomization.design, null, 2)}
-                        </pre>
-                      </Box>
-
-                      {/* ZIP */}
-                      {selectedCustomization.zipUrl && (
-                        <Button
-                          colorScheme="purple"
-                          onClick={() => handleDownloadZip(selectedCustomization)}
-                        >
-                          Descargar ZIP
-                        </Button>
-                      )}
-                    </Stack>
-                  ) : (
-                    <Text>Cargando…</Text>
-                  )}
-                </ModalBody>
-
-                <ModalFooter>
-                  <Button onClick={() => setDetailOpen(false)}>Cerrar</Button>
-                </ModalFooter>
-              </ModalContent>
-            </Modal>
-            <Modal
-              isOpen={orderDetailOpen}
-              onClose={() => setOrderDetailOpen(false)}
-              size="lg"
-              isCentered
-            >
-              <ModalOverlay />
-              <ModalContent>
-                <ModalHeader>Detalle del pedido</ModalHeader>
-                <ModalCloseButton />
-
-                
-
-                <ModalBody>
-                  {selectedOrder ? (
-                    <Stack spacing={4}>
-                      {/* Datos generales */}
-                      <Box>
-                        <Text fontSize="sm">
-                          <strong>Pedido:</strong> {selectedOrder._id}
-                        </Text>
-                        <Text fontSize="sm">
-                          <strong>Cliente:</strong> {getOrderUserLabel(selectedOrder)}
-                        </Text>
-                        <Text fontSize="sm">
-                          <strong>Total:</strong>{" "}
-                          {(selectedOrder.total ?? 0).toFixed(2)} €
-                        </Text>
-                      </Box>
-
-                      <Box>
-                        <Text fontSize="sm">
-                          <strong>Entrega estimada:</strong>{" "}
-                          {selectedOrder.shipping?.estimatedDeliveryDate
-                            ? new Date(
-                                selectedOrder.shipping.estimatedDeliveryDate
-                              ).toLocaleDateString()
-                            : "—"}
-                        </Text>
-
-                        <Text fontSize="sm">
-                          <strong>Estado de entrega:</strong>{" "}
-                          <Badge colorScheme={
-                            selectedOrder.shipping?.deliveryStatus === "confirmed"
-                              ? "green"
-                              : "orange"
-                          }>
-                            {selectedOrder.shipping?.deliveryStatus || "estimada"}
-                          </Badge>
-                        </Text>
-
-                        {selectedOrder.shipping?.confirmedDeliveryDate && (
-                          <Text fontSize="sm" color="green.500">
-                            <strong>Entrega confirmada:</strong>{" "}
-                            {new Date(
-                              selectedOrder.shipping.confirmedDeliveryDate
-                            ).toLocaleDateString()}
-                          </Text>
-                        )}
-                      </Box>
-
-                      <Box borderTop="1px solid #eee" pt={3}>
-                        <FormControl>
-                          <FormLabel fontSize="sm">
-                            Confirmar fecha de entrega
-                          </FormLabel>
-
-                          <Input
-                            type="date"
-                            size="sm"
-                            value={deliveryDateInput}
-                            onChange={(e) => setDeliveryDateInput(e.target.value)}
-                          />
-                        </FormControl>
-
-                        <Button
-                          mt={3}
-                          size="sm"
-                          colorScheme="green"
-                          isLoading={savingDeliveryDate}
-                          onClick={() =>
-                            handleConfirmDeliveryDate(selectedOrder._id)
-                          }
-                        >
-                          Confirmar entrega y notificar cliente
-                        </Button>
-                      </Box>
-
-
-
-                      
-
-                      {/* LÍNEAS DEL PEDIDO */}
-                      <Box>
-                        <Text fontWeight="bold" mb={2}>
-                          Productos
-                        </Text>                 
-
-
-                        {selectedOrder.items.map((i, idx) => (
-
-                          <Box key={idx} mb={2}>
-                            <Text fontSize="sm">
-                              {i.name} × {i.quantity}
-                            </Text>
-
-                            {getOrderItemVariant(i) && (
-                              <Text fontSize="xs" color="gray.500">
-                                {getOrderItemVariant(i).size && (
-                                  <>Talla: {getOrderItemVariant(i).size}</>
-                                )}
-                                {getOrderItemVariant(i).size &&
-                                  getOrderItemVariant(i).color &&
-                                  " · "}
-                                {getOrderItemVariant(i).color && (
-                                  <>Color: {getOrderItemVariant(i).color}</>
-                                )}
-                              </Text>
-                            )}
-                          </Box>
-                        ))}
-                      </Box>
-                    </Stack>
-                  ) : (
-                    <Text>Cargando…</Text>
-                  )}
-                </ModalBody>
-
-                <ModalFooter>
-                  <Button onClick={() => setOrderDetailOpen(false)}>Cerrar</Button>
-                </ModalFooter>
-              </ModalContent>
-            </Modal>
-
-          </TabPanel>
-
-        </TabPanels>
-      </Tabs>
-    </Box>
+      <PaymentDialog target={paymentTarget} busy={confirmingPayment} onClose={() => !confirmingPayment && setPaymentTarget(null)} onConfirm={handleConfirmPayment} />
+      <DeleteProductDialog target={deleteProductTarget} busy={deletingProduct} onClose={() => !deletingProduct && setDeleteProductTarget(null)} onConfirm={handleDeleteProduct} />
+      <ProductFormDialog open={productFormOpen} editing={editingProduct} form={form} busy={savingProduct} onOpenChange={setProductFormOpen} onChange={updateForm} onSubmit={handleSubmitProduct} />
+      <OrderDetailDialog order={selectedOrder} busyOrderId={savingOrderId} deliveryDate={deliveryDateInput} savingDelivery={savingDeliveryDate} onClose={() => setSelectedOrder(null)} onStatusChange={handleChangeOrderStatus} onDeliveryDateChange={setDeliveryDateInput} onConfirmDelivery={handleConfirmDelivery} onConfirmPayment={setPaymentTarget} />
+      <CustomizationDetailDialog customization={selectedCustomization} onClose={() => setSelectedCustomization(null)} onDownload={handleDownloadZip} />
+    </PageContainer>
   );
+}
+
+function OrdersList({ orders, savingOrderId, onStatusChange, onView, onConfirmPayment }) {
+  return <div className="mt-4"><div className="hidden overflow-x-auto rounded-xl border md:block"><table className="w-full min-w-[980px] border-collapse text-sm"><caption className="sr-only">Listado administrativo de pedidos</caption><thead className="bg-muted/60 text-left text-xs text-muted-foreground"><tr><th className="p-3">Pedido / fecha</th><th className="p-3">Cliente</th><th className="p-3">Artículos</th><th className="p-3">Total</th><th className="p-3">Método</th><th className="p-3">Estado</th><th className="p-3">Pago</th><th className="p-3 text-right">Acciones</th></tr></thead><tbody className="divide-y bg-card">{orders.map((order) => <OrderTableRow key={order._id} order={order} busy={savingOrderId === order._id} onStatusChange={onStatusChange} onView={onView} onConfirmPayment={onConfirmPayment} />)}</tbody></table></div><div className="space-y-3 md:hidden">{orders.map((order) => <OrderCard key={order._id} order={order} busy={savingOrderId === order._id} onStatusChange={onStatusChange} onView={onView} onConfirmPayment={onConfirmPayment} />)}</div></div>;
+}
+
+function OrderStatusControl({ order, busy, onChange }) {
+  return <Select aria-label={`Cambiar estado de ${shortId(order._id)}`} value={order.status} disabled={busy} onChange={(event) => onChange(order._id, event.target.value)} className="h-9 min-w-36">{order.status === "created" && <option value="created" disabled>Pedido recibido</option>}{ORDER_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>;
+}
+
+function OrderActions({ order, onView, onConfirmPayment }) {
+  const canConfirm = getPaymentStatus(order) === "pending" && order.status !== "cancelled";
+  return <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" size="sm" onClick={() => onView(order)}><Eye aria-hidden="true" /> Detalle</Button>{canConfirm && <Button type="button" size="sm" onClick={() => onConfirmPayment(order)}>Confirmar pago</Button>}</div>;
+}
+
+function OrderTableRow({ order, busy, onStatusChange, onView, onConfirmPayment }) {
+  return <tr><td className="p-3"><p className="font-mono text-xs font-semibold">{shortId(order._id)}</p><p className="mt-1 text-xs text-muted-foreground">{formatOrderDate(order.createdAt)}</p></td><td className="max-w-52 p-3"><p className="truncate font-medium" title={getOrderUserLabel(order)}>{getOrderUserLabel(order)}</p><p className="truncate text-xs text-muted-foreground" title={getOrderEmail(order)}>{getOrderEmail(order)}</p></td><td className="p-3 tabular-nums">{getOrderItemCount(order)}</td><td className="p-3"><Price value={getOrderTotal(order)} className="text-sm" /></td><td className="p-3">{paymentMethodLabel(getPaymentMethod(order))}</td><td className="p-3"><OrderStatusControl order={order} busy={busy} onChange={onStatusChange} /></td><td className="p-3"><PaymentStatusBadge status={getPaymentStatus(order)} /></td><td className="p-3"><OrderActions order={order} onView={onView} onConfirmPayment={onConfirmPayment} /></td></tr>;
+}
+
+function OrderCard({ order, busy, onStatusChange, onView, onConfirmPayment }) {
+  return <Card className="p-4 shadow-none"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-mono text-xs font-semibold">{shortId(order._id)}</p><p className="mt-1 truncate text-sm font-medium">{getOrderUserLabel(order)}</p><p className="text-xs text-muted-foreground">{formatOrderDate(order.createdAt)} · {getOrderItemCount(order)} artículos</p></div><Price value={getOrderTotal(order)} className="text-base" /></div><div className="mt-3 flex flex-wrap gap-2"><OrderStatusBadge status={order.status} /><PaymentStatusBadge status={getPaymentStatus(order)} /><Badge variant="outline">{paymentMethodLabel(getPaymentMethod(order))}</Badge></div><div className="mt-3"><OrderStatusControl order={order} busy={busy} onChange={onStatusChange} /></div><div className="mt-3 border-t pt-3"><OrderActions order={order} onView={onView} onConfirmPayment={onConfirmPayment} /></div></Card>;
+}
+
+function ProductsList({ products, onEdit, onDelete }) {
+  return <div className="mt-4"><div className="hidden overflow-x-auto rounded-xl border md:block"><table className="w-full min-w-[820px] text-sm"><caption className="sr-only">Productos locales</caption><thead className="bg-muted/60 text-left text-xs text-muted-foreground"><tr><th className="p-3">Producto</th><th className="p-3">Categoría</th><th className="p-3">Precio</th><th className="p-3">Stock</th><th className="p-3">Estado</th><th className="p-3">Personalización</th><th className="p-3 text-right">Acciones</th></tr></thead><tbody className="divide-y bg-card">{products.map((product) => <tr key={product._id}><td className="p-3"><div className="flex min-w-0 items-center gap-3"><ProductImage src={product.image || product.images?.[0]} alt="" className="size-11 shrink-0 rounded-md border" /><div className="min-w-0"><p className="truncate font-medium" title={product.name}>{product.name}</p><p className="truncate font-mono text-[11px] text-muted-foreground">{product._id}</p></div></div></td><td className="p-3">{product.category || "—"}</td><td className="p-3"><Price value={getNumericPrice(product.price)} className="text-sm" /></td><td className="p-3 tabular-nums">{product.stock ?? 0}</td><td className="p-3"><Badge variant={product.active ? "success" : "secondary"}>{product.active ? "Activo" : "Oculto"}</Badge></td><td className="p-3">{product.customizable ? "Sí" : "No"}</td><td className="p-3"><div className="flex justify-end gap-2"><Button type="button" variant="outline" size="icon" aria-label={`Editar ${product.name}`} onClick={() => onEdit(product)}><Edit3 aria-hidden="true" /></Button><Button type="button" variant="outline" size="icon" className="text-destructive" aria-label={`Eliminar ${product.name}`} onClick={() => onDelete(product)}><Trash2 aria-hidden="true" /></Button></div></td></tr>)}</tbody></table></div><div className="space-y-3 md:hidden">{products.map((product) => <Card key={product._id} className="p-4 shadow-none"><div className="flex gap-3"><ProductImage src={product.image || product.images?.[0]} alt="" className="size-16 shrink-0 rounded-lg border" /><div className="min-w-0 flex-1"><p className="break-words font-semibold">{product.name}</p><p className="text-xs text-muted-foreground">{product.category || "Sin categoría"}</p><div className="mt-2 flex flex-wrap gap-2"><Badge variant={product.active ? "success" : "secondary"}>{product.active ? "Activo" : "Oculto"}</Badge>{product.customizable && <Badge variant="outline">Personalizable</Badge>}</div></div><Price value={getNumericPrice(product.price)} className="text-sm" /></div><div className="mt-3 flex items-center justify-between border-t pt-3"><span className="text-sm">Stock: <strong>{product.stock ?? 0}</strong></span><div className="flex gap-2"><Button type="button" variant="outline" size="icon" aria-label={`Editar ${product.name}`} onClick={() => onEdit(product)}><Edit3 aria-hidden="true" /></Button><Button type="button" variant="outline" size="icon" className="text-destructive" aria-label={`Eliminar ${product.name}`} onClick={() => onDelete(product)}><Trash2 aria-hidden="true" /></Button></div></div></Card>)}</div></div>;
+}
+
+function CustomizationsList({ customizations, onView, onDownload }) {
+  return <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{customizations.map((customization) => { const preview = customization.previewLowQuality || customization.previewImage || customization.previewsBySide?.front; const product = customization.productName || customization.productId?.name || "Producto"; const user = customization.userEmail || customization.userId?.email || "Invitado"; return <Card key={customization._id} className="flex min-w-0 gap-3 p-3 shadow-none"><ProductImage src={preview} alt={preview ? `Vista previa de ${product}` : ""} className="size-20 shrink-0 rounded-lg border" /><div className="min-w-0 flex-1"><p className="truncate font-medium" title={product}>{product}</p><p className="truncate text-xs text-muted-foreground" title={user}>{user}</p><div className="mt-2 flex flex-wrap gap-2"><Badge variant="outline">{customization.status || "pending"}</Badge>{customization.zipUrl ? <Badge variant="success">ZIP listo</Badge> : <Badge variant="secondary">ZIP pendiente</Badge>}</div><div className="mt-3 flex gap-2"><Button type="button" variant="outline" size="sm" onClick={() => onView(customization)}><Eye aria-hidden="true" /> Ver</Button>{customization.zipUrl && <Button type="button" variant="outline" size="icon" aria-label={`Descargar ZIP de ${product}`} onClick={() => onDownload(customization)}><Download aria-hidden="true" /></Button>}</div></div></Card>; })}</div>;
+}
+
+function PaymentDialog({ target, busy, onClose, onConfirm }) {
+  return <Dialog open={Boolean(target)} onOpenChange={(open) => !open && onClose()}><DialogContent><DialogHeader><DialogTitle>Confirmar pago recibido</DialogTitle><DialogDescription>Esta acción cambia el pago de pendiente a pagado. No ejecuta ningún cobro online.</DialogDescription></DialogHeader>{target && <dl className="grid gap-2 rounded-lg border bg-muted/30 p-3 text-sm"><div className="flex justify-between gap-4"><dt className="text-muted-foreground">Pedido</dt><dd className="break-all font-mono font-semibold">{shortId(target._id)}</dd></div><div className="flex justify-between gap-4"><dt className="text-muted-foreground">Importe</dt><dd><Price value={getOrderTotal(target)} className="text-sm" /></dd></div><div className="flex justify-between gap-4"><dt className="text-muted-foreground">Método</dt><dd className="text-right font-medium">{paymentMethodLabel(getPaymentMethod(target))}</dd></div><div className="flex justify-between gap-4"><dt className="text-muted-foreground">Estado</dt><dd><PaymentStatusBadge status={getPaymentStatus(target)} /></dd></div></dl>}<DialogFooter><DialogClose render={<Button type="button" variant="outline" disabled={busy} />}>Cancelar</DialogClose><Button type="button" onClick={onConfirm} disabled={busy}>{busy ? "Confirmando…" : "Confirmar pago recibido"}</Button></DialogFooter></DialogContent></Dialog>;
+}
+
+function DeleteProductDialog({ target, busy, onClose, onConfirm }) {
+  return <Dialog open={Boolean(target)} onOpenChange={(open) => !open && onClose()}><DialogContent><DialogHeader><DialogTitle>Eliminar producto</DialogTitle><DialogDescription>Se conservará el comportamiento actual de eliminación física. Esta acción no se puede deshacer.</DialogDescription></DialogHeader>{target && <p className="break-words rounded-lg border bg-muted/30 p-3 text-sm font-semibold">{target.name}</p>}<DialogFooter><DialogClose render={<Button type="button" variant="outline" disabled={busy} />}>Cancelar</DialogClose><Button type="button" variant="destructive" onClick={onConfirm} disabled={busy}>{busy ? "Eliminando…" : "Eliminar producto"}</Button></DialogFooter></DialogContent></Dialog>;
+}
+
+function ProductFormDialog({ open, editing, form, busy, onOpenChange, onChange, onSubmit }) {
+  return <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>{editing ? "Editar producto" : "Nuevo producto"}</DialogTitle><DialogDescription>Se conserva el modelo actual de producto, precio, stock, variantes y personalización.</DialogDescription></DialogHeader><form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2"><Field label="Nombre"><Input required value={form.name} onChange={(event) => onChange("name", event.target.value)} /></Field><Field label="Categoría"><Input value={form.category} onChange={(event) => onChange("category", event.target.value)} /></Field><Field label="Precio (€)"><Input required type="number" min="0" step="0.01" value={form.price} onChange={(event) => onChange("price", event.target.value)} /></Field><Field label="Stock"><Input type="number" min="0" step="1" value={form.stock} onChange={(event) => onChange("stock", event.target.value)} /></Field><Field label="Tallas separadas por coma"><Input value={form.sizes} onChange={(event) => onChange("sizes", event.target.value)} /></Field><Field label="Colores separados por coma"><Input value={form.colors} onChange={(event) => onChange("colors", event.target.value)} /></Field><Field label="Imagen principal"><Input type="url" value={form.image} onChange={(event) => onChange("image", event.target.value)} /></Field><Field label="Imágenes adicionales, una por línea"><Textarea className="min-h-20" value={form.images} onChange={(event) => onChange("images", event.target.value)} /></Field><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={form.active} onChange={(event) => onChange("active", event.target.checked)} className="size-4 accent-primary" /> Visible en catálogo</label><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={form.customizable} onChange={(event) => onChange("customizable", event.target.checked)} className="size-4 accent-primary" /> Producto personalizable</label><div className="sm:col-span-2"><Field label="Descripción"><Textarea value={form.description} onChange={(event) => onChange("description", event.target.value)} /></Field></div>{form.customizable && <><Field label="Tipo de diseño"><Select value={form.customizationType} onChange={(event) => onChange("customizationType", event.target.value)}><option value="tshirt">Camiseta</option><option value="hoodie">Sudadera</option><option value="mug">Taza</option></Select></Field><div className="sm:col-span-2"><Field label="Configuración JSON"><Textarea className="min-h-36 font-mono text-xs" value={form.customizationConfig} onChange={(event) => onChange("customizationConfig", event.target.value)} /></Field></div></>}<DialogFooter className="sm:col-span-2"><DialogClose render={<Button type="button" variant="outline" disabled={busy} />}>Cancelar</DialogClose><Button type="submit" disabled={busy}>{busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear producto"}</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function OrderDetailDialog({ order, busyOrderId, deliveryDate, savingDelivery, onClose, onStatusChange, onDeliveryDateChange, onConfirmDelivery, onConfirmPayment }) {
+  if (!order) return null;
+  const shipping = Number(order.shipping?.price || 0); const total = getOrderTotal(order); const subtotal = Math.max(0, total - shipping); const address = order.shippingAddress; const canConfirmPayment = getPaymentStatus(order) === "pending" && order.status !== "cancelled";
+  return <Dialog open={Boolean(order)} onOpenChange={(open) => !open && onClose()}><DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>Pedido {shortId(order._id)}</DialogTitle><DialogDescription>{formatOrderDate(order.createdAt)} · Snapshot histórico almacenado</DialogDescription></DialogHeader><div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]"><div className="min-w-0 space-y-4"><div className="flex flex-wrap gap-2"><OrderStatusBadge status={order.status} /><PaymentStatusBadge status={getPaymentStatus(order)} /><Badge variant="outline">{paymentMethodLabel(getPaymentMethod(order))}</Badge></div><Card className="p-4 shadow-none"><h3 className="font-semibold">Cliente y entrega</h3><p className="mt-2 break-words text-sm font-medium">{getOrderUserLabel(order)}</p><p className="break-all text-sm text-muted-foreground">{getOrderEmail(order)}</p>{address && <address className="mt-3 break-words text-sm not-italic text-muted-foreground">{address.fullName}<br />{address.street}<br />{address.postalCode} {address.city}<br />{address.state}{address.country ? ` · ${address.country}` : ""}</address>}</Card><div><h3 className="mb-2 font-semibold">Artículos</h3><div className="divide-y rounded-xl border bg-card">{order.items?.map((item, index) => { const variant = getOrderItemVariant(item); return <article key={item._id || `${item.productId}-${index}`} className="p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words font-medium">{item.name || "Producto"}</p>{variant && <p className="mt-1 text-xs text-muted-foreground">{variant.size && `Talla: ${variant.size}`}{variant.size && variant.color && " · "}{variant.color && `Color: ${variant.color}`}</p>}{item.customizationId && <Badge variant="outline" className="mt-2">Personalizado</Badge>}<p className="mt-2 text-xs text-muted-foreground">Cantidad: {item.quantity}</p></div><Price value={Number(item.price || 0) * Number(item.quantity || 0)} className="text-sm" /></div></article>; })}</div></div>{order.notes && <Card className="p-4 shadow-none"><h3 className="font-semibold">Notas</h3><p className="mt-2 break-words text-sm text-muted-foreground">{order.notes}</p></Card>}</div><aside className="space-y-4"><Card className="p-4 shadow-none"><h3 className="font-semibold">Resumen histórico</h3><dl className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Subtotal</dt><dd><Price value={subtotal} className="text-sm" /></dd></div><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Envío</dt><dd><Price value={shipping} className="text-sm" /></dd></div><div className="flex justify-between gap-3 border-t pt-2 font-semibold"><dt>Total</dt><dd><Price value={total} className="text-base" /></dd></div></dl></Card><Card className="p-4 shadow-none"><h3 className="font-semibold">Estado operativo</h3><div className="mt-3"><OrderStatusControl order={order} busy={busyOrderId === order._id} onChange={onStatusChange} /></div>{canConfirmPayment && <Button type="button" size="sm" className="mt-3 w-full" onClick={() => onConfirmPayment(order)}>Confirmar pago recibido</Button>}</Card><Card className="p-4 shadow-none"><h3 className="font-semibold">Entrega</h3>{order.shipping?.estimatedDeliveryDate && <p className="mt-2 text-xs text-muted-foreground">Estimada: {new Date(order.shipping.estimatedDeliveryDate).toLocaleDateString("es-ES")}</p>}{order.shipping?.confirmedDeliveryDate && <p className="mt-1 text-xs text-success">Confirmada: {new Date(order.shipping.confirmedDeliveryDate).toLocaleDateString("es-ES")}</p>}<Field label="Confirmar fecha"><Input type="date" value={deliveryDate} onChange={(event) => onDeliveryDateChange(event.target.value)} /></Field><Button type="button" variant="outline" size="sm" className="mt-2 w-full" disabled={!deliveryDate || savingDelivery} onClick={onConfirmDelivery}>{savingDelivery ? "Guardando…" : "Confirmar entrega"}</Button></Card></aside></div><DialogFooter><DialogClose render={<Button type="button" variant="outline" />}>Cerrar</DialogClose></DialogFooter></DialogContent></Dialog>;
+}
+
+function CustomizationDetailDialog({ customization, onClose, onDownload }) {
+  if (!customization) return null;
+  const product = customization.productName || customization.productId?.name || "Producto"; const preview = customization.previewImage || customization.previewsBySide?.front || customization.previewsBySide?.back;
+  return <Dialog open={Boolean(customization)} onOpenChange={(open) => !open && onClose()}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>Detalle de personalización</DialogTitle><DialogDescription>{product} · {shortId(customization._id)}</DialogDescription></DialogHeader>{preview ? <ProductImage src={preview} alt={`Vista previa de ${product}`} ratio="16 / 9" className="rounded-lg border" /> : <div className="rounded-lg border bg-muted p-8 text-center text-sm text-muted-foreground">Sin vista previa generada</div>}<div><h3 className="mb-2 font-semibold">Diseño almacenado</h3><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-xs">{JSON.stringify(customization.design || {}, null, 2)}</pre></div><DialogFooter><DialogClose render={<Button type="button" variant="outline" />}>Cerrar</DialogClose>{customization.zipUrl && <Button type="button" onClick={() => onDownload(customization)}><Download aria-hidden="true" /> Descargar ZIP</Button>}</DialogFooter></DialogContent></Dialog>;
 }

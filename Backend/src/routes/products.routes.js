@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   getProducts,
+  adminGetProducts,
   getProduct,
   createProduct,
   updateProduct,
@@ -13,9 +14,11 @@ export const productsRouter = Router();
 
 // Público
 productsRouter.get('/', getProducts);
-productsRouter.get('/:id', getProduct);
 
 // Admin
+productsRouter.get('/admin', requireAuth, requireAdmin, adminGetProducts);
 productsRouter.post('/', requireAuth, requireAdmin, createProduct);
 productsRouter.put('/:id', requireAuth, requireAdmin, updateProduct);
 productsRouter.delete('/:id', requireAuth, requireAdmin, deleteProduct);
+
+productsRouter.get('/:id', getProduct);

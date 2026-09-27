@@ -189,6 +189,16 @@ export async function getProducts(req, res) {
   }
 }
 
+export async function adminGetProducts(req, res) {
+  try {
+    const products = await Product.find({}).sort({ createdAt: -1 }).lean();
+    return res.json({ ok: true, products });
+  } catch (err) {
+    console.error("Error en adminGetProducts:", err);
+    return res.status(500).json({ ok: false, message: "Error al obtener productos" });
+  }
+}
+
 /* ───────────────────────────────────────────── */
 /* GET /api/products/:id                         */
 /* ───────────────────────────────────────────── */

@@ -1,4 +1,4 @@
-import test, { before, beforeEach, after } from "node:test";
+import test, { before, beforeEach, after, mock } from "node:test";
 import assert from "node:assert/strict";
 import { rm } from "node:fs/promises";
 import path from "node:path";
@@ -8,6 +8,7 @@ import { createApp } from "../../src/app.js";
 import { Product } from "../../src/models/Product.js";
 import { Order } from "../../src/models/Order.js";
 import { Customization } from "../../src/models/Customization.js";
+import { emailTransporter } from "../../src/services/email.service.js";
 import { setupTestDB, clearTestDB, teardownTestDB } from "../setup/test-db.js";
 import {
   createAdminAuthHeader,
@@ -264,6 +265,28 @@ test("mark-paid en pedido ya pagado devuelve 409", async () => {
     .set("Authorization", authHeader)
     .send();
   assert.equal(res.status, 409);
+});
+
+test("cambiar estado confirma el guardado aunque falle la notificación", async () => {
+  const authHeader = await createAdminAuthHeader();
+  const order = await Order.create(baseOrder({ status: "created" }));
+  const emailMock = mock.method(emailTransporter, "sendMail", async () => {
+    throw new Error("SMTP no disponible");
+  });
+
+  try {
+    const res = await request(app)
+      .patch(`/api/orders/${order._id}/status`)
+      .set("Authorization", authHeader)
+      .send({ status: "processing" });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.order.status, "processing");
+    const updated = await Order.findById(order._id).lean();
+    assert.equal(updated.status, "processing");
+  } finally {
+    emailMock.mock.restore();
+  }
 });
 
 test("detalle de pedido propio devuelve snapshot, resumen e instrucciones manuales pendientes", async () => {

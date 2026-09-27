@@ -478,11 +478,18 @@ export async function adminUpdateOrderStatus(req, res) {
     const emailData = orderStatusEmail(order);
 
     if (emailData) {
-      await sendEmail({
-        to: order.guestEmail || order.userId?.email,
-        subject: emailData.subject,
-        html: emailData.html,
-      });
+      try {
+        await sendEmail({
+          to: order.guestEmail || order.userId?.email,
+          subject: emailData.subject,
+          html: emailData.html,
+        });
+      } catch (emailError) {
+        console.warn(
+          "Estado actualizado, pero no se pudo enviar su notificación:",
+          emailError.message
+        );
+      }
     }
    
     return res.json({
