@@ -2,7 +2,7 @@
 
 ## Estado
 
-**Estado:** implementada, pendiente de smoke real con backend configurado.
+**Estado:** cerrada y validada (23/23) el 27 de septiembre de 2026.
 
 **Dependencias:** SPEC-002 (checkout seguro y pagos manuales) y SPEC-011 (lenguaje visual del carrito).
 
@@ -86,7 +86,7 @@ Una sola columna, en este orden: datos, dirección, pago, resumen, términos y `
 - [x] **CA-16.** Labels, errores, radio, teclado, foco, live regions y copia son accesibles.
 - [x] **CA-17.** MONEI permanece ausente y dormido.
 - [x] **CA-18.** No hay cambios backend.
-- [ ] **CA-19.** Smoke real Bizum, transferencia, cero métodos, guest y autenticado completado.
+- [x] **CA-19.** Smoke real Bizum, transferencia, cero métodos, guest y autenticado completado.
 - [x] **CA-20.** Revisión visual real en todos los viewports y ambos temas completada.
 - [x] **CA-21.** `npm run lint` finaliza correctamente.
 - [x] **CA-22.** `npm run build` finaliza correctamente.
