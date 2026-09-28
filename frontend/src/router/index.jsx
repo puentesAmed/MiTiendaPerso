@@ -15,6 +15,9 @@ import { NotFound } from "../pages/NotFound/NotFound.jsx";
 const ProductDesignerPage = lazy(() =>
   import("../pages/ProductDesigner/ProductDesignerPage.jsx").then((m) => ({ default: m.ProductDesignerPage }))
 );
+const ProductDesignerV2Page = lazy(() =>
+  import("../features/product-designer-v2/pages/ProductDesignerV2Page.jsx").then((m) => ({ default: m.ProductDesignerV2Page }))
+);
 const Cart = lazy(() =>
   import("../pages/Cart/Cart.jsx").then((m) => ({ default: m.Cart }))
 );
@@ -56,6 +59,7 @@ const ContactoLegal = lazy(() =>
 
 // Create wrapper components with Suspense for each lazy page
 const ProductDesignerPageSuspense = createSuspenseWrapper(ProductDesignerPage);
+const ProductDesignerV2PageSuspense = createSuspenseWrapper(ProductDesignerV2Page);
 const CartSuspense = createSuspenseWrapper(Cart);
 const CheckoutSuspense = createSuspenseWrapper(Checkout);
 const MyOrdersSuspense = createSuspenseWrapper(MyOrders);
@@ -87,6 +91,7 @@ export const router = createBrowserRouter([
       { path: "productos", element: <Products /> },
       { path: "productos/:id", element: <ProductDetail /> },
       { path: "personalizar/:id", element: <ProductDesignerPageSuspense /> },
+      { path: "personalizar-v2/:productId", element: <ProductDesignerV2PageSuspense /> },
 
       // Legal - lazy loaded (públicas)
       { path: "politica-privacidad", element: <PrivacyPolicySuspense /> },

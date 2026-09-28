@@ -20,6 +20,7 @@ import { PageContainer } from "../../components/ui/PageContainer";
 import { Price } from "../../components/ui/Price";
 import { ProductGallery } from "../../components/ui/ProductGallery";
 import { Skeleton } from "../../components/ui/skeleton";
+import { isProductDesignerV2Enabled } from "../../features/product-designer-v2/utils/featureFlag";
 
 function DetailSkeleton() {
   return (
@@ -328,6 +329,24 @@ export function ProductDetail() {
               ) : (
                 <Button type="button" variant="outline" className="w-full" disabled>
                   <Sparkles aria-hidden="true" /> Personalizar producto
+                </Button>
+              )
+            )}
+
+            {isCustomizable && isProductDesignerV2Enabled && (
+              canAddToCart && !isAliExpress ? (
+                <Button
+                  as={Link}
+                  to={`/personalizar-v2/${productId}`}
+                  state={{ variant: selectedCanonicalVariant(), fromProductDetail: true }}
+                  variant="secondary"
+                  className="w-full"
+                >
+                  <Sparkles aria-hidden="true" /> Probar nuevo diseñador
+                </Button>
+              ) : (
+                <Button type="button" variant="secondary" className="w-full" disabled>
+                  <Sparkles aria-hidden="true" /> Probar nuevo diseñador
                 </Button>
               )
             )}
