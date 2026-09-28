@@ -244,9 +244,8 @@ export function Admin() {
   const handleDownloadZip = async (customization) => {
     if (!customization.zipUrl) return;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}${customization.zipUrl}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const url = URL.createObjectURL(await response.blob());
+      const response = await http.get(`/api/customizations/${customization._id}/zip`, { responseType: "blob" });
+      const url = URL.createObjectURL(response.data);
       const anchor = document.createElement("a"); anchor.href = url; anchor.download = `custom_${customization._id}.zip`; document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
     } catch { showNotice("error", "No se pudo descargar el ZIP"); }
   };

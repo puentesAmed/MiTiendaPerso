@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: mitiendaperso-api-staging
+    runtime: node
+    plan: 0.5c-512mb
+    rootDir: Backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    numInstances: 1
+    maxShutdownDelaySeconds: 30
+    disk:
+      name: staging-storage
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 20.19.6
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: STORAGE_ROOT
+        value: /var/data/uploads
+      - key: MANUAL_PAYMENT_BIZUM_ENABLED
+        sync: false
+      - key: MANUAL_PAYMENT_BIZUM_RECIPIENT
+        sync: false
+      - key: MANUAL_PAYMENT_BIZUM_INSTRUCTIONS
+        sync: false
+      - key: MANUAL_PAYMENT_BANK_TRANSFER_ENABLED
+        sync: false
+      - key: MANUAL_PAYMENT_BANK_ACCOUNT_HOLDER
+        sync: false
+      - key: MANUAL_PAYMENT_BANK_IBAN
+        sync: false
+      - key: MANUAL_PAYMENT_BANK_INSTRUCTIONS
+        sync: false
+      - key: ALIEXPRESS_CATALOG_ENABLED
+        value: "false"
+      - key: DROPSHIPPING_ENABLED
+        value: "false"
+      - key: MONEI_ENABLED
+        value: "false"

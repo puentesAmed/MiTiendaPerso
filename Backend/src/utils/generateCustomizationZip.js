@@ -1,8 +1,9 @@
 // src/utils/generateCustomizationZip.js
-import fs from "fs";
-import path from "path";
+import { randomUUID } from "node:crypto";
 import archiver from "archiver";
 import axios from "axios";
+
+import { storageProvider } from "../storage/index.js";
 
 /** Descarga un archivo remoto y devuelve un Buffer */
 async function downloadFile(url) {
@@ -29,103 +30,96 @@ function base64ToBuffer(input) {
  */
 export async function generateCustomizationZip(customizationDoc) {
   const customizationId = customizationDoc._id.toString();
-
-  const outputDir = path.join("uploads", "customizations");
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-
-  const zipFsPath = path.join(outputDir, `${customizationId}.zip`);
-  const output = fs.createWriteStream(zipFsPath);
-
+  const finalKey = `customizations/${customizationId}.zip`;
+  const temporaryKey = `customizations/.tmp-${randomUUID()}.zip`;
+  const output = await storageProvider.createWriteStream(temporaryKey);
   const archive = archiver("zip", { zlib: { level: 9 } });
-
-  // Manejo de errores duro
-  archive.on("error", (err) => {
-    throw err;
+  const completed = new Promise((resolve, reject) => {
+    output.once("close", resolve);
+    output.once("error", reject);
+    archive.once("error", reject);
   });
-
   archive.pipe(output);
 
-  // 1) Diseño JSON
-  archive.append(JSON.stringify(customizationDoc.design || {}, null, 2), {
-    name: "design.json",
-  });
+  try {
+    archive.append(JSON.stringify(customizationDoc.design || {}, null, 2), {
+      name: "design.json",
+    });
 
-  // 2) Preview HD (si existe en el doc)
-  if (customizationDoc.previewImageHD) {
-    const buf = base64ToBuffer(customizationDoc.previewImageHD);
-    if (buf) archive.append(buf, { name: "preview.png" });
-  }
-
-  // 3) PREVIEWS FINALES (LOS QUE VE EL CLIENTE EN 360)
-  // Guardamos como PNG separados
-  if (customizationDoc.previewsBySide?.front) {
-    const buf = base64ToBuffer(customizationDoc.previewsBySide.front);
-    if (buf) archive.append(buf, { name: "design_front.png" });
-  }
-
-  if (customizationDoc.previewsBySide?.back) {
-    const buf = base64ToBuffer(customizationDoc.previewsBySide.back);
-    if (buf) archive.append(buf, { name: "design_back.png" });
-  }
-
-  // 4) Mockups (si son URL válidas)
-  if (customizationDoc.mockupFront) {
-    try {
-      const buffer = await downloadFile(customizationDoc.mockupFront);
-      archive.append(buffer, { name: "mockup_front.png" });
-    } catch (err) {
-      console.warn("⚠ No se pudo descargar mockupFront:", err.message);
+    if (customizationDoc.previewImageHD) {
+      const buf = base64ToBuffer(customizationDoc.previewImageHD);
+      if (buf) archive.append(buf, { name: "preview.png" });
     }
-  }
 
-  if (customizationDoc.mockupBack) {
-    try {
-      const buffer = await downloadFile(customizationDoc.mockupBack);
-      archive.append(buffer, { name: "mockup_back.png" });
-    } catch (err) {
-      console.warn("⚠ No se pudo descargar mockupBack:", err.message);
+    if (customizationDoc.previewsBySide?.front) {
+      const buf = base64ToBuffer(customizationDoc.previewsBySide.front);
+      if (buf) archive.append(buf, { name: "design_front.png" });
     }
-  }
 
-  // 5) Assets originales (imágenes usadas en el diseño)
-  const sides = customizationDoc.design?.elementsBySide || {};
-  const assets = [];
-
-  for (const side of ["front", "back"]) {
-    for (const el of sides[side] || []) {
-      if (el?.type === "image" && el?.url) assets.push(el.url);
+    if (customizationDoc.previewsBySide?.back) {
+      const buf = base64ToBuffer(customizationDoc.previewsBySide.back);
+      if (buf) archive.append(buf, { name: "design_back.png" });
     }
-  }
 
-  if (assets.length) {
-    // crea carpeta lógica
-    archive.append("", { name: "assets/" });
-
-    for (let i = 0; i < assets.length; i++) {
+    if (customizationDoc.mockupFront) {
       try {
-        const buffer = await downloadFile(assets[i]);
-        archive.append(buffer, { name: `assets/image_${i + 1}.png` });
+        const buffer = await downloadFile(customizationDoc.mockupFront);
+        archive.append(buffer, { name: "mockup_front.png" });
       } catch (err) {
-        console.warn("⚠ Error descargando asset:", err.message);
+        console.warn("⚠ No se pudo descargar mockupFront:", err.message);
       }
     }
+
+    if (customizationDoc.mockupBack) {
+      try {
+        const buffer = await downloadFile(customizationDoc.mockupBack);
+        archive.append(buffer, { name: "mockup_back.png" });
+      } catch (err) {
+        console.warn("⚠ No se pudo descargar mockupBack:", err.message);
+      }
+    }
+
+    const sides = customizationDoc.design?.elementsBySide || {};
+    const assets = [];
+    for (const side of ["front", "back"]) {
+      for (const element of sides[side] || []) {
+        if (element?.type === "image" && element?.url) assets.push(element.url);
+      }
+    }
+
+    if (assets.length) {
+      archive.append("", { name: "assets/" });
+      for (let index = 0; index < assets.length; index += 1) {
+        try {
+          const buffer = await downloadFile(assets[index]);
+          archive.append(buffer, { name: `assets/image_${index + 1}.png` });
+        } catch (err) {
+          console.warn("⚠ Error descargando asset:", err.message);
+        }
+      }
+    }
+
+    await archive.finalize();
+    await completed;
+    await storageProvider.move(temporaryKey, finalKey);
+
+    customizationDoc.zipUrl = `/api/customizations/${customizationId}/zip`;
+    try {
+      await customizationDoc.save();
+    } catch (error) {
+      await storageProvider.delete(finalKey);
+      throw error;
+    }
+
+    console.log("ZIP de personalización generado");
+    return customizationDoc.zipUrl;
+  } catch (error) {
+    archive.abort();
+    output.destroy();
+    if (!output.closed) {
+      await new Promise((resolve) => output.once("close", resolve));
+    }
+    await storageProvider.delete(temporaryKey).catch(() => {});
+    throw error;
   }
-
-  // FINALIZAR (no await) y ESPERAR AL CIERRE DEL STREAM
-  archive.finalize();
-
-  await new Promise((resolve, reject) => {
-    output.on("close", resolve);
-    output.on("error", reject);
-    archive.on("error", reject);
-  });
-
-  // Guardar URL del ZIP en Mongo
-  customizationDoc.zipUrl = `/uploads/customizations/${customizationId}.zip`;
-  await customizationDoc.save();
-
-  console.log("✅ ZIP válido generado:", customizationDoc.zipUrl);
-  return customizationDoc.zipUrl;
 }

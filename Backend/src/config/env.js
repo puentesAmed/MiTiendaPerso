@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import path from 'node:path';
 
 ['MONGO_URI', 'JWT_SECRET'].forEach((key) => {
   if (!process.env[key]) {
@@ -14,6 +15,8 @@ const ORIGINS = (process.env.CORS_ORIGINS || '')
 
 const FRONTEND_URL = (process.env.FRONTEND_URL || '').trim();
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const STORAGE_PROVIDER = (process.env.STORAGE_PROVIDER || 'local').trim();
+const CONFIGURED_STORAGE_ROOT = (process.env.STORAGE_ROOT || '').trim();
 const isEnabled = (key) =>
   (process.env[key] || '').trim().toLowerCase() === 'true';
 
@@ -25,6 +28,28 @@ const MANUAL_PAYMENT_BIZUM_ENABLED = isEnabled(
 );
 const MANUAL_PAYMENT_BANK_TRANSFER_ENABLED = isEnabled(
   'MANUAL_PAYMENT_BANK_TRANSFER_ENABLED'
+);
+
+if (STORAGE_PROVIDER !== 'local') {
+  throw new Error(`STORAGE_PROVIDER no soportado: ${STORAGE_PROVIDER}`);
+}
+const SMTP_KEYS = [
+  'SMTP_HOST',
+  'SMTP_PORT',
+  'SMTP_SECURE',
+  'SMTP_USER',
+  'SMTP_PASS',
+  'EMAIL_FROM',
+  'ADMIN_EMAIL',
+];
+const SMTP_CONFIGURED = [
+  'SMTP_HOST',
+  'SMTP_USER',
+  'SMTP_PASS',
+  'EMAIL_FROM',
+  'ADMIN_EMAIL',
+].some((key) =>
+  (process.env[key] || '').trim()
 );
 
 const requireIntegrationConfig = (enabled, keys, integration) => {
@@ -70,10 +95,23 @@ requireIntegrationConfig(
   ],
   'transferencia bancaria manual'
 );
+requireIntegrationConfig(SMTP_CONFIGURED, SMTP_KEYS, 'SMTP');
 
 let CORS_ORIGINS = ORIGINS;
 
 if (NODE_ENV === 'production') {
+  if (process.env.JWT_SECRET.trim().length < 32) {
+    throw new Error('JWT_SECRET debe tener al menos 32 caracteres en producción.');
+  }
+
+  if (!FRONTEND_URL) {
+    throw new Error('FRONTEND_URL es obligatoria en producción.');
+  }
+
+  if (!CONFIGURED_STORAGE_ROOT) {
+    throw new Error('STORAGE_ROOT es obligatorio en producción.');
+  }
+
   if (CORS_ORIGINS.includes('*')) {
     throw new Error("Configuración insegura: CORS_ORIGINS no puede contener '*' en producción.");
   }
@@ -95,6 +133,8 @@ export const env = {
   CORS_ORIGINS,
   FRONTEND_URL,
   NODE_ENV,
+  STORAGE_PROVIDER,
+  STORAGE_ROOT: CONFIGURED_STORAGE_ROOT || path.resolve(process.cwd(), 'uploads'),
   ALIEXPRESS_CATALOG_ENABLED,
   DROPSHIPPING_ENABLED,
   MONEI_ENABLED,
@@ -114,5 +154,15 @@ export const env = {
       iban: process.env.MANUAL_PAYMENT_BANK_IBAN,
       instructions: process.env.MANUAL_PAYMENT_BANK_INSTRUCTIONS,
     },
+  },
+  SMTP: {
+    configured: SMTP_CONFIGURED,
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: isEnabled('SMTP_SECURE'),
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+    from: process.env.EMAIL_FROM,
+    adminEmail: process.env.ADMIN_EMAIL,
   },
 };

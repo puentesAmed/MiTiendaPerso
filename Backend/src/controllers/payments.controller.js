@@ -73,7 +73,7 @@ export async function moneiWebhook(req, res) {
 
     return res.json({ ok: true });
   } catch (err) {
-    console.error("🔥 MONEI WEBHOOK ERROR:", err);
+    console.error("MONEI webhook error:", err.message);
     return res.status(500).json({ ok: false });
   }
 }
@@ -135,7 +135,7 @@ export async function createMoneiPayment(req, res) {
       paymentUrl: response.data.nextAction.redirectUrl,
     });
   } catch (err) {
-    console.error("🔥 CREATE MONEI PAYMENT ERROR:", err.response?.data || err);
+    console.error("Create MONEI payment error:", err.message);
     return res.status(500).json({ ok: false, message: "Payment error" });
   }
 }

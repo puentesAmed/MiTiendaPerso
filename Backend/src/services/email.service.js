@@ -1,18 +1,23 @@
 import nodemailer from "nodemailer";
+import { env } from "../config/env.js";
 
 export const emailTransporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  secure: process.env.SMTP_SECURE === "true",
+  host: env.SMTP.host,
+  port: env.SMTP.port,
+  secure: env.SMTP.secure,
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: env.SMTP.user,
+    pass: env.SMTP.pass,
   },
 });
 
 export async function sendEmail({ to, subject, html }) {
+  if (!env.SMTP.configured) {
+    throw new Error("SMTP no configurado");
+  }
+
   return emailTransporter.sendMail({
-    from: process.env.EMAIL_FROM,
+    from: env.SMTP.from,
     to,
     subject,
     html,

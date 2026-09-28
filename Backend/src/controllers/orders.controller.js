@@ -6,6 +6,7 @@ import { Customization } from "../models/Customization.js";
 import mongoose from "mongoose";
 
 import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
+import { storageProvider } from "../storage/index.js";
 import { calculateEstimatedDelivery } from "../utils/calculateEstimatedDelivery.js";
 
 import { sendEmail } from "../services/email.service.js";
@@ -29,7 +30,6 @@ import {
   ManualPaymentError,
 } from "../services/manual-payments.service.js";
 
-console.log("🔥 ORDERS CONTROLLER ACTIVO");
 
 /**
  * 📌 CREATE ORDER
@@ -37,6 +37,9 @@ console.log("🔥 ORDERS CONTROLLER ACTIVO");
  * - Bizum o transferencia manual con pago inicialmente pendiente
  */
 export async function createOrder(req, res) {
+  const createdCustomizationIds = [];
+  let orderPersisted = false;
+
   try {
     const userId = req.userId || null;
     const {
@@ -108,8 +111,14 @@ export async function createOrder(req, res) {
           orderId: null,
         });
 
-        await generateCustomizationZip(customization);
+        try {
+          await generateCustomizationZip(customization);
+        } catch (error) {
+          await Customization.deleteOne({ _id: customization._id }).catch(() => {});
+          throw error;
+        }
         customizationId = customization._id;
+        createdCustomizationIds.push(customization._id);
       }
 
       orderItems.push({
@@ -180,6 +189,7 @@ export async function createOrder(req, res) {
         deliveryStatus: "estimated",
       },
     });
+    orderPersisted = true;
 
     const customizationIds = orderItems
       .map((item) => item.customizationId)
@@ -219,6 +229,15 @@ export async function createOrder(req, res) {
       paymentInstructions: buildManualPaymentInstructions(order),
     });
   } catch (err) {
+    if (!orderPersisted && createdCustomizationIds.length > 0) {
+      await Promise.all(
+        createdCustomizationIds.map(async (id) => {
+          await storageProvider.delete(`customizations/${id}.zip`).catch(() => {});
+          await Customization.deleteOne({ _id: id }).catch(() => {});
+        })
+      );
+    }
+
     if (
       err instanceof OrderCalculationError ||
       err instanceof ShippingCalculationError ||
@@ -230,7 +249,7 @@ export async function createOrder(req, res) {
       });
     }
 
-    console.error("🔥 ERROR DETALLADO EN createOrder:", err);
+    console.error("Error en createOrder:", err.message);
     return res.status(500).json({
       ok: false,
       message: "Error al crear pedido",
@@ -418,11 +437,18 @@ export async function adminConfirmDeliveryDate(req, res) {
     });
 
     if (emailData) {
-      await sendEmail({
-        to: order.guestEmail || order.userId?.email,
-        subject: emailData.subject,
-        html: emailData.html,
-      });
+      try {
+        await sendEmail({
+          to: order.guestEmail || order.userId?.email,
+          subject: emailData.subject,
+          html: emailData.html,
+        });
+      } catch (emailError) {
+        console.warn(
+          "Fecha confirmada, pero no se pudo enviar su notificación:",
+          emailError.message
+        );
+      }
     }
 
     return res.json({

@@ -1,3 +1,5 @@
+import { env } from "../../config/env.js";
+
 function formatDate(date) {
   if (!date) return "";
   return new Date(date).toLocaleDateString("es-ES", {
@@ -6,10 +8,8 @@ function formatDate(date) {
     year: "numeric",
   });
 }
-
-
 export function orderClientEmail(order) {
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const frontendUrl = env.FRONTEND_URL || "http://localhost:5173";
 
   const email =
     order.guestEmail ||

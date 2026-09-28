@@ -4,18 +4,18 @@ import { RouterProvider } from "react-router-dom";
 import { router } from "./router";
 import { CartProvider } from "./context/CartContext";
 import { ThemeProvider } from "./components/theme-provider";
+import { AppErrorBoundary } from "./components/common/AppErrorBoundary";
 import "./index.css";
-import "swiper/css";
-import "swiper/css/navigation";
-import "swiper/css/pagination";
 
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <ThemeProvider>
+  <AppErrorBoundary>
+    <ThemeProvider>
       <AuthProvider>
         <CartProvider>
           <RouterProvider router={router} />
         </CartProvider>
       </AuthProvider>
-  </ThemeProvider>
+    </ThemeProvider>
+  </AppErrorBoundary>
 );

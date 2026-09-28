@@ -2,8 +2,13 @@
 // src/services/http.js
 import axios from "axios";
 
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
+
+export const apiBaseUrl =
+  configuredApiUrl || (import.meta.env.DEV ? "http://localhost:3000" : "");
+
 export const http = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000",
+  baseURL: apiBaseUrl,
 });
 
 // Leer siempre de auth_user

@@ -9,10 +9,10 @@ export async function connectDB() {
   }
 
   try {
-    await mongoose.connect(uri);
+    await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
     console.log('MongoDB conectado correctamente');
   } catch (error) {
-    console.error('Error de conexión a MongoDB:', error);
-    process.exit(1);
+    console.error('Error de conexión a MongoDB:', error.message);
+    throw error;
   }
 }

@@ -9,6 +9,7 @@ import { Products } from "../pages/Products/Products.jsx";
 import { ProductDetail } from "../pages/ProductDetail/ProductDetail.jsx";
 import { ProtectedRoute } from "./ProtectedRoute.jsx";
 import { createSuspenseWrapper } from "./loadingFallback";
+import { NotFound } from "../pages/NotFound/NotFound.jsx";
 
 // Lazy-load heavy pages (named exports) - inline imports for Vite code splitting
 const ProductDesignerPage = lazy(() =>
@@ -93,6 +94,8 @@ export const router = createBrowserRouter([
       { path: "terminos-condiciones", element: <TerminosCondicionesSuspense /> },
       { path: "politica-cookies", element: <CookiesPolicySuspense /> },
       { path: "contacto-legal", element: <ContactoLegalSuspense /> },
+
+      { path: "*", element: <NotFound /> },
 
       // Rutas protegidas (requieren autenticación)
       {

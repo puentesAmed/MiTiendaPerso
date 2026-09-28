@@ -1,7 +1,5 @@
 import test, { before, beforeEach, after, mock } from "node:test";
 import assert from "node:assert/strict";
-import { rm } from "node:fs/promises";
-import path from "node:path";
 import request from "supertest";
 
 import { createApp } from "../../src/app.js";
@@ -9,6 +7,7 @@ import { Product } from "../../src/models/Product.js";
 import { Order } from "../../src/models/Order.js";
 import { Customization } from "../../src/models/Customization.js";
 import { emailTransporter } from "../../src/services/email.service.js";
+import { storageProvider } from "../../src/storage/index.js";
 import { setupTestDB, clearTestDB, teardownTestDB } from "../setup/test-db.js";
 import {
   createAdminAuthHeader,
@@ -156,10 +155,7 @@ test("createOrder con customization v1 (designer) sigue creando Customization", 
   ).lean();
   assert.ok(customization);
   if (customization.zipUrl) {
-    await rm(
-      path.resolve(process.cwd(), customization.zipUrl.replace(/^\/+/, "")),
-      { force: true }
-    );
+    await storageProvider.delete(`customizations/${customization._id}.zip`);
   }
 });
 

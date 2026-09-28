@@ -23,11 +23,11 @@ customizationRoutes.patch("/:id/status", requireAuth , requireAdmin, updateCusto
 */
 
 import { Router } from "express";
-import path from "path";
-import fs from "fs";
+import mongoose from "mongoose";
 
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { requireAdmin } from "../middleware/admin.middleware.js";
+import { storageProvider } from "../storage/index.js";
 
 import {
   getCustomizationsByOrder,
@@ -74,29 +74,25 @@ customizationRoutes.get(
   "/:id/zip",
   requireAuth,
   requireAdmin,
-  (req, res) => {
+  async (req, res, next) => {
     const { id } = req.params;
-
-    const zipPath = path.resolve(
-      "uploads",
-      "customizations",
-      `${id}.zip`
-    );
-
-    if (!fs.existsSync(zipPath)) {
-      return res.status(404).json({
-        ok: false,
-        message: "ZIP no encontrado",
-      });
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(404).json({ ok: false, message: "ZIP no encontrado" });
     }
 
-    // Headers CORRECTOS → ZIP NO SE CORROMPE
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename=custom_${id}.zip`
-    );
+    try {
+      const key = `customizations/${id}.zip`;
+      if (!(await storageProvider.exists(key))) {
+        return res.status(404).json({ ok: false, message: "ZIP no encontrado" });
+      }
 
-    return res.sendFile(zipPath);
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename=custom_${id}.zip`);
+      return res.sendFile(storageProvider.resolve(key), (error) => {
+        if (error && !res.headersSent) next(error);
+      });
+    } catch {
+      return res.status(404).json({ ok: false, message: "ZIP no encontrado" });
+    }
   }
 );

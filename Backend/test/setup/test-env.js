@@ -1,6 +1,11 @@
+import os from "node:os";
+import path from "node:path";
+
 process.env.MONGO_URI ||= "mongodb://127.0.0.1/mitiendaperso-test-bootstrap";
 process.env.JWT_SECRET ||= "test-jwt-secret";
 process.env.NODE_ENV ||= "test";
+process.env.STORAGE_PROVIDER ||= "local";
+process.env.STORAGE_ROOT ||= path.join(os.tmpdir(), `mitiendaperso-storage-${process.pid}`);
 process.env.MANUAL_PAYMENT_BIZUM_ENABLED ||= "true";
 process.env.MANUAL_PAYMENT_BIZUM_RECIPIENT ||= "test-bizum-recipient";
 process.env.MANUAL_PAYMENT_BIZUM_INSTRUCTIONS ||=

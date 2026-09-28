@@ -31,7 +31,7 @@ router.post("/shipping-options", async (req, res) => {
       options: response.data.options || [],
     });
   } catch (error) {
-    console.error("❌ Error consultando shipping-options:", error.response?.data || error.message);
+    console.error("Error consultando shipping-options:", error.message);
 
     return res.status(500).json({
       ok: false,

@@ -58,3 +58,22 @@ test("login con credenciales inválidas devuelve 401", async () => {
   assert.equal(res.status, 401);
 });
 
+test("bcrypt actualizado conserva registro y login válidos", async () => {
+  const credentials = {
+    name: "Usuario Login",
+    email: "login@test.com",
+    password: "test-password-123",
+  };
+
+  const registerResponse = await request(app).post("/auth/register").send(credentials);
+  assert.equal(registerResponse.status, 201);
+
+  const loginResponse = await request(app).post("/auth/login").send({
+    email: credentials.email,
+    password: credentials.password,
+  });
+  assert.equal(loginResponse.status, 200);
+  assert.equal(loginResponse.body.user.email, credentials.email);
+  assert.equal(typeof loginResponse.body.token, "string");
+});
+

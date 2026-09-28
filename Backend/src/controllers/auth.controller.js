@@ -72,7 +72,7 @@ export async function register(req, res) {
           },
         }
       );
-      console.log(`Pedidos vinculados al nuevo usuario ${u._id} desde sesión invitado ${guestId}`);
+      console.log('Pedidos de invitado vinculados a una cuenta');
     }
 
     return res.status(201).json({
