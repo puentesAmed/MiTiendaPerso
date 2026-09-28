@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createDesignDocument } from "../contracts/designDocument.js";
 import { GENERIC_FLAT_DEMO_TEMPLATE } from "../templates/genericFlatDemo.js";
-import { addImage, addText, deleteElement, duplicateElement, isElementOutOfBounds, updateElement } from "./designDocumentActions.js";
+import { addImage, addText, deleteElement, deleteElements, duplicateElement, isElementOutOfBounds, moveElementLayer, updateElement, updateElements } from "./designDocumentActions.js";
 
 const now = () => "2026-09-28T12:00:00.000Z";
 const makeDocument = () => createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1", idFactory: () => "document-1", now });
@@ -45,4 +45,37 @@ test("delete elimina metadata solo al desaparecer la última referencia", () => 
   assert.ok(oneRemoved.document.assets["asset-1"]);
   const allRemoved = deleteElement(oneRemoved.document, { viewId: "primary", elementId: "image-2", now });
   assert.equal(allRemoved.document.assets["asset-1"], undefined);
+});
+
+test("reorder normaliza zIndex y lock/hide se persisten", () => {
+  const first = addText(makeDocument(), { viewId: "primary", printAreaId: "primary-area", idFactory: () => "text-1", now });
+  const second = addText(first.document, { viewId: "primary", printAreaId: "primary-area", idFactory: () => "text-2", now });
+  const locked = updateElement(second.document, { viewId: "primary", elementId: "text-1", patch: { locked: true, hidden: true }, now });
+  const moved = moveElementLayer(locked.document, { viewId: "primary", elementId: "text-1", direction: "forward", now });
+  assert.deepEqual(moved.document.views.primary.elements.map(({ id, zIndex }) => [id, zIndex]), [["text-2", 0], ["text-1", 1]]);
+  assert.equal(moved.moved.locked, true);
+  assert.equal(moved.moved.hidden, true);
+});
+
+test("batch update y delete realizan una única revisión documental", () => {
+  const first = addText(makeDocument(), { viewId: "primary", printAreaId: "primary-area", idFactory: () => "text-1", now });
+  const second = addText(first.document, { viewId: "primary", printAreaId: "primary-area", idFactory: () => "text-2", now });
+  const updated = updateElements(second.document, { viewId: "primary", updates: [
+    { elementId: "text-1", patch: { x: 0.1 } },
+    { elementId: "text-2", patch: { x: 0.2 } },
+  ], now });
+  assert.deepEqual(updated.elements.map((element) => element.x), [0.1, 0.2]);
+  const deleted = deleteElements(updated.document, { viewId: "primary", elementIds: ["text-1", "text-2"], now });
+  assert.equal(deleted.removed.length, 2);
+  assert.deepEqual(deleted.document.views.primary.elements, []);
+});
+
+test("50 elementos mantienen zIndex contiguo tras reorder", () => {
+  let document = makeDocument();
+  for (let index = 0; index < 50; index += 1) {
+    document = addText(document, { viewId: "primary", printAreaId: "primary-area", idFactory: () => `text-${index}`, now }).document;
+  }
+  const moved = moveElementLayer(document, { viewId: "primary", elementId: "text-0", direction: "forward", now });
+  assert.equal(moved.document.views.primary.elements.length, 50);
+  assert.deepEqual(moved.document.views.primary.elements.map((element) => element.zIndex), Array.from({ length: 50 }, (_, index) => index));
 });

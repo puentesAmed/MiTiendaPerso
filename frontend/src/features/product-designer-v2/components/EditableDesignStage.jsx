@@ -10,22 +10,31 @@ export function EditableDesignStage({
   template,
   document,
   activeViewId,
-  selectedElementId,
+  selectedElementIds,
+  zoom,
+  pan,
   assetRegistry,
   outOfBounds,
   onSelectionChange,
   onElementChange,
+  onElementsChange,
+  onViewportChange,
   onError,
 }) {
   const surfaceRef = useRef(null);
   const canvasRef = useRef(null);
   const adapterRef = useRef(null);
-  const callbacksRef = useRef({ onSelectionChange, onElementChange, onError });
+  const selectedIdsRef = useRef(selectedElementIds);
+  const callbacksRef = useRef({ onSelectionChange, onElementChange, onElementsChange, onViewportChange, onError });
   const view = template.views.find((candidate) => candidate.id === activeViewId) || template.views[0];
 
   useEffect(() => {
-    callbacksRef.current = { onSelectionChange, onElementChange, onError };
-  }, [onElementChange, onError, onSelectionChange]);
+    callbacksRef.current = { onSelectionChange, onElementChange, onElementsChange, onViewportChange, onError };
+  }, [onElementChange, onElementsChange, onError, onSelectionChange, onViewportChange]);
+
+  useEffect(() => {
+    selectedIdsRef.current = selectedElementIds;
+  }, [selectedElementIds]);
 
   useEffect(() => {
     if (!canvasRef.current || !surfaceRef.current) return undefined;
@@ -34,6 +43,8 @@ export function EditableDesignStage({
       adapter = new FabricAdapter(canvasRef.current, {
         onSelectionChange: (...args) => callbacksRef.current.onSelectionChange?.(...args),
         onElementChange: (...args) => callbacksRef.current.onElementChange?.(...args),
+        onElementsChange: (...args) => callbacksRef.current.onElementsChange?.(...args),
+        onViewportChange: (...args) => callbacksRef.current.onViewportChange?.(...args),
         onError: (...args) => callbacksRef.current.onError?.(...args),
       });
       adapterRef.current = adapter;
@@ -56,12 +67,34 @@ export function EditableDesignStage({
     const adapter = adapterRef.current;
     if (!adapter) return;
     void adapter.reconcile(document, activeViewId, template, assetRegistry)
-      .then(() => adapter.select(selectedElementId));
-  }, [activeViewId, assetRegistry, document, selectedElementId, template]);
+      .then(() => adapter.select(selectedIdsRef.current));
+  }, [activeViewId, assetRegistry, document, template]);
 
   useEffect(() => {
-    adapterRef.current?.select(selectedElementId);
-  }, [selectedElementId]);
+    adapterRef.current?.select(selectedElementIds);
+  }, [selectedElementIds]);
+
+  useEffect(() => {
+    adapterRef.current?.setViewport(zoom, pan);
+  }, [pan, zoom]);
+
+  useEffect(() => {
+    const setPan = (enabled, event) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+      if (event.code !== "Space" || zoom <= 1) return;
+      event.preventDefault();
+      adapterRef.current?.setPanEnabled(enabled);
+    };
+    const onKeyDown = (event) => setPan(true, event);
+    const onKeyUp = (event) => setPan(false, event);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [zoom]);
 
   return (
     <figure className="min-w-0">

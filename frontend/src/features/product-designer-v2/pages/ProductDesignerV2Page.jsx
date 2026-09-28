@@ -110,49 +110,85 @@ export function ProductDesignerV2Page() {
     }
   }, [assetRegistry, state.asyncState.template, state.sessionState.activePrintAreaId, state.sessionState.activeViewId]);
 
-  const handleUpdateElement = useCallback((elementIdOrPatch, possiblePatch) => {
+  const handleUpdateElement = useCallback((elementIdOrPatch, possiblePatch, options) => {
     const fromAdapter = typeof elementIdOrPatch === "string";
-    const elementId = fromAdapter ? elementIdOrPatch : state.sessionState.selectedElementId;
+    const elementId = fromAdapter ? elementIdOrPatch : state.sessionState.selectedElementIds[0];
     const patch = fromAdapter ? possiblePatch : elementIdOrPatch;
+    const meta = fromAdapter ? options : possiblePatch;
     if (!elementId || !patch) return;
-    dispatch({ type: "element-updated", payload: { viewId: state.sessionState.activeViewId, elementId, patch } });
-  }, [state.sessionState.activeViewId, state.sessionState.selectedElementId]);
+    dispatch({ type: "element-updated", payload: { viewId: state.sessionState.activeViewId, elementId, patch }, meta });
+  }, [state.sessionState.activeViewId, state.sessionState.selectedElementIds]);
+
+  const handleUpdateElements = useCallback((updates) => {
+    dispatch({ type: "elements-updated", payload: { viewId: state.sessionState.activeViewId, updates } });
+  }, [state.sessionState.activeViewId]);
 
   const handleDuplicate = useCallback(() => {
-    if (!state.sessionState.selectedElementId) return;
-    dispatch({ type: "element-duplicated", payload: { viewId: state.sessionState.activeViewId, elementId: state.sessionState.selectedElementId } });
-  }, [state.sessionState.activeViewId, state.sessionState.selectedElementId]);
+    if (state.sessionState.selectedElementIds.length !== 1) return;
+    dispatch({ type: "element-duplicated", payload: { viewId: state.sessionState.activeViewId, elementId: state.sessionState.selectedElementIds[0] } });
+  }, [state.sessionState.activeViewId, state.sessionState.selectedElementIds]);
 
   const handleDelete = useCallback(() => {
-    const elementId = state.sessionState.selectedElementId;
-    if (!elementId) return;
-    const element = state.documentState.document?.views[state.sessionState.activeViewId]?.elements.find((candidate) => candidate.id === elementId);
-    dispatch({ type: "element-deleted", payload: { viewId: state.sessionState.activeViewId, elementId } });
-    if (element?.assetId) {
-      const references = Object.values(state.documentState.document.views)
-        .flatMap((view) => view.elements)
-        .filter((candidate) => candidate.assetId === element.assetId).length;
-      if (references === 1) assetRegistry.remove(element.assetId);
+    if (!state.sessionState.selectedElementIds.length) return;
+    dispatch({ type: "elements-deleted", payload: { viewId: state.sessionState.activeViewId, elementIds: state.sessionState.selectedElementIds } });
+  }, [state.sessionState.activeViewId, state.sessionState.selectedElementIds]);
+
+  const handleLayerAction = useCallback((elementId, action) => {
+    const element = state.documentState.document.views[state.sessionState.activeViewId]?.elements.find((candidate) => candidate.id === elementId);
+    if (!element) return;
+    if (action === "forward" || action === "backward") {
+      dispatch({ type: "layer-moved", payload: { viewId: state.sessionState.activeViewId, elementId, direction: action } });
+    } else if (action === "lock") {
+      dispatch({ type: "element-updated", payload: { viewId: state.sessionState.activeViewId, elementId, patch: { locked: !element.locked } } });
+    } else if (action === "hide") {
+      dispatch({ type: "element-updated", payload: { viewId: state.sessionState.activeViewId, elementId, patch: { hidden: !element.hidden } } });
+    } else if (action === "delete") {
+      dispatch({ type: "elements-deleted", payload: { viewId: state.sessionState.activeViewId, elementIds: [elementId] } });
     }
-  }, [assetRegistry, state.documentState.document, state.sessionState.activeViewId, state.sessionState.selectedElementId]);
+  }, [state.documentState.document, state.sessionState.activeViewId]);
+
+  const handleViewportChange = useCallback((viewport) => {
+    dispatch({ type: "viewport-changed", payload: viewport });
+  }, []);
+
+  const handleZoomChange = useCallback((zoom) => {
+    const nextZoom = Math.min(2, Math.max(0.5, zoom));
+    dispatch({ type: "viewport-changed", payload: { zoom: nextZoom, pan: nextZoom === 1 ? { x: 0, y: 0 } : state.sessionState.pan } });
+  }, [state.sessionState.pan]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
-      if (event.key === "Escape") dispatch({ type: "selection-changed", payload: null });
-      if ((event.key === "Delete" || event.key === "Backspace") && state.sessionState.selectedElementId) {
+      const key = event.key.toLowerCase();
+      if (event.key === "Escape") dispatch({ type: "selection-changed", payload: [] });
+      if ((event.key === "Delete" || event.key === "Backspace") && state.sessionState.selectedElementIds.length) {
         event.preventDefault();
         handleDelete();
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d" && state.sessionState.selectedElementId) {
+      if ((event.ctrlKey || event.metaKey) && key === "d" && state.sessionState.selectedElementIds.length === 1) {
         event.preventDefault();
         handleDuplicate();
+      }
+      if ((event.ctrlKey || event.metaKey) && key === "z") {
+        event.preventDefault();
+        dispatch({ type: event.shiftKey ? "redo" : "undo" });
+      }
+      if ((event.ctrlKey || event.metaKey) && key === "y") {
+        event.preventDefault();
+        dispatch({ type: "redo" });
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleDelete, handleDuplicate, state.sessionState.selectedElementId]);
+  }, [handleDelete, handleDuplicate, state.sessionState.selectedElementIds]);
+
+  useEffect(() => {
+    if (!state.sessionState.dirty) return undefined;
+    const warn = (event) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [state.sessionState.dirty]);
 
   if (state.asyncState.status === "loading") {
     return <PageContainer><LoadingState message="Preparando Designer V2…" className="min-h-[60vh]" /></PageContainer>;
@@ -180,7 +216,12 @@ export function ProductDesignerV2Page() {
       document={state.documentState.document}
       activeViewId={state.sessionState.activeViewId}
       activePrintAreaId={state.sessionState.activePrintAreaId}
-      selectedElementId={state.sessionState.selectedElementId}
+      selectedElementIds={state.sessionState.selectedElementIds}
+      zoom={state.sessionState.zoom}
+      pan={state.sessionState.pan}
+      dirty={state.sessionState.dirty}
+      canUndo={state.historyState.past.length > 0}
+      canRedo={state.historyState.future.length > 0}
       assetRegistry={assetRegistry}
       editorError={editorError}
       onSelectView={(viewId) => dispatch({ type: "view-selected", payload: viewId })}
@@ -188,8 +229,14 @@ export function ProductDesignerV2Page() {
       onAddText={handleAddText}
       onChooseImage={handleChooseImage}
       onUpdateElement={handleUpdateElement}
+      onUpdateElements={handleUpdateElements}
       onDuplicate={handleDuplicate}
       onDelete={handleDelete}
+      onLayerAction={handleLayerAction}
+      onUndo={() => dispatch({ type: "undo" })}
+      onRedo={() => dispatch({ type: "redo" })}
+      onZoomChange={handleZoomChange}
+      onViewportChange={handleViewportChange}
       onEditorError={setEditorError}
       onBack={handleBack}
     />

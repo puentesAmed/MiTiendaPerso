@@ -13,6 +13,12 @@ function nextZIndex(elements) {
   return elements.reduce((highest, element) => Math.max(highest, element.zIndex), -1) + 1;
 }
 
+export function normalizeZIndices(elements) {
+  return [...elements]
+    .sort((left, right) => left.zIndex - right.zIndex)
+    .map((element, zIndex) => ({ ...element, zIndex }));
+}
+
 function commitView(document, viewId, elements, now = DEFAULT_NOW, assets = document.assets) {
   return {
     ...document,
@@ -107,6 +113,32 @@ export function updateElement(document, { viewId, elementId, patch, now = DEFAUL
   return { document: commitView(document, viewId, next, now), element };
 }
 
+export function updateElements(document, { viewId, updates, now = DEFAULT_NOW } = {}) {
+  const elements = getView(document, viewId).elements;
+  const patches = new Map(updates.map(({ elementId, patch }) => [elementId, patch]));
+  if (!patches.size) return { document, elements: [] };
+  const updated = [];
+  const next = elements.map((current) => {
+    const patch = patches.get(current.id);
+    if (!patch) return current;
+    const element = { ...current, ...patch, id: current.id, type: current.type };
+    assertElement(element);
+    updated.push(element);
+    return element;
+  });
+  return updated.length ? { document: commitView(document, viewId, next, now), elements: updated } : { document, elements: [] };
+}
+
+export function moveElementLayer(document, { viewId, elementId, direction, now = DEFAULT_NOW } = {}) {
+  const ordered = normalizeZIndices(getView(document, viewId).elements);
+  const index = ordered.findIndex((element) => element.id === elementId);
+  const target = direction === "forward" ? index + 1 : index - 1;
+  if (index < 0 || target < 0 || target >= ordered.length) return { document, moved: null };
+  [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+  const elements = ordered.map((element, zIndex) => ({ ...element, zIndex }));
+  return { document: commitView(document, viewId, elements, now), moved: elements[target] };
+}
+
 export function deleteElement(document, { viewId, elementId, now = DEFAULT_NOW } = {}) {
   const elements = getView(document, viewId).elements;
   const removed = elements.find((element) => element.id === elementId);
@@ -122,6 +154,22 @@ export function deleteElement(document, { viewId, elementId, now = DEFAULT_NOW }
       delete assets[removed.assetId];
     }
   }
+  return { document: commitView(document, viewId, nextElements, now, assets), removed };
+}
+
+export function deleteElements(document, { viewId, elementIds, now = DEFAULT_NOW } = {}) {
+  const ids = new Set(elementIds);
+  const elements = getView(document, viewId).elements;
+  const removed = elements.filter((element) => ids.has(element.id));
+  if (!removed.length) return { document, removed: [] };
+  const nextElements = normalizeZIndices(elements.filter((element) => !ids.has(element.id)));
+  const referencedAssetIds = new Set(Object.entries(document.views).flatMap(([candidateViewId, view]) =>
+    view.elements
+      .filter((element) => candidateViewId !== viewId || !ids.has(element.id))
+      .map((element) => element.assetId)
+      .filter(Boolean),
+  ));
+  const assets = Object.fromEntries(Object.entries(document.assets).filter(([assetId]) => referencedAssetIds.has(assetId)));
   return { document: commitView(document, viewId, nextElements, now, assets), removed };
 }
 
