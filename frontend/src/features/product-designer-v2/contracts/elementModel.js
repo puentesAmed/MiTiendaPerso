@@ -21,6 +21,14 @@ export function validateDesignElement(element) {
   }
   if (typeof element.locked !== "boolean") errors.push("locked debe ser booleano.");
   if (typeof element.hidden !== "boolean") errors.push("hidden debe ser booleano.");
+  if (element.type === "text") {
+    if (typeof element.content !== "string") errors.push("Un texto necesita content.");
+    if (!Number.isFinite(element.fontSize) || element.fontSize <= 0) errors.push("fontSize debe ser positivo.");
+    if (typeof element.color !== "string") errors.push("Un texto necesita color.");
+    if (!["left", "center", "right"].includes(element.textAlign)) errors.push("textAlign no soportado.");
+    if (![400, 500, 600, 700].includes(element.fontWeight)) errors.push("fontWeight no soportado.");
+  }
+  if (element.type === "image" && !element.assetId) errors.push("Una imagen necesita assetId.");
 
   return { valid: errors.length === 0, errors };
 }

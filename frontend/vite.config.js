@@ -16,6 +16,7 @@ export default defineConfig({
           'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
           'vendor-animation': ['framer-motion'],
           'vendor-konva': ['react-konva', 'konva'],
+          'vendor-fabric': ['fabric'],
           'vendor-utils': ['axios'],
         },
       },
