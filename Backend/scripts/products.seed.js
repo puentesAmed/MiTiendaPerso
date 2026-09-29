@@ -136,6 +136,7 @@ async function seedProducts() {
       active: true,
       category: "hogar",
       customizable: true,
+      productTemplateId: "mug-ceramic-standard-v1",
       customizationAreas: [
         {
           name: "Área lateral",

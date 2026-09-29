@@ -31,6 +31,7 @@ const productSchema = new mongoose.Schema(
 
     // NUEVO: personalización
     customizable: { type: Boolean, default: false },
+    productTemplateId: { type: String, default: null, trim: true },
     customizationAreas: [customizationAreaSchema],
     customizationType: { type: String, enum: ["tshirt", "hoodie", "mug"], default: "tshirt" },
   },

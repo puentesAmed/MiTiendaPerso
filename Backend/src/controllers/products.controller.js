@@ -74,7 +74,7 @@ function normalizePrice(product, variant = null) {
  * 🧩 MAPEO PARA CATÁLOGO Y DETALLE
  * Devuelve SOLO lo que la tienda necesita
  */
-function mapToCatalogProduct(product) {
+function mapToCatalogProduct(product, { includeProductTemplateId = false } = {}) {
   const isAliExpress = product.provider === "aliexpress";
 
   let price;
@@ -97,7 +97,7 @@ function mapToCatalogProduct(product) {
   }
 
 
-  return {
+  const mappedProduct = {
     _id: product._id,
     provider: product.provider || "local",
 
@@ -137,6 +137,14 @@ function mapToCatalogProduct(product) {
 
     customizable: !!product.customizable,
   };
+
+  if (includeProductTemplateId) {
+    mappedProduct.productTemplateId = typeof product.productTemplateId === "string" && product.productTemplateId.trim()
+      ? product.productTemplateId.trim()
+      : null;
+  }
+
+  return mappedProduct;
 }
 
 /* ───────────────────────────────────────────── */
@@ -221,7 +229,7 @@ export async function getProduct(req, res) {
 
     res.json({
       ok: true,
-      product: mapToCatalogProduct(product),
+      product: mapToCatalogProduct(product, { includeProductTemplateId: true }),
     });
 
   } catch (err) {

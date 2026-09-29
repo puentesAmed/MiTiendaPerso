@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createDesignDocument } from "../contracts/designDocument.js";
 import { GENERIC_FLAT_DEMO_TEMPLATE } from "../templates/genericFlatDemo.js";
+import { MUG_CERAMIC_STANDARD_V1_TEMPLATE } from "../templates/mugCeramicStandardV1.js";
 import { createDraft } from "./draftModel.js";
 import { addText } from "../domain/designDocumentActions.js";
 import { createDraftRepository, DraftConflictError, IncompatibleDraftError } from "./DraftRepository.js";
@@ -19,6 +20,15 @@ test("DraftRepository guarda, carga, detecta existencia y elimina", async () => 
   assert.equal((await repository.loadDraft("draft-1", { template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1" })).document.documentId, "document-1");
   await repository.deleteDraft("draft-1");
   assert.equal(await repository.hasDraft("draft-1"), false);
+});
+
+test("draft generic-flat previo es incompatible con el template real de taza", async () => {
+  const repository = createDraftRepository(createTestMemoryStorage(), { now });
+  await repository.saveDraft(createDraft({ draftId: "draft-generic", document: makeDocument(), now }));
+  await assert.rejects(
+    () => repository.loadDraft("draft-generic", { template: MUG_CERAMIC_STANDARD_V1_TEMPLATE, productId: "product-1" }),
+    IncompatibleDraftError,
+  );
 });
 
 test("DraftRepository rechaza schema incompatible y revisión obsoleta", async () => {

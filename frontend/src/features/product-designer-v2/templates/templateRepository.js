@@ -1,15 +1,9 @@
 import { GENERIC_FLAT_DEMO_TEMPLATE } from "./genericFlatDemo.js";
+import { MUG_CERAMIC_STANDARD_V1_TEMPLATE } from "./mugCeramicStandardV1.js";
 
 const templatesById = Object.freeze({
   [GENERIC_FLAT_DEMO_TEMPLATE.templateId]: GENERIC_FLAT_DEMO_TEMPLATE,
-});
-
-// Provisional para SPEC-020A: Product aún no publica una relación ProductTemplate real.
-// El editor solo recibe templateId; no contiene branching por tipo de producto.
-export const DEVELOPMENT_TEMPLATE_MAPPING = Object.freeze({
-  tshirt: "generic-flat-demo",
-  hoodie: "generic-flat-demo",
-  mug: "generic-flat-demo",
+  [MUG_CERAMIC_STANDARD_V1_TEMPLATE.templateId]: MUG_CERAMIC_STANDARD_V1_TEMPLATE,
 });
 
 export function getProductTemplateById(templateId) {
@@ -17,9 +11,9 @@ export function getProductTemplateById(templateId) {
 }
 
 export function resolveProductTemplateId(product) {
-  const configuredTemplateId = product?.customizationConfig?.templateId;
-  if (configuredTemplateId) return configuredTemplateId;
-  return DEVELOPMENT_TEMPLATE_MAPPING[product?.customizationType] ?? null;
+  return typeof product?.productTemplateId === "string" && product.productTemplateId.trim()
+    ? product.productTemplateId.trim()
+    : null;
 }
 
 export function resolveProductTemplate(product) {

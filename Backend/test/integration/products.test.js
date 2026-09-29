@@ -56,6 +56,7 @@ test("GET /api/products devuelve listado e incluye producto local activo", async
   assert.ok(found.price);
   assert.equal(found.price.final, created.price);
   assert.equal(found.stock, created.stock);
+  assert.equal(Object.hasOwn(found, "productTemplateId"), false);
 });
 
 test("GET /api/products/:id (local) devuelve estructura mínima esperada", async () => {
@@ -71,6 +72,26 @@ test("GET /api/products/:id (local) devuelve estructura mínima esperada", async
   assert.ok(res.body.product.price);
   assert.equal(res.body.product.provider, "local");
   assert.ok(Object.hasOwn(res.body.product, "stock"));
+  assert.equal(res.body.product.productTemplateId, null);
+});
+
+test("Product.productTemplateId es string nullable y el detalle lo expone sin alterar precio/stock", async () => {
+  assert.equal(Product.schema.path("productTemplateId").instance, "String");
+  assert.equal(Product.schema.path("productTemplateId").defaultValue, null);
+  const created = await Product.create(localProductFixture({
+    name: "Taza piloto",
+    price: 12.5,
+    stock: 100,
+    customizable: true,
+    productTemplateId: "mug-ceramic-standard-v1",
+  }));
+
+  const res = await request(app).get(`/api/products/${created._id}`);
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.product.productTemplateId, "mug-ceramic-standard-v1");
+  assert.equal(res.body.product.price.final, 12.5);
+  assert.equal(res.body.product.stock, 100);
 });
 
 test("GET /api/products/:id inexistente devuelve 404", async () => {

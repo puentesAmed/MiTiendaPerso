@@ -21,6 +21,7 @@ import { Price } from "../../components/ui/Price";
 import { ProductGallery } from "../../components/ui/ProductGallery";
 import { Skeleton } from "../../components/ui/skeleton";
 import { isProductDesignerV2Enabled } from "../../features/product-designer-v2/utils/featureFlag";
+import { canUseProductDesignerV2 } from "../../features/product-designer-v2/templates/templateCatalog";
 
 function DetailSkeleton() {
   return (
@@ -136,6 +137,7 @@ export function ProductDetail() {
 
   const isAliExpress = product?.provider === "aliexpress";
   const isCustomizable = Boolean(product?.customizable);
+  const hasDesignerV2Template = canUseProductDesignerV2(product);
   const productId = product?.id || product?._id;
   const availableSizes = Array.isArray(product?.variants?.sizes) ? product.variants.sizes : [];
   const availableColors = Array.isArray(product?.variants?.colors) ? product.variants.colors : [];
@@ -333,7 +335,7 @@ export function ProductDetail() {
               )
             )}
 
-            {isCustomizable && isProductDesignerV2Enabled && (
+            {hasDesignerV2Template && isProductDesignerV2Enabled && (
               canAddToCart && !isAliExpress ? (
                 <Button
                   as={Link}

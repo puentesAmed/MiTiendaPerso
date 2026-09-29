@@ -1,3 +1,5 @@
+import { PRODUCT_TEMPLATE_IDS } from "./templateCatalog.js";
+
 const createPrintArea = (id, label, geometry) => ({
   id,
   label,
@@ -17,7 +19,7 @@ const createPrintArea = (id, label, geometry) => ({
 
 export const GENERIC_FLAT_DEMO_TEMPLATE = Object.freeze({
   schemaVersion: 1,
-  templateId: "generic-flat-demo",
+  templateId: PRODUCT_TEMPLATE_IDS.GENERIC_FLAT_DEMO,
   templateRevision: 1,
   productType: "development-fixture",
   label: "Superficie plana de demostración",

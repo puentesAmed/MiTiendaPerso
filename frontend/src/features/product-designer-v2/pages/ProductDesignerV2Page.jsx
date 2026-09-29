@@ -21,11 +21,12 @@ import { createAssetRepository } from "../persistence/AssetRepository.js";
 import { createDraft } from "../persistence/draftModel.js";
 import { createAutosaveScheduler } from "../persistence/autosaveScheduler.js";
 import { garbageCollectAssets } from "../persistence/assetReferences.js";
+import { createDraftReferenceKey, findDraftReference } from "../persistence/draftReferences.js";
 
 const statusCopy = {
   disabled: ["Designer V2 no disponible", "Activa VITE_PRODUCT_DESIGNER_V2_ENABLED para acceder a esta foundation."],
   "not-found": ["Producto no encontrado", "No existe un producto para esta ruta."],
-  incompatible: ["Producto sin template compatible", "Este producto todavía no tiene una relación de desarrollo con ProductTemplate."],
+  incompatible: ["Producto sin template compatible", "Este producto no tiene un productTemplateId registrado para Designer V2."],
   "invalid-template": ["Template inválido", "El ProductTemplate no supera la validación del contrato v1."],
   load: ["No se pudo abrir Designer V2", "No se pudo cargar el producto. Inténtalo de nuevo."],
 };
@@ -46,12 +47,11 @@ export function ProductDesignerV2Page() {
   const assetRepository = useMemo(() => createAssetRepository(storage), [storage]);
   const activeDraftRef = useRef(null);
   const savedRevisionRef = useRef(null);
+  const recoveryReferenceKeyRef = useRef(null);
   const saveQueueRef = useRef(Promise.resolve());
   const historyRef = useRef(state.historyState);
   const saveHandlerRef = useRef(null);
   const autosaveScheduler = useMemo(() => createAutosaveScheduler((document) => saveHandlerRef.current?.(document)), []);
-
-  const draftReferenceKey = useCallback((document) => `designer-v2:draft-ref:${document.productId}:${document.templateId}:${document.templateRevision}`, []);
 
   useEffect(() => () => {
     autosaveScheduler.cancel();
@@ -72,6 +72,7 @@ export function ProductDesignerV2Page() {
     dispatch({ type: "loading" });
     activeDraftRef.current = null;
     savedRevisionRef.current = null;
+    recoveryReferenceKeyRef.current = null;
     setRecoveryDraft(null);
     setRecoveryError("");
     setRecoveryCompatible(true);
@@ -99,9 +100,10 @@ export function ProductDesignerV2Page() {
         });
         dispatch({ type: "ready", payload: { product, template, document } });
         try {
-          const referencedDraftId = localStorage.getItem(draftReferenceKey(document));
-          if (!referencedDraftId) return;
-          const draft = await draftRepository.loadDraft(referencedDraftId, { template, productId: document.productId });
+          const reference = findDraftReference(localStorage, document);
+          if (!reference) return;
+          recoveryReferenceKeyRef.current = reference.key;
+          const draft = await draftRepository.loadDraft(reference.draftId, { template, productId: document.productId });
           if (active && draft) setRecoveryDraft(draft);
         } catch (error) {
           if (!active) return;
@@ -118,7 +120,7 @@ export function ProductDesignerV2Page() {
       });
 
     return () => { active = false; };
-  }, [draftReferenceKey, draftRepository, location.state?.variant, productId]);
+  }, [draftRepository, location.state?.variant, productId]);
 
   const handleBack = () => {
     if (location.state?.fromProductDetail) navigate(-1);
@@ -135,7 +137,7 @@ export function ProductDesignerV2Page() {
       const saved = await draftRepository.saveDraft({ ...baseDraft, document }, { expectedRevision: savedRevisionRef.current, force });
       activeDraftRef.current = saved;
       savedRevisionRef.current = saved.revision;
-      try { localStorage.setItem(draftReferenceKey(document), saved.draftId); } catch { /* referencia opcional */ }
+      try { localStorage.setItem(createDraftReferenceKey(document), saved.draftId); } catch { /* referencia opcional */ }
       dispatch({ type: "save-succeeded", payload: { document, savedAt: saved.updatedAt } });
       await garbageCollectAssets({ assetRepository, draftRepository, document, history: historyRef.current, runtimeAssetRegistry: assetRegistry });
       return saved;
@@ -149,7 +151,7 @@ export function ProductDesignerV2Page() {
       dispatch({ type: "save-failed", payload: { message, conflict } });
       return null;
     }
-  }, [assetRegistry, assetRepository, draftReferenceKey, draftRepository]);
+  }, [assetRegistry, assetRepository, draftRepository]);
 
   const enqueueSave = useCallback((document, options) => {
     const queued = saveQueueRef.current.catch(() => undefined).then(() => persistDocument(document, options));
@@ -176,6 +178,7 @@ export function ProductDesignerV2Page() {
       activeDraftRef.current = recoveryDraft;
       savedRevisionRef.current = recoveryDraft.revision;
       dispatch({ type: "document-restored", payload: { document: recoveryDraft.document, savedAt: recoveryDraft.updatedAt } });
+      recoveryReferenceKeyRef.current = null;
       setRecoveryDraft(null);
     } catch (error) {
       setRecoveryError(error.message || "No se pudo recuperar el diseño.");
@@ -190,19 +193,20 @@ export function ProductDesignerV2Page() {
     setRecoveryError("");
     try {
       await draftRepository.deleteDraft(recoveryDraft.draftId);
-      try { localStorage.removeItem(draftReferenceKey(state.documentState.document)); } catch { /* referencia opcional */ }
+      try { localStorage.removeItem(recoveryReferenceKeyRef.current || createDraftReferenceKey(state.documentState.document)); } catch { /* referencia opcional */ }
       const document = createDesignDocument({ template: state.asyncState.template, productId: state.asyncState.product.id || state.asyncState.product._id, variant: location.state?.variant || null });
       activeDraftRef.current = null;
       savedRevisionRef.current = null;
       dispatch({ type: "document-restored", payload: { document } });
       await garbageCollectAssets({ assetRepository, draftRepository, document, history: null, runtimeAssetRegistry: assetRegistry });
+      recoveryReferenceKeyRef.current = null;
       setRecoveryDraft(null);
     } catch {
       setRecoveryError("No se pudo descartar el draft guardado. No se ha eliminado silenciosamente.");
     } finally {
       setRecoveryBusy(false);
     }
-  }, [assetRegistry, assetRepository, draftReferenceKey, draftRepository, location.state?.variant, recoveryDraft, state.asyncState.product, state.asyncState.template, state.documentState.document]);
+  }, [assetRegistry, assetRepository, draftRepository, location.state?.variant, recoveryDraft, state.asyncState.product, state.asyncState.template, state.documentState.document]);
 
   const handleReloadStored = useCallback(async () => {
     const draftId = activeDraftRef.current?.draftId;

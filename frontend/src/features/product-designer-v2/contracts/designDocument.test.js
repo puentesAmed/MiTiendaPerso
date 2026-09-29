@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createDesignDocument, validateDesignDocument } from "./designDocument.js";
 import { GENERIC_FLAT_DEMO_TEMPLATE } from "../templates/genericFlatDemo.js";
+import { MUG_CERAMIC_STANDARD_V1_TEMPLATE } from "../templates/mugCeramicStandardV1.js";
 
 test("createDesignDocument crea referencias, variante y vistas vacías", () => {
   const document = createDesignDocument({
@@ -21,6 +22,24 @@ test("createDesignDocument crea referencias, variante y vistas vacías", () => {
   assert.equal(Object.hasOwn(document, "zoom"), false);
   assert.equal(Object.hasOwn(document, "selection"), false);
   assert.equal(Object.hasOwn(document, "previewImage"), false);
+});
+
+test("producto piloto crea DesignDocument real con vista wrap", () => {
+  const document = createDesignDocument({
+    template: MUG_CERAMIC_STANDARD_V1_TEMPLATE,
+    productId: "693070095d96fe47cd3f2055",
+    variant: { color: "Blanco" },
+    idFactory: () => "document-mug",
+    now: () => "2026-09-29T00:00:00.000Z",
+  });
+
+  assert.equal(document.productId, "693070095d96fe47cd3f2055");
+  assert.equal(document.templateId, "mug-ceramic-standard-v1");
+  assert.equal(document.templateRevision, 1);
+  assert.deepEqual(document.variant, { size: null, color: "Blanco" });
+  assert.deepEqual(Object.keys(document.views), ["wrap"]);
+  assert.deepEqual(document.views.wrap.elements, []);
+  assert.deepEqual(document.assets, {});
 });
 
 test("createDesignDocument rechaza template inválido", () => {
