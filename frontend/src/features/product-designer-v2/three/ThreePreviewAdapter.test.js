@@ -28,12 +28,12 @@ test("CanvasTexture y camera frame siguen el manifest", () => {
   const texture = new THREE.Texture();
   applyTextureConfiguration(texture, manifest.bindings[0].texture, THREE);
   assert.equal(texture.colorSpace, THREE.SRGBColorSpace);
-  assert.equal(texture.flipY, false);
+  assert.equal(texture.flipY, true);
   assert.equal(texture.wrapS, THREE.ClampToEdgeWrapping);
   const bounds = new THREE.Box3(new THREE.Vector3(-1, -1, -1), new THREE.Vector3(1, 1, 1));
   const frame = calculateCameraFrame({ bounds, cameraConfig: manifest.camera, THREE });
   assert.ok(frame.distance > 2);
-  assert.deepEqual(frame.target.toArray(), [0, 0, 0]);
+  assert.deepEqual(frame.target.toArray(), [0, 0.03, 0]);
 });
 
 test("textura compone transparencia sobre el color base declarado", () => {

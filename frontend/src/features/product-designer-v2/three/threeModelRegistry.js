@@ -5,7 +5,7 @@ const LIGHTING_PRESETS = new Set(["studio-soft"]);
 export const THREE_MODEL_MANIFESTS = Object.freeze({
   "mug-development-v1": Object.freeze({
     schemaVersion: 1,
-    revision: 1,
+    revision: 2,
     modelId: "mug-development-v1",
     asset: Object.freeze({ url: "/models/mug-development-v1.glb", kind: "development", origin: "generated-in-project" }),
     bindings: Object.freeze([
@@ -13,11 +13,11 @@ export const THREE_MODEL_MANIFESTS = Object.freeze({
         sourceViewId: "wrap",
         meshName: "MugBody",
         materialName: "PrintableSurface",
-        texture: Object.freeze({ colorSpace: "srgb", backgroundColor: "#ffffff", flipY: false, wrapS: "clamp", wrapT: "clamp", offset: Object.freeze([0, 0]), repeat: Object.freeze([1, 1]), rotation: 0 }),
+        texture: Object.freeze({ colorSpace: "srgb", backgroundColor: "#ffffff", flipY: true, wrapS: "clamp", wrapT: "clamp", offset: Object.freeze([0, 0]), repeat: Object.freeze([1, 1]), rotation: 0 }),
       }),
     ]),
-    camera: Object.freeze({ fov: 34, direction: Object.freeze([2.4, 1.25, 3]), targetOffset: Object.freeze([0, 0, 0]), fitPadding: 1.35 }),
-    orbit: Object.freeze({ enableRotate: true, enableZoom: true, enablePan: false, minDistanceFactor: 0.65, maxDistanceFactor: 2.4, minPolarAngle: 0.35, maxPolarAngle: 2.75, damping: 0.075 }),
+    camera: Object.freeze({ fov: 32, direction: Object.freeze([0.28, 0.12, 1]), targetOffset: Object.freeze([0, 0.03, 0]), fitPadding: 1.28 }),
+    orbit: Object.freeze({ enableRotate: true, enableZoom: true, enablePan: false, minDistanceFactor: 0.82, maxDistanceFactor: 1.9, minPolarAngle: 0.65, maxPolarAngle: 2.35, damping: 0.075 }),
     background: Object.freeze({ color: "#f3f4f6", alpha: 1 }),
     lighting: Object.freeze({ preset: "studio-soft" }),
   }),

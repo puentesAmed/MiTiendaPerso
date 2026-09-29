@@ -7,6 +7,9 @@ import { THREE_MODEL_MANIFESTS, getThreeDManifest, getThreeDManifestForTemplate,
 test("registry resuelve un manifest válido sin aceptar model URLs arbitrarias", () => {
   const manifest = getThreeDManifest("mug-development-v1");
   assert.equal(validateThreeDManifest(manifest).valid, true);
+  assert.equal(manifest.revision, 2);
+  assert.equal(manifest.bindings[0].texture.flipY, true);
+  assert.deepEqual(manifest.camera.direction, [0.28, 0.12, 1]);
   assert.equal(manifest.asset.kind, "development");
   assert.match(manifest.asset.url, /^\/models\/[a-z0-9-]+\.glb$/);
   assert.equal(getThreeDManifest("https://example.com/evil.glb"), null);
