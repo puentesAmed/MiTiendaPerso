@@ -2,7 +2,7 @@
 
 ## Estado
 
-Implementación automática en curso. La aprobación visual queda reservada al usuario.
+Implementación automática completada (2026-09-29). Validación visual pendiente del usuario.
 
 ## Objetivo
 

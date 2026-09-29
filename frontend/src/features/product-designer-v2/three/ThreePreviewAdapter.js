@@ -55,6 +55,18 @@ export function applyTextureConfiguration(texture, config, THREE) {
   return texture;
 }
 
+export function prepareTextureCanvas(sourceCanvas, config, documentApi = globalThis.document) {
+  const canvas = documentApi.createElement("canvas");
+  canvas.width = sourceCanvas.width;
+  canvas.height = sourceCanvas.height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas 2D no disponible para preparar la textura.");
+  context.fillStyle = config.backgroundColor;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(sourceCanvas, 0, 0);
+  return canvas;
+}
+
 export function calculateCameraFrame({ bounds, cameraConfig, THREE }) {
   const center = bounds.getCenter(new THREE.Vector3());
   const size = bounds.getSize(new THREE.Vector3());
@@ -67,11 +79,12 @@ export function calculateCameraFrame({ bounds, cameraConfig, THREE }) {
 }
 
 export class ThreePreviewAdapter {
-  constructor({ runtime, manifest, onStatus = () => {}, onError = () => {} }) {
+  constructor({ runtime, manifest, onStatus = () => {}, onError = () => {}, documentApi = globalThis.document }) {
     this.runtime = runtime;
     this.manifest = manifest;
     this.onStatus = onStatus;
     this.onError = onError;
+    this.documentApi = documentApi;
     this.bindingRecords = new Map();
     this.ownedTextures = new Set();
     this.disposed = false;
@@ -160,8 +173,9 @@ export class ThreePreviewAdapter {
     if (!this.bindingTargets) throw new Error("El modelo 3D aún no está preparado.");
     const { THREE } = this.runtime;
     this.bindingTargets.forEach(({ binding, mesh, materialIndex, material }) => {
-      const canvas = artworksByView[binding.sourceViewId];
-      if (!canvas) throw new Error(`Falta artwork para la vista ${binding.sourceViewId}.`);
+      const artworkCanvas = artworksByView[binding.sourceViewId];
+      if (!artworkCanvas) throw new Error(`Falta artwork para la vista ${binding.sourceViewId}.`);
+      const canvas = prepareTextureCanvas(artworkCanvas, binding.texture, this.documentApi);
       const key = `${binding.meshName}:${binding.materialName}:${binding.sourceViewId}`;
       let record = this.bindingRecords.get(key);
       if (!record) {

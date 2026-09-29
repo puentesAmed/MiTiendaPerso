@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
 import { THREE_MODEL_MANIFESTS } from "./threeModelRegistry.js";
-import { ThreePreviewAdapter, applyTextureConfiguration, calculateCameraFrame, validateModelBindings } from "./ThreePreviewAdapter.js";
+import { ThreePreviewAdapter, applyTextureConfiguration, calculateCameraFrame, prepareTextureCanvas, validateModelBindings } from "./ThreePreviewAdapter.js";
 
 const manifest = THREE_MODEL_MANIFESTS["mug-development-v1"];
 
@@ -36,11 +36,24 @@ test("CanvasTexture y camera frame siguen el manifest", () => {
   assert.deepEqual(frame.target.toArray(), [0, 0, 0]);
 });
 
+test("textura compone transparencia sobre el color base declarado", () => {
+  const operations = [];
+  const output = { getContext: () => ({ set fillStyle(value) { operations.push(["fillStyle", value]); }, fillRect: (...args) => operations.push(["fillRect", ...args]), drawImage: (...args) => operations.push(["drawImage", ...args]) }) };
+  const source = { width: 1008, height: 480 };
+  const result = prepareTextureCanvas(source, manifest.bindings[0].texture, { createElement: () => output });
+  assert.equal(result.width, 1008);
+  assert.equal(result.height, 480);
+  assert.deepEqual(operations[0], ["fillStyle", "#ffffff"]);
+  assert.deepEqual(operations[1], ["fillRect", 0, 0, 1008, 480]);
+  assert.equal(operations[2][0], "drawImage");
+});
+
 test("actualizar artwork reutiliza modelo y textura; dispose es idempotente", () => {
   class FakeCanvasTexture extends THREE.Texture { constructor(image) { super(image); this.image = image; } }
   const runtime = { THREE: { ...THREE, CanvasTexture: FakeCanvasTexture } };
   const { mesh, material } = validScene();
-  const adapter = new ThreePreviewAdapter({ runtime, manifest });
+  const documentApi = { createElement: () => { const output = { getContext: () => ({ fillRect() {}, drawImage(source) { output.sourceId = source.id; } }) }; return output; } };
+  const adapter = new ThreePreviewAdapter({ runtime, manifest, documentApi });
   adapter.bindingTargets = [{ binding: manifest.bindings[0], mesh, materialIndex: 0, material }];
   adapter.renderer = { render() {}, domElement: { removeEventListener() {}, remove() {} }, dispose() { this.disposeCalls = (this.disposeCalls || 0) + 1; }, forceContextLoss() { this.lossCalls = (this.lossCalls || 0) + 1; } };
   adapter.scene = {};
@@ -50,7 +63,7 @@ test("actualizar artwork reutiliza modelo y textura; dispose es idempotente", ()
   const firstTexture = [...adapter.ownedTextures][0];
   adapter.updateArtworks({ wrap: { id: "second" } });
   assert.equal([...adapter.ownedTextures][0], firstTexture);
-  assert.equal(firstTexture.image.id, "second");
+  assert.equal(firstTexture.image.sourceId, "second");
   assert.equal(adapter.modelLoadCount, 1);
   let controlsDisposed = 0;
   let observerDisconnected = 0;

@@ -13,7 +13,7 @@ export const THREE_MODEL_MANIFESTS = Object.freeze({
         sourceViewId: "wrap",
         meshName: "MugBody",
         materialName: "PrintableSurface",
-        texture: Object.freeze({ colorSpace: "srgb", flipY: false, wrapS: "clamp", wrapT: "clamp", offset: Object.freeze([0, 0]), repeat: Object.freeze([1, 1]), rotation: 0 }),
+        texture: Object.freeze({ colorSpace: "srgb", backgroundColor: "#ffffff", flipY: false, wrapS: "clamp", wrapT: "clamp", offset: Object.freeze([0, 0]), repeat: Object.freeze([1, 1]), rotation: 0 }),
       }),
     ]),
     camera: Object.freeze({ fov: 34, direction: Object.freeze([2.4, 1.25, 3]), targetOffset: Object.freeze([0, 0, 0]), fitPadding: 1.35 }),
@@ -44,7 +44,7 @@ export function validateThreeDManifest(manifest) {
     if (bindingTargets.has(target)) errors.push(`${prefix}: target duplicado.`);
     bindingTargets.add(target);
     const texture = binding?.texture;
-    if (!texture || !COLOR_SPACES.has(texture.colorSpace) || typeof texture.flipY !== "boolean" || !WRAPS.has(texture.wrapS) || !WRAPS.has(texture.wrapT) || !vector(texture.offset, 2) || !vector(texture.repeat, 2, { positive: true }) || !Number.isFinite(texture.rotation)) errors.push(`${prefix}: texture inválida.`);
+    if (!texture || !COLOR_SPACES.has(texture.colorSpace) || !/^#[0-9a-f]{6}$/i.test(texture.backgroundColor || "") || typeof texture.flipY !== "boolean" || !WRAPS.has(texture.wrapS) || !WRAPS.has(texture.wrapT) || !vector(texture.offset, 2) || !vector(texture.repeat, 2, { positive: true }) || !Number.isFinite(texture.rotation)) errors.push(`${prefix}: texture inválida.`);
     });
   }
   const camera = manifest.camera;

@@ -5,7 +5,10 @@ export function loadThreeRuntime() {
     import("three"),
     import("three/addons/loaders/GLTFLoader.js"),
     import("three/addons/controls/OrbitControls.js"),
-  ]).then(([THREE, { GLTFLoader }, { OrbitControls }]) => ({ THREE, GLTFLoader, OrbitControls }));
+  ]).then(([THREE, { GLTFLoader }, { OrbitControls }]) => ({ THREE, GLTFLoader, OrbitControls })).catch((error) => {
+    runtimePromise = undefined;
+    throw error;
+  });
   return runtimePromise;
 }
 
