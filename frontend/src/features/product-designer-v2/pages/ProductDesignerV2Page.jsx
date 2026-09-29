@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,17 @@ import { apiGetProductById } from "@/services/products.service";
 import { createDesignDocument } from "../contracts/designDocument.js";
 import { validateProductTemplate } from "../contracts/productTemplate.js";
 import { DesignerV2Shell } from "../components/DesignerV2Shell.jsx";
+import { DraftRecoveryDialog } from "../components/DraftRecoveryDialog.jsx";
 import { designerV2Reducer, initialDesignerV2State } from "../state/designerV2Reducer.js";
 import { resolveProductTemplate } from "../templates/templateRepository.js";
 import { isProductDesignerV2Enabled } from "../utils/featureFlag.js";
-import { createRuntimeAssetRegistry, prepareImageAsset } from "../assets/runtimeAssetRegistry.js";
+import { createRuntimeAssetRegistry, prepareImageAsset, restoreRuntimeAssets } from "../assets/runtimeAssetRegistry.js";
+import { createIndexedDbStorage, isQuotaError } from "../persistence/indexedDbStorage.js";
+import { createDraftRepository, DraftConflictError, IncompatibleDraftError } from "../persistence/DraftRepository.js";
+import { createAssetRepository } from "../persistence/AssetRepository.js";
+import { createDraft } from "../persistence/draftModel.js";
+import { createAutosaveScheduler } from "../persistence/autosaveScheduler.js";
+import { garbageCollectAssets } from "../persistence/assetReferences.js";
 
 const statusCopy = {
   disabled: ["Designer V2 no disponible", "Activa VITE_PRODUCT_DESIGNER_V2_ENABLED para acceder a esta foundation."],
@@ -29,9 +36,31 @@ export function ProductDesignerV2Page() {
   const navigate = useNavigate();
   const [state, dispatch] = useReducer(designerV2Reducer, initialDesignerV2State);
   const [editorError, setEditorError] = useState("");
+  const [recoveryDraft, setRecoveryDraft] = useState(null);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryError, setRecoveryError] = useState("");
+  const [recoveryCompatible, setRecoveryCompatible] = useState(true);
   const assetRegistry = useMemo(() => createRuntimeAssetRegistry(), []);
+  const storage = useMemo(() => createIndexedDbStorage(), []);
+  const draftRepository = useMemo(() => createDraftRepository(storage), [storage]);
+  const assetRepository = useMemo(() => createAssetRepository(storage), [storage]);
+  const activeDraftRef = useRef(null);
+  const savedRevisionRef = useRef(null);
+  const saveQueueRef = useRef(Promise.resolve());
+  const historyRef = useRef(state.historyState);
+  const saveHandlerRef = useRef(null);
+  const autosaveScheduler = useMemo(() => createAutosaveScheduler((document) => saveHandlerRef.current?.(document)), []);
 
-  useEffect(() => () => assetRegistry.dispose(), [assetRegistry]);
+  const draftReferenceKey = useCallback((document) => `designer-v2:draft-ref:${document.productId}:${document.templateId}:${document.templateRevision}`, []);
+
+  useEffect(() => () => {
+    autosaveScheduler.cancel();
+    assetRegistry.dispose();
+  }, [assetRegistry, autosaveScheduler]);
+
+  useEffect(() => {
+    historyRef.current = state.historyState;
+  }, [state.historyState]);
 
   useEffect(() => {
     let active = true;
@@ -41,8 +70,13 @@ export function ProductDesignerV2Page() {
     }
 
     dispatch({ type: "loading" });
+    activeDraftRef.current = null;
+    savedRevisionRef.current = null;
+    setRecoveryDraft(null);
+    setRecoveryError("");
+    setRecoveryCompatible(true);
     apiGetProductById(productId)
-      .then((product) => {
+      .then(async (product) => {
         if (!active) return;
         if (!product) {
           dispatch({ type: "failed", payload: { error: { code: "not-found" } } });
@@ -64,18 +98,125 @@ export function ProductDesignerV2Page() {
           variant: location.state?.variant || null,
         });
         dispatch({ type: "ready", payload: { product, template, document } });
+        try {
+          const referencedDraftId = localStorage.getItem(draftReferenceKey(document));
+          if (!referencedDraftId) return;
+          const draft = await draftRepository.loadDraft(referencedDraftId, { template, productId: document.productId });
+          if (active && draft) setRecoveryDraft(draft);
+        } catch (error) {
+          if (!active) return;
+          if (error instanceof IncompatibleDraftError) {
+            setRecoveryDraft(error.draft);
+            setRecoveryCompatible(false);
+            setRecoveryError("El diseño guardado no es compatible con esta versión. No se restaurará; puedes descartarlo explícitamente para empezar de nuevo.");
+          }
+          else setEditorError("No se puede guardar automáticamente en este dispositivo.");
+        }
       })
       .catch(() => {
         if (active) dispatch({ type: "failed", payload: { error: { code: "load" } } });
       });
 
     return () => { active = false; };
-  }, [location.state?.variant, productId]);
+  }, [draftReferenceKey, draftRepository, location.state?.variant, productId]);
 
   const handleBack = () => {
     if (location.state?.fromProductDetail) navigate(-1);
     else navigate(`/productos/${productId}`);
   };
+
+  const persistDocument = useCallback(async (document, { force = false } = {}) => {
+    dispatch({ type: "save-started" });
+    try {
+      const assetIds = Object.keys(document.assets || {});
+      const assetChecks = await Promise.all(assetIds.map((assetId) => assetRepository.hasAsset(assetId)));
+      if (assetChecks.some((exists) => !exists)) throw new Error("Faltan assets locales para guardar este diseño.");
+      const baseDraft = activeDraftRef.current || createDraft({ document });
+      const saved = await draftRepository.saveDraft({ ...baseDraft, document }, { expectedRevision: savedRevisionRef.current, force });
+      activeDraftRef.current = saved;
+      savedRevisionRef.current = saved.revision;
+      try { localStorage.setItem(draftReferenceKey(document), saved.draftId); } catch { /* referencia opcional */ }
+      dispatch({ type: "save-succeeded", payload: { document, savedAt: saved.updatedAt } });
+      await garbageCollectAssets({ assetRepository, draftRepository, document, history: historyRef.current, runtimeAssetRegistry: assetRegistry });
+      return saved;
+    } catch (error) {
+      const conflict = error instanceof DraftConflictError;
+      const message = conflict
+        ? "Este diseño cambió en otra pestaña. Recarga la copia guardada o sobrescribe explícitamente."
+        : isQuotaError(error)
+          ? "No hay espacio suficiente para guardar en este dispositivo. La edición actual sigue en memoria."
+          : "No se puede guardar automáticamente en este dispositivo.";
+      dispatch({ type: "save-failed", payload: { message, conflict } });
+      return null;
+    }
+  }, [assetRegistry, assetRepository, draftReferenceKey, draftRepository]);
+
+  const enqueueSave = useCallback((document, options) => {
+    const queued = saveQueueRef.current.catch(() => undefined).then(() => persistDocument(document, options));
+    saveQueueRef.current = queued;
+    return queued;
+  }, [persistDocument]);
+
+  saveHandlerRef.current = enqueueSave;
+
+  const handleSaveNow = useCallback((force = false) => {
+    if (force) {
+      autosaveScheduler.cancel();
+      return enqueueSave(state.documentState.document, { force: true });
+    }
+    return autosaveScheduler.flush(state.documentState.document);
+  }, [autosaveScheduler, enqueueSave, state.documentState.document]);
+
+  const handleContinueDraft = useCallback(async () => {
+    if (!recoveryDraft) return;
+    setRecoveryBusy(true);
+    setRecoveryError("");
+    try {
+      await restoreRuntimeAssets(recoveryDraft.document, assetRepository, assetRegistry);
+      activeDraftRef.current = recoveryDraft;
+      savedRevisionRef.current = recoveryDraft.revision;
+      dispatch({ type: "document-restored", payload: { document: recoveryDraft.document, savedAt: recoveryDraft.updatedAt } });
+      setRecoveryDraft(null);
+    } catch (error) {
+      setRecoveryError(error.message || "No se pudo recuperar el diseño.");
+    } finally {
+      setRecoveryBusy(false);
+    }
+  }, [assetRegistry, assetRepository, recoveryDraft]);
+
+  const handleStartNew = useCallback(async () => {
+    if (!recoveryDraft || !state.asyncState.template) return;
+    setRecoveryBusy(true);
+    setRecoveryError("");
+    try {
+      await draftRepository.deleteDraft(recoveryDraft.draftId);
+      try { localStorage.removeItem(draftReferenceKey(state.documentState.document)); } catch { /* referencia opcional */ }
+      const document = createDesignDocument({ template: state.asyncState.template, productId: state.asyncState.product.id || state.asyncState.product._id, variant: location.state?.variant || null });
+      activeDraftRef.current = null;
+      savedRevisionRef.current = null;
+      dispatch({ type: "document-restored", payload: { document } });
+      await garbageCollectAssets({ assetRepository, draftRepository, document, history: null, runtimeAssetRegistry: assetRegistry });
+      setRecoveryDraft(null);
+    } catch {
+      setRecoveryError("No se pudo descartar el draft guardado. No se ha eliminado silenciosamente.");
+    } finally {
+      setRecoveryBusy(false);
+    }
+  }, [assetRegistry, assetRepository, draftReferenceKey, draftRepository, location.state?.variant, recoveryDraft, state.asyncState.product, state.asyncState.template, state.documentState.document]);
+
+  const handleReloadStored = useCallback(async () => {
+    const draftId = activeDraftRef.current?.draftId;
+    if (!draftId || !state.asyncState.template) return;
+    try {
+      const draft = await draftRepository.loadDraft(draftId, { template: state.asyncState.template, productId: state.documentState.document.productId });
+      await restoreRuntimeAssets(draft.document, assetRepository, assetRegistry);
+      activeDraftRef.current = draft;
+      savedRevisionRef.current = draft.revision;
+      dispatch({ type: "document-restored", payload: { document: draft.document, savedAt: draft.updatedAt } });
+    } catch {
+      dispatch({ type: "save-failed", payload: { message: "No se pudo recargar la versión almacenada.", conflict: true } });
+    }
+  }, [assetRegistry, assetRepository, draftRepository, state.asyncState.template, state.documentState.document]);
 
   const handleAddText = useCallback(() => {
     setEditorError("");
@@ -91,8 +232,13 @@ export function ProductDesignerV2Page() {
   const handleChooseImage = useCallback(async (file) => {
     setEditorError("");
     try {
-      const { asset, objectUrl } = await prepareImageAsset(file);
-      assetRegistry.set(asset.assetId, objectUrl);
+      const { asset, blob } = await prepareImageAsset(file);
+      try {
+        await assetRepository.saveAsset({ ...asset, blob });
+      } catch (error) {
+        setEditorError(isQuotaError(error) ? "No hay espacio para guardar la imagen; seguirá disponible mientras esta página permanezca abierta." : "No se puede guardar automáticamente en este dispositivo; la imagen seguirá disponible en memoria.");
+      }
+      assetRegistry.registerBlob(asset.assetId, blob);
       const activeView = state.asyncState.template.views.find((view) => view.id === state.sessionState.activeViewId);
       const activeArea = activeView.printAreas.find((area) => area.id === state.sessionState.activePrintAreaId);
       dispatch({
@@ -108,7 +254,7 @@ export function ProductDesignerV2Page() {
     } catch (error) {
       setEditorError(error.message || "No se pudo añadir la imagen.");
     }
-  }, [assetRegistry, state.asyncState.template, state.sessionState.activePrintAreaId, state.sessionState.activeViewId]);
+  }, [assetRegistry, assetRepository, state.asyncState.template, state.sessionState.activePrintAreaId, state.sessionState.activeViewId]);
 
   const handleUpdateElement = useCallback((elementIdOrPatch, possiblePatch, options) => {
     const fromAdapter = typeof elementIdOrPatch === "string";
@@ -184,11 +330,15 @@ export function ProductDesignerV2Page() {
   }, [handleDelete, handleDuplicate, state.sessionState.selectedElementIds]);
 
   useEffect(() => {
-    if (!state.sessionState.dirty) return undefined;
+    if (state.asyncState.status === "ready" && state.sessionState.dirty && !recoveryDraft) autosaveScheduler.schedule(state.documentState.document);
+  }, [autosaveScheduler, recoveryDraft, state.asyncState.status, state.documentState.document, state.sessionState.dirty]);
+
+  useEffect(() => {
+    if (!state.sessionState.dirty && state.sessionState.saveStatus !== "saving" && state.sessionState.saveStatus !== "error") return undefined;
     const warn = (event) => event.preventDefault();
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [state.sessionState.dirty]);
+  }, [state.sessionState.dirty, state.sessionState.saveStatus]);
 
   if (state.asyncState.status === "loading") {
     return <PageContainer><LoadingState message="Preparando Designer V2…" className="min-h-[60vh]" /></PageContainer>;
@@ -210,7 +360,8 @@ export function ProductDesignerV2Page() {
   }
 
   return (
-    <DesignerV2Shell
+    <>
+      <DesignerV2Shell
       product={state.asyncState.product}
       template={state.asyncState.template}
       document={state.documentState.document}
@@ -220,6 +371,10 @@ export function ProductDesignerV2Page() {
       zoom={state.sessionState.zoom}
       pan={state.sessionState.pan}
       dirty={state.sessionState.dirty}
+      saveStatus={state.sessionState.saveStatus}
+      saveError={state.sessionState.saveError}
+      saveConflict={state.sessionState.conflict}
+      lastSavedAt={state.sessionState.lastSavedAt}
       canUndo={state.historyState.past.length > 0}
       canRedo={state.historyState.future.length > 0}
       assetRegistry={assetRegistry}
@@ -235,10 +390,24 @@ export function ProductDesignerV2Page() {
       onLayerAction={handleLayerAction}
       onUndo={() => dispatch({ type: "undo" })}
       onRedo={() => dispatch({ type: "redo" })}
+      onSaveNow={() => handleSaveNow(false)}
+      onReloadStored={handleReloadStored}
+      onOverwriteStored={() => handleSaveNow(true)}
       onZoomChange={handleZoomChange}
       onViewportChange={handleViewportChange}
       onEditorError={setEditorError}
       onBack={handleBack}
-    />
+      />
+      <DraftRecoveryDialog
+        draft={recoveryDraft}
+        productName={state.asyncState.product.name || "Producto"}
+        templateLabel={state.asyncState.template.label}
+        busy={recoveryBusy}
+        error={recoveryError}
+        canContinue={recoveryCompatible}
+        onContinue={handleContinueDraft}
+        onStartNew={handleStartNew}
+      />
+    </>
   );
 }

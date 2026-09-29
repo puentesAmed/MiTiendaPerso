@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Box, Copy, Eye, EyeOff, Image, Layers3, Lock, Minus, MousePointer2, PanelRight, Plus, Redo2, Save, Shapes, Trash2, Type, Undo2, Unlock } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Box, Copy, Ellipsis, Eye, EyeOff, Image, Layers3, Lock, Minus, MousePointer2, PanelRight, Plus, Redo2, Save, Shapes, Trash2, Type, Undo2, Unlock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,7 +121,26 @@ function ZoomControls({ zoom, onZoomChange }) {
   return <div className="flex items-center gap-1" aria-label="Zoom del lienzo"><Button type="button" variant="outline" size="icon" className="size-8" onClick={() => onZoomChange(zoom - 0.1)} disabled={zoom <= 0.5} aria-label="Reducir zoom"><Minus aria-hidden="true" /></Button><output className="w-12 text-center text-xs font-semibold" aria-live="polite">{Math.round(zoom * 100)}%</output><Button type="button" variant="outline" size="icon" className="size-8" onClick={() => onZoomChange(zoom + 0.1)} disabled={zoom >= 2} aria-label="Aumentar zoom"><Plus aria-hidden="true" /></Button><Button type="button" variant="outline" size="sm" onClick={() => onZoomChange(1)}>Ajustar</Button></div>;
 }
 
-export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, dirty, canUndo, canRedo, assetRegistry, editorError, onSelectView, onSelectElement, onAddText, onChooseImage, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onZoomChange, onViewportChange, onEditorError, onBack }) {
+function saveStatusLabel(status) {
+  if (status === "saving") return "Guardando…";
+  if (status === "clean") return "Guardado en este dispositivo";
+  if (status === "error") return "Error al guardar";
+  if (status === "idle") return "Sin cambios pendientes";
+  return "Cambios pendientes";
+}
+
+function MobileToolbar({ elements, layers, properties, saveStatus, onAddText, onChooseImage, onSaveNow }) {
+  return (
+    <section className="sticky bottom-2 z-20 mt-3 grid grid-cols-4 gap-1 rounded-xl border bg-card/95 p-2 shadow-lg lg:hidden" aria-label="Herramientas móviles">
+      <Button type="button" variant="ghost" size="sm" className="h-12 flex-col gap-0.5 text-[11px]" onClick={onAddText}><Type aria-hidden="true" /> Texto</Button>
+      <Button as="label" variant="ghost" size="sm" className="h-12 cursor-pointer flex-col gap-0.5 text-[11px]"><Image aria-hidden="true" /> Imagen<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) onChooseImage(file); event.target.value = ""; }} /></Button>
+      <Sheet><SheetTrigger render={<Button type="button" variant="ghost" size="sm" className="h-12 flex-col gap-0.5 text-[11px]" />}><Layers3 aria-hidden="true" /> Capas ({elements.length})</SheetTrigger><SheetContent side="left"><SheetHeader><SheetTitle>Capas</SheetTitle></SheetHeader><LayersPanel {...layers} /></SheetContent></Sheet>
+      <Sheet><SheetTrigger render={<Button type="button" variant="ghost" size="sm" className="h-12 flex-col gap-0.5 text-[11px]" />}><Ellipsis aria-hidden="true" /> Más</SheetTrigger><SheetContent><SheetHeader><SheetTitle>Más acciones</SheetTitle></SheetHeader><p className="mb-3 text-xs text-muted-foreground" role="status">{saveStatusLabel(saveStatus)}</p><Button type="button" className="mb-5 w-full" onClick={onSaveNow} disabled={saveStatus === "saving"}><Save aria-hidden="true" /> Guardar en este dispositivo</Button><PropertiesPanel {...properties} /></SheetContent></Sheet>
+    </section>
+  );
+}
+
+export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, dirty, saveStatus, saveError, saveConflict, lastSavedAt, canUndo, canRedo, assetRegistry, editorError, onSelectView, onSelectElement, onAddText, onChooseImage, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onSaveNow, onReloadStored, onOverwriteStored, onZoomChange, onViewportChange, onEditorError, onBack }) {
   const view = template.views.find((candidate) => candidate.id === activeViewId) || template.views[0];
   const elements = document.views[view.id]?.elements || [];
   const selectedElements = elements.filter((element) => selectedElementIds.includes(element.id));
@@ -134,13 +153,14 @@ export function DesignerV2Shell({ product, template, document, activeViewId, act
       <div className="mx-auto flex w-full max-w-[1600px] min-w-0 flex-col px-3 py-3 sm:px-4 lg:px-5">
         <header className="flex min-w-0 items-center gap-2 border-b bg-background/95 pb-3">
           <Button type="button" variant="ghost" size="icon" onClick={onBack} aria-label="Volver al producto"><ArrowLeft aria-hidden="true" /></Button>
-          <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><h1 id="designer-v2-title" className="truncate text-base font-bold tracking-tight sm:text-lg">Designer V2</h1>{dirty ? <Badge variant="outline">Cambios sin guardar</Badge> : null}</div><p className="truncate text-xs text-muted-foreground">{product.name || "Producto"}</p></div>
+          <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><h1 id="designer-v2-title" className="truncate text-base font-bold tracking-tight sm:text-lg">Designer V2</h1><Badge variant="outline" className="hidden sm:inline-flex">{saveStatusLabel(saveStatus)}</Badge></div><p className="truncate text-xs text-muted-foreground">{product.name || "Producto"}{lastSavedAt && !dirty ? ` · ${new Date(lastSavedAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : ""}</p></div>
           <div className="flex items-center gap-1" aria-label="Historial de edición"><Button type="button" variant="ghost" size="icon" disabled={!canUndo} onClick={onUndo} aria-label="Deshacer"><Undo2 aria-hidden="true" /></Button><Button type="button" variant="ghost" size="icon" disabled={!canRedo} onClick={onRedo} aria-label="Rehacer"><Redo2 aria-hidden="true" /></Button></div>
-          <Button type="button" size="sm" disabled title="La persistencia llegará en una fase posterior"><Save aria-hidden="true" /> <span className="hidden sm:inline">Guardar</span></Button>
+          <Button type="button" size="sm" onClick={onSaveNow} disabled={saveStatus === "saving"} title="Guarda localmente mediante IndexedDB"><Save aria-hidden="true" /> <span className="hidden sm:inline">Guardar en este dispositivo</span></Button>
         </header>
 
-        <div className="mt-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="note"><strong>Edición local:</strong> las imágenes y cambios se pierden al cerrar esta página.</div>
+        <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground" role="status"><strong>{saveStatusLabel(saveStatus)}.</strong> El diseño se conserva localmente en este navegador.</div>
         {editorError ? <div className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">{editorError}</div> : null}
+        {saveError ? <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert"><span className="flex-1">{saveError}</span>{saveConflict ? <><Button type="button" variant="outline" size="sm" onClick={onReloadStored}>Recargar copia guardada</Button><Button type="button" variant="destructive" size="sm" onClick={onOverwriteStored}>Sobrescribir</Button></> : <Button type="button" variant="outline" size="sm" onClick={onSaveNow}>Reintentar</Button>}</div> : null}
 
         <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-[13rem_minmax(0,1fr)_16rem]">
           <aside className="hidden space-y-5 rounded-xl border bg-card p-3 lg:block" aria-label="Herramientas y capas"><div><p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Herramientas</p><ToolButtons onAddText={onAddText} onChooseImage={onChooseImage} /></div><LayersPanel {...layers} /></aside>
@@ -151,7 +171,7 @@ export function DesignerV2Shell({ product, template, document, activeViewId, act
           <aside className="hidden rounded-xl border bg-card p-3 lg:block" aria-label="Propiedades"><PropertiesPanel {...properties} /></aside>
         </div>
 
-        <section className="mt-3 rounded-xl border bg-card p-3 lg:hidden" aria-label="Herramientas compactas"><ToolButtons mobile onAddText={onAddText} onChooseImage={onChooseImage} /><div className="mt-2 grid grid-cols-2 gap-2"><Sheet><SheetTrigger render={<Button type="button" variant="outline" size="sm" />}><Layers3 aria-hidden="true" /> Capas ({elements.length})</SheetTrigger><SheetContent side="left"><SheetHeader><SheetTitle>Capas</SheetTitle></SheetHeader><LayersPanel {...layers} /></SheetContent></Sheet><Sheet><SheetTrigger render={<Button type="button" variant="outline" size="sm" />}><PanelRight aria-hidden="true" /> Propiedades</SheetTrigger><SheetContent><SheetHeader><SheetTitle>Propiedades</SheetTitle></SheetHeader><PropertiesPanel {...properties} /></SheetContent></Sheet></div></section>
+        <MobileToolbar elements={elements} layers={layers} properties={properties} saveStatus={saveStatus} onAddText={onAddText} onChooseImage={onChooseImage} onSaveNow={onSaveNow} />
 
         <footer className="mt-3 grid min-w-0 gap-3 rounded-xl border bg-card p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <div className="min-w-0"><p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Vistas</p><div className="flex min-w-0 gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Vistas del producto">{template.views.map((candidate) => { const count = document.views[candidate.id]?.elements.length || 0; return <button key={candidate.id} type="button" role="tab" aria-selected={activeViewId === candidate.id} onClick={() => onSelectView(candidate.id)} className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeViewId === candidate.id ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}>{candidate.label} <span aria-label={`${count} elementos`}>({count})</span></button>; })}</div></div>

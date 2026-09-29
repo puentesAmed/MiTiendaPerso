@@ -47,3 +47,30 @@ test("undo documental cruza vistas sin cambiar la vista activa", () => {
   assert.equal(state.sessionState.activeViewId, "primary");
   assert.equal(state.documentState.document.views.secondary.elements.length, 0);
 });
+
+test("dirty, saving, clean y error siguen el documento confirmado", () => {
+  const document = createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1", idFactory: () => "document-1", now: () => "2026-09-29T00:00:00.000Z" });
+  let state = designerV2Reducer(initialDesignerV2State, { type: "ready", payload: { product: {}, template: GENERIC_FLAT_DEMO_TEMPLATE, document } });
+  state = designerV2Reducer(state, { type: "text-added", payload: { viewId: "primary", printAreaId: "primary-area", idFactory: () => "text-1" } });
+  const changedDocument = state.documentState.document;
+  assert.equal(state.sessionState.saveStatus, "dirty");
+  state = designerV2Reducer(state, { type: "save-started" });
+  assert.equal(state.sessionState.saveStatus, "saving");
+  state = designerV2Reducer(state, { type: "save-succeeded", payload: { document: changedDocument, savedAt: "now" } });
+  assert.equal(state.sessionState.dirty, false);
+  assert.equal(state.sessionState.saveStatus, "clean");
+  state = designerV2Reducer(state, { type: "save-failed", payload: { message: "quota", conflict: false } });
+  assert.equal(state.sessionState.saveStatus, "error");
+});
+
+test("recovery inicializa historial limpio sin persistir session state", () => {
+  const first = createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1", idFactory: () => "document-1", now: () => "2026-09-29T00:00:00.000Z" });
+  const recovered = { ...first, documentId: "document-2" };
+  let state = designerV2Reducer(initialDesignerV2State, { type: "ready", payload: { product: {}, template: GENERIC_FLAT_DEMO_TEMPLATE, document: first } });
+  state = designerV2Reducer(state, { type: "document-restored", payload: { document: recovered, savedAt: "saved" } });
+  assert.equal(state.documentState.document, recovered);
+  assert.equal(state.historyState.past.length, 0);
+  assert.deepEqual(state.sessionState.selectedElementIds, []);
+  assert.equal(state.sessionState.zoom, 1);
+  assert.equal(state.sessionState.dirty, false);
+});

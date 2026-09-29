@@ -1,23 +1,37 @@
 export const IMAGE_MIME_TYPES = Object.freeze(["image/jpeg", "image/png", "image/webp"]);
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
-export function createRuntimeAssetRegistry() {
+export function createRuntimeAssetRegistry({ urlApi = URL } = {}) {
   const urls = new Map();
+  const blobs = new Map();
   return {
     get: (assetId) => urls.get(assetId) || null,
+    getBlob: (assetId) => blobs.get(assetId) || null,
+    registerBlob(assetId, blob) {
+      if (!(blob instanceof Blob)) throw new Error("Blob de asset inválido.");
+      const existing = urls.get(assetId);
+      if (existing && blobs.get(assetId) === blob) return existing;
+      if (existing) urlApi.revokeObjectURL(existing);
+      const objectUrl = urlApi.createObjectURL(blob);
+      blobs.set(assetId, blob);
+      urls.set(assetId, objectUrl);
+      return objectUrl;
+    },
     set(assetId, objectUrl) {
       const previous = urls.get(assetId);
-      if (previous && previous !== objectUrl) URL.revokeObjectURL(previous);
+      if (previous && previous !== objectUrl) urlApi.revokeObjectURL(previous);
       urls.set(assetId, objectUrl);
     },
     remove(assetId) {
       const objectUrl = urls.get(assetId);
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (objectUrl) urlApi.revokeObjectURL(objectUrl);
       urls.delete(assetId);
+      blobs.delete(assetId);
     },
     dispose() {
-      urls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+      urls.forEach((objectUrl) => urlApi.revokeObjectURL(objectUrl));
       urls.clear();
+      blobs.clear();
     },
   };
 }
@@ -37,7 +51,15 @@ export function validateImageFile(file) {
   return true;
 }
 
-export async function prepareImageAsset(file, { idFactory = () => globalThis.crypto.randomUUID() } = {}) {
+function sanitizeOriginalName(name) {
+  const sanitized = Array.from(String(name || "imagen"), (character) => {
+    const code = character.charCodeAt(0);
+    return character === "/" || character === "\\" || code < 32 || code === 127 ? "_" : character;
+  }).join("");
+  return sanitized.slice(0, 120) || "imagen";
+}
+
+export async function prepareImageAsset(file, { idFactory = () => globalThis.crypto.randomUUID(), now = () => new Date().toISOString() } = {}) {
   validateImageFile(file);
   const objectUrl = URL.createObjectURL(file);
   try {
@@ -45,7 +67,7 @@ export async function prepareImageAsset(file, { idFactory = () => globalThis.cry
     if (!dimensions.widthPx || !dimensions.heightPx) throw new Error("La imagen no tiene dimensiones válidas.");
     const assetId = idFactory();
     return {
-      objectUrl,
+      blob: file,
       asset: {
         assetId,
         kind: "image",
@@ -53,11 +75,22 @@ export async function prepareImageAsset(file, { idFactory = () => globalThis.cry
         widthPx: dimensions.widthPx,
         heightPx: dimensions.heightPx,
         sizeBytes: file.size,
-        name: file.name || "imagen",
+        createdAt: now(),
+        originalName: sanitizeOriginalName(file.name),
       },
     };
-  } catch (error) {
+  } finally {
     URL.revokeObjectURL(objectUrl);
-    throw error;
   }
+}
+
+export async function restoreRuntimeAssets(document, assetRepository, registry) {
+  const missing = [];
+  for (const assetId of Object.keys(document.assets || {})) {
+    const record = await assetRepository.loadAsset(assetId);
+    if (!record?.blob) missing.push(assetId);
+    else registry.registerBlob(assetId, record.blob);
+  }
+  if (missing.length) throw new Error("Faltan assets locales necesarios para continuar el diseño.");
+  return true;
 }

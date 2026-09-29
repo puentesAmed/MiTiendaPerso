@@ -3,7 +3,7 @@ import { createDocumentHistory, pushDocument, redoDocument, undoDocument } from 
 
 export const initialDesignerV2State = Object.freeze({
   documentState: { document: null },
-  sessionState: { activeViewId: null, activePrintAreaId: null, selectedElementIds: [], zoom: 1, pan: { x: 0, y: 0 }, activeTool: "select", mode: "design", dirty: false },
+  sessionState: { activeViewId: null, activePrintAreaId: null, selectedElementIds: [], zoom: 1, pan: { x: 0, y: 0 }, activeTool: "select", mode: "design", dirty: false, saveStatus: "idle", savedDocument: null, lastSavedAt: null, saveError: null, conflict: false },
   historyState: createDocumentHistory(null),
   asyncState: { status: "loading", product: null, template: null, assets: null, error: null },
 });
@@ -20,7 +20,7 @@ function commitDocument(state, document, { selectedElementIds, groupKey = null }
     ...state,
     documentState: { document },
     historyState,
-    sessionState: { ...state.sessionState, dirty: true, selectedElementIds: selectedElementIds ?? selectedIdsInActiveView(state, document) },
+    sessionState: { ...state.sessionState, dirty: document !== state.sessionState.savedDocument, saveStatus: "dirty", saveError: null, conflict: false, selectedElementIds: selectedElementIds ?? selectedIdsInActiveView(state, document) },
   };
 }
 
@@ -30,7 +30,7 @@ function restoreHistory(state, historyState) {
     ...state,
     documentState: { document: historyState.present },
     historyState,
-    sessionState: { ...state.sessionState, dirty: true, selectedElementIds: selectedIdsInActiveView(state, historyState.present) },
+    sessionState: { ...state.sessionState, dirty: historyState.present !== state.sessionState.savedDocument, saveStatus: historyState.present === state.sessionState.savedDocument ? "clean" : "dirty", saveError: null, conflict: false, selectedElementIds: selectedIdsInActiveView(state, historyState.present) },
   };
 }
 
@@ -49,6 +49,16 @@ export function designerV2Reducer(state, action) {
     }
     case "failed":
       return { ...state, asyncState: { status: "error", product: action.payload.product ?? null, template: null, assets: null, error: action.payload.error } };
+    case "document-restored": {
+      const document = action.payload.document;
+      const view = state.asyncState.template.views[0];
+      return {
+        ...state,
+        documentState: { document },
+        historyState: createDocumentHistory(document),
+        sessionState: { ...initialDesignerV2State.sessionState, activeViewId: view.id, activePrintAreaId: view.printAreas[0].id, savedDocument: action.payload.savedAt ? document : null, saveStatus: action.payload.savedAt ? "clean" : "idle", lastSavedAt: action.payload.savedAt ?? null },
+      };
+    }
     case "view-selected": {
       const view = state.asyncState.template?.views.find((candidate) => candidate.id === action.payload);
       if (!view) return state;
@@ -94,6 +104,14 @@ export function designerV2Reducer(state, action) {
       return restoreHistory(state, undoDocument(state.historyState));
     case "redo":
       return restoreHistory(state, redoDocument(state.historyState));
+    case "save-started":
+      return { ...state, sessionState: { ...state.sessionState, saveStatus: "saving", saveError: null, conflict: false } };
+    case "save-succeeded": {
+      const clean = state.documentState.document === action.payload.document;
+      return { ...state, sessionState: { ...state.sessionState, savedDocument: action.payload.document, dirty: !clean, saveStatus: clean ? "clean" : "dirty", lastSavedAt: action.payload.savedAt, saveError: null, conflict: false } };
+    }
+    case "save-failed":
+      return { ...state, sessionState: { ...state.sessionState, dirty: true, saveStatus: "error", saveError: action.payload.message, conflict: Boolean(action.payload.conflict) } };
     default:
       return state;
   }
