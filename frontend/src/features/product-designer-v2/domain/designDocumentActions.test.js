@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createDesignDocument } from "../contracts/designDocument.js";
 import { GENERIC_FLAT_DEMO_TEMPLATE } from "../templates/genericFlatDemo.js";
-import { addImage, addText, deleteElement, deleteElements, duplicateElement, isElementOutOfBounds, moveElementLayer, updateElement, updateElements } from "./designDocumentActions.js";
+import { addImage, addText, calculateInitialImageBounds, deleteElement, deleteElements, duplicateElement, isElementOutOfBounds, moveElementLayer, updateElement, updateElements } from "./designDocumentActions.js";
 
 const now = () => "2026-09-28T12:00:00.000Z";
 const makeDocument = () => createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1", idFactory: () => "document-1", now });
@@ -23,6 +23,27 @@ test("addImage guarda metadata por assetId sin Object URL", () => {
   assert.equal((result.element.width * 1.2) / result.element.height, 2);
   assert.deepEqual(result.document.assets["asset-1"], asset);
   assert.equal("objectUrl" in result.document.assets["asset-1"], false);
+});
+
+test("image fit contiene landscape, portrait y square, los centra y preserva ratio", () => {
+  const printAreaPixelSize = { width: 1000, height: 500 };
+  const landscape = calculateInitialImageBounds({ widthPx: 4000, heightPx: 2000, printAreaAspectRatio: 2, printAreaPixelSize });
+  const portrait = calculateInitialImageBounds({ widthPx: 2000, heightPx: 4000, printAreaAspectRatio: 2, printAreaPixelSize });
+  const square = calculateInitialImageBounds({ widthPx: 2000, heightPx: 2000, printAreaAspectRatio: 2, printAreaPixelSize });
+  [landscape, portrait, square].forEach((bounds) => {
+    assert.ok(bounds.width <= 0.75 && bounds.height <= 0.75);
+    assert.equal(bounds.x, (1 - bounds.width) / 2);
+    assert.equal(bounds.y, (1 - bounds.height) / 2);
+  });
+  assert.equal((landscape.width * 2) / landscape.height, 2);
+  assert.equal((portrait.width * 2) / portrait.height, 0.5);
+  assert.equal((square.width * 2) / square.height, 1);
+});
+
+test("image fit no amplía una imagen menor que la resolución editorial", () => {
+  const bounds = calculateInitialImageBounds({ widthPx: 100, heightPx: 50, printAreaAspectRatio: 2, printAreaPixelSize: { width: 1000, height: 500 } });
+  assert.equal(bounds.width, 0.1);
+  assert.equal(bounds.height, 0.1);
 });
 
 test("update, duplicate y delete preservan zIndex y referencias", () => {

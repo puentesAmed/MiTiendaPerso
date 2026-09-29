@@ -9,7 +9,7 @@ import { PageContainer } from "@/components/ui/PageContainer";
 import { apiGetProductById } from "@/services/products.service";
 import { createDesignDocument } from "../contracts/designDocument.js";
 import { validateProductTemplate } from "../contracts/productTemplate.js";
-import { getViewAspectRatio, getViewPrintAreas } from "../contracts/printSurface.js";
+import { getViewAspectRatio, getViewPrintAreas, getViewPrintSurface } from "../contracts/printSurface.js";
 import { DesignerV2Shell } from "../components/DesignerV2Shell.jsx";
 import { DraftRecoveryDialog } from "../components/DraftRecoveryDialog.jsx";
 import { designerV2Reducer, initialDesignerV2State } from "../state/designerV2Reducer.js";
@@ -267,6 +267,7 @@ export function ProductDesignerV2Page() {
       assetRegistry.registerBlob(asset.assetId, blob);
       const activeView = state.asyncState.template.views.find((view) => view.id === state.sessionState.activeViewId);
       const activeArea = getViewPrintAreas(state.asyncState.template, activeView).find((area) => area.id === state.sessionState.activePrintAreaId);
+      const activeSurface = getViewPrintSurface(state.asyncState.template, activeView);
       dispatch({
         type: "image-added",
         payload: {
@@ -275,6 +276,10 @@ export function ProductDesignerV2Page() {
           asset,
           aspectRatio: asset.widthPx / asset.heightPx,
           printAreaAspectRatio: (activeArea.width * getViewAspectRatio(state.asyncState.template, activeView)) / activeArea.height,
+          printAreaPixelSize: activeSurface?.previewTextureResolution ? {
+            width: activeSurface.previewTextureResolution.width * activeArea.width,
+            height: activeSurface.previewTextureResolution.height * activeArea.height,
+          } : null,
         },
       });
     } catch (error) {

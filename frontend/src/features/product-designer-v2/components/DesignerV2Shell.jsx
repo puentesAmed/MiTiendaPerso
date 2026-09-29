@@ -7,8 +7,8 @@ import { Select } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { EditableDesignStage } from "./EditableDesignStage.jsx";
 import { MockupPanel } from "./MockupPanel.jsx";
-import { isElementOutOfBounds } from "../domain/designDocumentActions.js";
-import { getViewPrintAreas } from "../contracts/printSurface.js";
+import { calculateInitialImageBounds, isElementOutOfBounds } from "../domain/designDocumentActions.js";
+import { getViewAspectRatio, getViewPrintAreas, getViewPrintSurface } from "../contracts/printSurface.js";
 
 const ThreeProductPreview = lazy(() => import("./ThreeProductPreview.jsx").then((module) => ({ default: module.ThreeProductPreview })));
 
@@ -81,7 +81,7 @@ function LayersPanel({ elements, selectedElementIds, onSelectElement, onLayerAct
   );
 }
 
-function PropertiesPanel({ selectedElements, view, printAreas, activePrintAreaId, onUpdateElement, onDuplicate, onDelete }) {
+function PropertiesPanel({ selectedElements, view, printAreas, activePrintAreaId, onUpdateElement, onFitImage, onDuplicate, onDelete }) {
   if (selectedElements.length > 1) return (
     <div aria-live="polite">
       <div className="flex items-center gap-2"><PanelRight className="size-4 text-primary" aria-hidden="true" /><h2 className="text-sm font-semibold">Propiedades</h2></div>
@@ -109,10 +109,10 @@ function PropertiesPanel({ selectedElements, view, printAreas, activePrintAreaId
               </div>
             </>
           ) : (
-            <dl className="grid grid-cols-2 gap-2 rounded-lg border p-2 text-xs">
+            <><dl className="grid grid-cols-2 gap-2 rounded-lg border p-2 text-xs">
               <div><dt className="text-muted-foreground">Ancho</dt><dd>{Math.round(selectedElement.width * 100)}%</dd></div><div><dt className="text-muted-foreground">Alto</dt><dd>{Math.round(selectedElement.height * 100)}%</dd></div>
               <div><dt className="text-muted-foreground">Rotación</dt><dd>{Math.round(selectedElement.rotation)}°</dd></div><div><dt className="text-muted-foreground">Opacidad</dt><dd>{Math.round(selectedElement.opacity * 100)}%</dd></div>
-            </dl>
+            </dl><Button type="button" variant="outline" size="sm" className="w-full" onClick={onFitImage}>Ajustar al área</Button></>
           )}
           <div className="grid grid-cols-2 gap-2"><Button type="button" variant="outline" size="sm" onClick={onDuplicate}><Copy aria-hidden="true" /> Duplicar</Button><Button type="button" variant="destructive" size="sm" onClick={onDelete}><Trash2 aria-hidden="true" /> Eliminar</Button></div>
         </div>
@@ -135,7 +135,7 @@ function saveStatusLabel(status) {
 
 function MobileToolbar({ elements, layers, properties, saveStatus, onAddText, onChooseImage, onSaveNow }) {
   return (
-    <section className="sticky bottom-2 z-20 mt-3 grid grid-cols-4 gap-1 rounded-xl border bg-card/95 p-2 shadow-lg lg:hidden" aria-label="Herramientas móviles">
+    <section className="relative z-20 mt-3 grid grid-cols-4 gap-1 rounded-xl border bg-card p-2 shadow-sm lg:hidden" aria-label="Herramientas móviles" data-mobile-toolbar="outside-canvas">
       <Button type="button" variant="ghost" size="sm" className="h-12 flex-col gap-0.5 text-[11px]" onClick={onAddText}><Type aria-hidden="true" /> Texto</Button>
       <Button as="label" variant="ghost" size="sm" className="h-12 cursor-pointer flex-col gap-0.5 text-[11px]"><Image aria-hidden="true" /> Imagen<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) onChooseImage(file); event.target.value = ""; }} /></Button>
       <Sheet><SheetTrigger render={<Button type="button" variant="ghost" size="sm" className="h-12 flex-col gap-0.5 text-[11px]" />}><Layers3 aria-hidden="true" /> Capas ({elements.length})</SheetTrigger><SheetContent side="left"><SheetHeader><SheetTitle>Capas</SheetTitle></SheetHeader><LayersPanel {...layers} /></SheetContent></Sheet>
@@ -151,7 +151,24 @@ export function DesignerV2Shell({ product, template, document, activeViewId, act
   const selectedElements = elements.filter((element) => selectedElementIds.includes(element.id));
   const outOfBounds = selectedElements.some(isElementOutOfBounds);
   const layers = { elements, selectedElementIds, onSelectElement, onLayerAction };
-  const properties = { selectedElements, view, printAreas, activePrintAreaId, onUpdateElement, onDuplicate, onDelete };
+  const handleFitImage = () => {
+    const element = selectedElements[0];
+    const asset = element?.type === "image" ? document.assets[element.assetId] : null;
+    const area = printAreas.find((candidate) => candidate.id === element?.printAreaId);
+    if (!asset || !area) return;
+    const surface = getViewPrintSurface(template, view);
+    const bounds = calculateInitialImageBounds({
+      widthPx: asset.widthPx,
+      heightPx: asset.heightPx,
+      printAreaAspectRatio: (area.width * getViewAspectRatio(template, view)) / area.height,
+      printAreaPixelSize: surface?.previewTextureResolution ? {
+        width: surface.previewTextureResolution.width * area.width,
+        height: surface.previewTextureResolution.height * area.height,
+      } : null,
+    });
+    onUpdateElement({ ...bounds, rotation: 0 });
+  };
+  const properties = { selectedElements, view, printAreas, activePrintAreaId, onUpdateElement, onFitImage: handleFitImage, onDuplicate, onDelete };
 
   return (
     <main className="min-h-[calc(100vh-4rem)] min-w-0 bg-muted/20" aria-labelledby="designer-v2-title">

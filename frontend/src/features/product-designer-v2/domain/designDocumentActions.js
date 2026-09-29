@@ -33,6 +33,25 @@ function assertElement(element) {
   if (!validation.valid) throw new Error(`Elemento inválido: ${validation.errors.join(" ")}`);
 }
 
+export function calculateInitialImageBounds({
+  widthPx,
+  heightPx,
+  printAreaAspectRatio = 1,
+  printAreaPixelSize = null,
+  maxCoverage = 0.75,
+} = {}) {
+  if (!Number.isFinite(widthPx) || widthPx <= 0 || !Number.isFinite(heightPx) || heightPx <= 0) throw new Error("Dimensiones naturales de imagen inválidas.");
+  const areaAspectRatio = Math.max(printAreaAspectRatio, 0.01);
+  const imageAspectRatio = widthPx / heightPx;
+  const hasPixelReference = Number.isFinite(printAreaPixelSize?.width) && printAreaPixelSize.width > 0 && Number.isFinite(printAreaPixelSize?.height) && printAreaPixelSize.height > 0;
+  let width = hasPixelReference ? widthPx / printAreaPixelSize.width : maxCoverage;
+  let height = hasPixelReference ? heightPx / printAreaPixelSize.height : width * areaAspectRatio / imageAspectRatio;
+  const scale = Math.min(maxCoverage / width, maxCoverage / height, 1);
+  width *= scale;
+  height *= scale;
+  return { x: (1 - width) / 2, y: (1 - height) / 2, width, height };
+}
+
 export function addText(document, { viewId, printAreaId, idFactory = DEFAULT_ID, now = DEFAULT_NOW } = {}) {
   const elements = getView(document, viewId).elements;
   const element = {
@@ -65,26 +84,21 @@ export function addImage(document, {
   asset,
   aspectRatio,
   printAreaAspectRatio = 1,
+  printAreaPixelSize = null,
   idFactory = DEFAULT_ID,
   now = DEFAULT_NOW,
 } = {}) {
   if (!asset?.assetId || asset.kind !== "image") throw new Error("Asset de imagen inválido.");
   const elements = getView(document, viewId).elements;
-  let width = 0.5;
-  let height = width * Math.max(printAreaAspectRatio, 0.01) / Math.max(aspectRatio || 1, 0.01);
-  if (height > 0.5) {
-    height = 0.5;
-    width = height * Math.max(aspectRatio || 1, 0.01) / Math.max(printAreaAspectRatio, 0.01);
-  }
+  const naturalWidth = asset.widthPx || aspectRatio || 1;
+  const naturalHeight = asset.heightPx || 1;
+  const bounds = calculateInitialImageBounds({ widthPx: naturalWidth, heightPx: naturalHeight, printAreaAspectRatio, printAreaPixelSize });
   const element = {
     id: idFactory(),
     type: "image",
     printAreaId,
     assetId: asset.assetId,
-    x: (1 - width) / 2,
-    y: (1 - height) / 2,
-    width,
-    height,
+    ...bounds,
     scale: { x: 1, y: 1 },
     rotation: 0,
     opacity: 1,

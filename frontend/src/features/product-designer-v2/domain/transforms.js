@@ -16,6 +16,23 @@ export function fabricTransformToDomain(transform, printAreaViewport) {
   };
 }
 
+export function keepElementReachable(bounds, minimumVisible = 0.04) {
+  const radians = ((bounds.rotation || 0) * Math.PI) / 180;
+  const extentX = (Math.abs(Math.cos(radians)) * bounds.width + Math.abs(Math.sin(radians)) * bounds.height) / 2;
+  const extentY = (Math.abs(Math.sin(radians)) * bounds.width + Math.abs(Math.cos(radians)) * bounds.height) / 2;
+  const visibleWidth = Math.min(extentX * 2, Math.max(minimumVisible, extentX * 2 * 0.12));
+  const visibleHeight = Math.min(extentY * 2, Math.max(minimumVisible, extentY * 2 * 0.12));
+  const centerX = bounds.x + bounds.width / 2;
+  const centerY = bounds.y + bounds.height / 2;
+  const reachableCenterX = Math.min(1 + extentX - visibleWidth, Math.max(-extentX + visibleWidth, centerX));
+  const reachableCenterY = Math.min(1 + extentY - visibleHeight, Math.max(-extentY + visibleHeight, centerY));
+  return {
+    ...bounds,
+    x: reachableCenterX - bounds.width / 2,
+    y: reachableCenterY - bounds.height / 2,
+  };
+}
+
 export function domainElementToFabricRect(element, printAreaViewport) {
   assertViewport(printAreaViewport);
   const width = element.width * printAreaViewport.width;

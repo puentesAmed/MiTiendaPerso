@@ -100,7 +100,11 @@ export function EditableDesignStage({
   }, [zoom]);
 
   return (
-    <figure className="min-w-0">
+    <figure className="min-w-0" data-mobile-canvas-layout="contained">
+      <div className="mb-2 flex min-w-0 items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <span className="truncate font-semibold">{view.surface?.label || view.label}</span>
+        <span className="shrink-0">Área editable</span>
+      </div>
       <div
         className="relative mx-auto w-full max-w-[46rem] overflow-hidden rounded-xl border bg-muted/35 shadow-inner"
         style={{ aspectRatio: getViewAspectRatio(template, view) }}
@@ -108,9 +112,6 @@ export function EditableDesignStage({
         <div aria-hidden="true" className="absolute inset-0 opacity-45 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [background-size:24px_24px]" />
         <div ref={surfaceRef} className={`absolute overflow-hidden rounded-lg border bg-white text-zinc-950 ${unifiedSurface ? "inset-0" : "inset-3 sm:inset-5"}`}>
           <canvas ref={canvasRef} role="img" aria-label={`${view.label}. Lienzo de edición con ${printAreas.length} área imprimible.`} />
-          <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border bg-card/95 px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-            {view.surface?.label || view.label}
-          </div>
           {printAreas.map((area) => (
             <div
               key={area.id}
@@ -121,13 +122,15 @@ export function EditableDesignStage({
           ))}
         </div>
       </div>
-      {outOfBounds ? (
-        <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-destructive" role="status">
-          <AlertTriangle className="size-3.5" aria-hidden="true" /> Parte del elemento queda fuera del área imprimible.
-        </p>
-      ) : (
-        <figcaption className="mt-2 text-center text-xs text-muted-foreground">Selecciona, mueve, redimensiona o rota dentro del área imprimible.</figcaption>
-      )}
+      <div className="mt-2 min-h-5">
+        {outOfBounds ? (
+          <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-destructive" role="status">
+            <AlertTriangle className="size-3.5" aria-hidden="true" /> Parte del elemento queda fuera del área imprimible.
+          </p>
+        ) : (
+          <figcaption className="text-center text-xs text-muted-foreground">Selecciona, mueve, redimensiona o rota dentro del área imprimible.</figcaption>
+        )}
+      </div>
     </figure>
   );
 }

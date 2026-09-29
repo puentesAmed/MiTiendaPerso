@@ -1,5 +1,5 @@
 import { ActiveSelection, Canvas, FabricImage, Rect, Textbox } from "fabric";
-import { domainElementToFabricRect, fabricTransformToDomain } from "../domain/transforms.js";
+import { domainElementToFabricRect, fabricTransformToDomain, keepElementReachable } from "../domain/transforms.js";
 import { getViewPrintAreas } from "../contracts/printSurface.js";
 
 const commonObjectOptions = {
@@ -53,6 +53,8 @@ export class FabricAdapter {
       preserveObjectStacking: true,
       selection: true,
       fireRightClick: false,
+      uniformScaling: true,
+      uniScaleKey: null,
     });
     this.callbacks = callbacks;
     this.objects = new Map();
@@ -137,6 +139,7 @@ export class FabricAdapter {
       try {
         const image = await FabricImage.fromURL(objectUrl);
         image.set({ ...commonObjectOptions });
+        image.setControlsVisibility({ mt: false, mr: false, mb: false, ml: false });
         return image;
       } catch {
         this.callbacks.onError?.("No se pudo renderizar la imagen seleccionada.");
@@ -218,16 +221,18 @@ export class FabricAdapter {
     const viewport = getPrintAreaViewport(this.template, this.view, object.data.printAreaId, this.size);
     if (!viewport) return null;
     const center = object.getCenterPoint();
-    const scaling = object.getTotalObjectScaling();
-    const patch = fabricTransformToDomain({
+    const scaling = object.getObjectScaling();
+    const uniformScale = object.data.type === "image" ? Math.max(Math.abs(scaling.x), Math.abs(scaling.y)) : null;
+    let patch = fabricTransformToDomain({
       centerX: center.x,
       centerY: center.y,
       width: object.width,
       height: object.height,
-      scaleX: scaling.x / this.viewport.zoom,
-      scaleY: scaling.y / this.viewport.zoom,
+      scaleX: uniformScale ?? scaling.x,
+      scaleY: uniformScale ?? scaling.y,
       rotation: object.angle || 0,
     }, viewport);
+    if (object.data.type === "image") patch = keepElementReachable(patch);
     return { elementId: object.data.elementId, patch };
   }
 
