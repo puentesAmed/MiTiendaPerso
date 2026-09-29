@@ -153,20 +153,32 @@ export class FabricAdapter {
     const viewport = getPrintAreaViewport(this.template, this.view, element.printAreaId, this.size);
     if (!viewport) return;
     const rect = domainElementToFabricRect(element, viewport);
-    object.set({
-      left: rect.centerX,
-      top: rect.centerY,
+    const intrinsic = element.type === "image" ? object.getOriginalSize() : null;
+    const runtimeDimensions = intrinsic ? (() => {
+      if (!intrinsic.width || !intrinsic.height) throw new Error("La imagen no contiene dimensiones intrínsecas válidas.");
+      return {
+        width: intrinsic.width,
+        height: intrinsic.height,
+        scaleX: rect.width / intrinsic.width,
+        scaleY: rect.height / intrinsic.height,
+      };
+    })() : {
       width: Math.max(rect.width, 1),
       height: Math.max(rect.height, 1),
       scaleX: 1,
       scaleY: 1,
+    };
+    object.set({
+      left: rect.centerX,
+      top: rect.centerY,
+      ...runtimeDimensions,
       angle: element.rotation,
       opacity: element.opacity,
       visible: !element.hidden,
       selectable: !element.locked,
       evented: !element.locked,
       clipPath: createClipPath(viewport),
-      data: { elementId: element.id, printAreaId: element.printAreaId, type: element.type },
+      data: { elementId: element.id, printAreaId: element.printAreaId, type: element.type, intrinsicWidth: intrinsic?.width, intrinsicHeight: intrinsic?.height },
     });
     if (element.type === "text") {
       object.set({
@@ -223,13 +235,15 @@ export class FabricAdapter {
     const center = object.getCenterPoint();
     const scaling = object.getObjectScaling();
     const uniformScale = object.data.type === "image" ? Math.max(Math.abs(scaling.x), Math.abs(scaling.y)) : null;
+    const renderedWidth = object.data.type === "image" ? object.width * uniformScale : object.width;
+    const renderedHeight = object.data.type === "image" ? object.height * uniformScale : object.height;
     let patch = fabricTransformToDomain({
       centerX: center.x,
       centerY: center.y,
-      width: object.width,
-      height: object.height,
-      scaleX: uniformScale ?? scaling.x,
-      scaleY: uniformScale ?? scaling.y,
+      width: renderedWidth,
+      height: renderedHeight,
+      scaleX: object.data.type === "image" ? 1 : scaling.x,
+      scaleY: object.data.type === "image" ? 1 : scaling.y,
       rotation: object.angle || 0,
     }, viewport);
     if (object.data.type === "image") patch = keepElementReachable(patch);
