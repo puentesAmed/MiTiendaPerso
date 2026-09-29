@@ -1,5 +1,6 @@
 import { ActiveSelection, Canvas, FabricImage, Rect, Textbox } from "fabric";
 import { domainElementToFabricRect, fabricTransformToDomain } from "../domain/transforms.js";
+import { getViewPrintAreas } from "../contracts/printSurface.js";
 
 const commonObjectOptions = {
   originX: "center",
@@ -18,8 +19,8 @@ function getView(template, viewId) {
   return template.views.find((view) => view.id === viewId) || template.views[0];
 }
 
-function getPrintAreaViewport(view, printAreaId, size) {
-  const area = view.printAreas.find((candidate) => candidate.id === printAreaId);
+function getPrintAreaViewport(template, view, printAreaId, size) {
+  const area = getViewPrintAreas(template, view).find((candidate) => candidate.id === printAreaId);
   if (!area) return null;
   return {
     area,
@@ -146,7 +147,7 @@ export class FabricAdapter {
   }
 
   applyElement(object, element) {
-    const viewport = getPrintAreaViewport(this.view, element.printAreaId, this.size);
+    const viewport = getPrintAreaViewport(this.template, this.view, element.printAreaId, this.size);
     if (!viewport) return;
     const rect = domainElementToFabricRect(element, viewport);
     object.set({
@@ -193,7 +194,7 @@ export class FabricAdapter {
 
   commitText(object) {
     if (this.reconciling || !object?.data?.elementId) return;
-    const viewport = getPrintAreaViewport(this.view, object.data.printAreaId, this.size);
+    const viewport = getPrintAreaViewport(this.template, this.view, object.data.printAreaId, this.size);
     if (!viewport) return;
     this.callbacks.onElementChange?.(object.data.elementId, {
       content: object.text,
@@ -214,7 +215,7 @@ export class FabricAdapter {
 
   transformUpdate(object) {
     if (!object?.data?.elementId) return null;
-    const viewport = getPrintAreaViewport(this.view, object.data.printAreaId, this.size);
+    const viewport = getPrintAreaViewport(this.template, this.view, object.data.printAreaId, this.size);
     if (!viewport) return null;
     const center = object.getCenterPoint();
     const scaling = object.getTotalObjectScaling();

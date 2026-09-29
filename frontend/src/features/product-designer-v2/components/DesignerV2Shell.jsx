@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { EditableDesignStage } from "./EditableDesignStage.jsx";
 import { MockupPanel } from "./MockupPanel.jsx";
 import { isElementOutOfBounds } from "../domain/designDocumentActions.js";
+import { getViewPrintAreas } from "../contracts/printSurface.js";
 
 const ThreeProductPreview = lazy(() => import("./ThreeProductPreview.jsx").then((module) => ({ default: module.ThreeProductPreview })));
 
@@ -80,7 +81,7 @@ function LayersPanel({ elements, selectedElementIds, onSelectElement, onLayerAct
   );
 }
 
-function PropertiesPanel({ selectedElements, view, activePrintAreaId, onUpdateElement, onDuplicate, onDelete }) {
+function PropertiesPanel({ selectedElements, view, printAreas, activePrintAreaId, onUpdateElement, onDuplicate, onDelete }) {
   if (selectedElements.length > 1) return (
     <div aria-live="polite">
       <div className="flex items-center gap-2"><PanelRight className="size-4 text-primary" aria-hidden="true" /><h2 className="text-sm font-semibold">Propiedades</h2></div>
@@ -115,7 +116,7 @@ function PropertiesPanel({ selectedElements, view, activePrintAreaId, onUpdateEl
           )}
           <div className="grid grid-cols-2 gap-2"><Button type="button" variant="outline" size="sm" onClick={onDuplicate}><Copy aria-hidden="true" /> Duplicar</Button><Button type="button" variant="destructive" size="sm" onClick={onDelete}><Trash2 aria-hidden="true" /> Eliminar</Button></div>
         </div>
-      ) : <div className="mt-3 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Vista: {view.label}. Área activa: {view.printAreas.find((area) => area.id === activePrintAreaId)?.label || "Sin área"}.</div>}
+      ) : <div className="mt-3 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Vista: {view.label}. Área activa: {printAreas.find((area) => area.id === activePrintAreaId)?.label || "Sin área"}.</div>}
     </div>
   );
 }
@@ -143,13 +144,14 @@ function MobileToolbar({ elements, layers, properties, saveStatus, onAddText, on
   );
 }
 
-export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, mode, mockupAvailable, mockupStatus, mockupResult, mockupError, threeDAvailable, threeDManifest, dirty, saveStatus, saveError, saveConflict, lastSavedAt, canUndo, canRedo, assetRegistry, editorError, onSelectView, onSelectMode, onGenerateMockup, onSelectElement, onAddText, onChooseImage, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onSaveNow, onReloadStored, onOverwriteStored, onZoomChange, onViewportChange, onEditorError, onBack }) {
+export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, mode, mockupAvailable, mockupStatus, mockupResult, mockupError, threeDAvailable, product3DProfile, dirty, saveStatus, saveError, saveConflict, lastSavedAt, canUndo, canRedo, assetRegistry, editorError, onSelectView, onSelectMode, onGenerateMockup, onSelectElement, onAddText, onChooseImage, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onSaveNow, onReloadStored, onOverwriteStored, onZoomChange, onViewportChange, onEditorError, onBack }) {
   const view = template.views.find((candidate) => candidate.id === activeViewId) || template.views[0];
+  const printAreas = getViewPrintAreas(template, view);
   const elements = document.views[view.id]?.elements || [];
   const selectedElements = elements.filter((element) => selectedElementIds.includes(element.id));
   const outOfBounds = selectedElements.some(isElementOutOfBounds);
   const layers = { elements, selectedElementIds, onSelectElement, onLayerAction };
-  const properties = { selectedElements, view, activePrintAreaId, onUpdateElement, onDuplicate, onDelete };
+  const properties = { selectedElements, view, printAreas, activePrintAreaId, onUpdateElement, onDuplicate, onDelete };
 
   return (
     <main className="min-h-[calc(100vh-4rem)] min-w-0 bg-muted/20" aria-labelledby="designer-v2-title">
@@ -172,7 +174,7 @@ export function DesignerV2Shell({ product, template, document, activeViewId, act
             <EditableDesignStage template={template} document={document} activeViewId={activeViewId} selectedElementIds={selectedElementIds} zoom={zoom} pan={pan} assetRegistry={assetRegistry} outOfBounds={outOfBounds} onSelectionChange={onSelectElement} onElementChange={onUpdateElement} onElementsChange={onUpdateElements} onViewportChange={onViewportChange} onError={onEditorError} />
           </section>
           <aside className="hidden rounded-xl border bg-card p-3 lg:block" aria-label="Propiedades"><PropertiesPanel {...properties} /></aside>
-        </div> : mode === "mockup" ? <div className="mt-3"><MockupPanel status={mockupStatus} result={mockupResult} error={mockupError} onGenerate={onGenerateMockup} /></div> : <div className="mt-3"><Suspense fallback={<div className="flex min-h-[22rem] items-center justify-center rounded-xl border bg-card text-sm" role="status">Cargando motor 3D…</div>}><ThreeProductPreview manifest={threeDManifest} document={document} template={template} assetRegistry={assetRegistry} onBackToDesign={() => onSelectMode("design")} onShowMockup={mockupAvailable ? () => onSelectMode("mockup") : null} /></Suspense></div>}
+        </div> : mode === "mockup" ? <div className="mt-3"><MockupPanel status={mockupStatus} result={mockupResult} error={mockupError} onGenerate={onGenerateMockup} /></div> : <div className="mt-3"><Suspense fallback={<div className="flex min-h-[22rem] items-center justify-center rounded-xl border bg-card text-sm" role="status">Cargando motor 3D…</div>}><ThreeProductPreview profile={product3DProfile} document={document} template={template} assetRegistry={assetRegistry} onBackToDesign={() => onSelectMode("design")} onShowMockup={mockupAvailable ? () => onSelectMode("mockup") : null} /></Suspense></div>}
 
         {mode === "design" ? <MobileToolbar elements={elements} layers={layers} properties={properties} saveStatus={saveStatus} onAddText={onAddText} onChooseImage={onChooseImage} onSaveNow={onSaveNow} /> : null}
 

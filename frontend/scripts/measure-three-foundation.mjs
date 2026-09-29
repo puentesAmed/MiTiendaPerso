@@ -3,11 +3,11 @@ import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import { loadThreeRuntime } from "../src/features/product-designer-v2/three/threeRuntime.js";
 import { applyTextureConfiguration, validateModelBindings } from "../src/features/product-designer-v2/three/ThreePreviewAdapter.js";
-import { THREE_MODEL_MANIFESTS } from "../src/features/product-designer-v2/three/threeModelRegistry.js";
+import { PRODUCT_3D_PROFILES } from "../src/features/product-designer-v2/three/threeModelRegistry.js";
 
 globalThis.ProgressEvent ||= class ProgressEvent {};
 
-const manifest = THREE_MODEL_MANIFESTS["mug-development-v1"];
+const profile = PRODUCT_3D_PROFILES["mug-ceramic-development-v1"];
 const runtimeStarted = performance.now();
 const runtime = await loadThreeRuntime();
 const runtimeMs = performance.now() - runtimeStarted;
@@ -17,9 +17,9 @@ const arrayBuffer = model.buffer.slice(model.byteOffset, model.byteOffset + mode
 const parseStarted = performance.now();
 const gltf = await new Promise((resolve, reject) => new runtime.GLTFLoader().parse(arrayBuffer, "", resolve, reject));
 const parseMs = performance.now() - parseStarted;
-validateModelBindings({ scene: gltf.scene, manifest, THREE: runtime.THREE });
+validateModelBindings({ scene: gltf.scene, profile, THREE: runtime.THREE });
 const textureStarted = performance.now();
-const texture = applyTextureConfiguration(new runtime.THREE.CanvasTexture({ width: 1008, height: 480 }), manifest.bindings[0].texture, runtime.THREE);
+const texture = applyTextureConfiguration(new runtime.THREE.CanvasTexture({ width: 1008, height: 480 }), profile.printableSurfaces[0], runtime.THREE);
 texture.image = { width: 1008, height: 480, revision: 2 };
 texture.needsUpdate = true;
 const textureUpdateMs = performance.now() - textureStarted;

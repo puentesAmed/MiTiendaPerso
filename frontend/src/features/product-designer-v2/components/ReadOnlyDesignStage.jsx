@@ -1,4 +1,5 @@
 import { LockKeyhole } from "lucide-react";
+import { getViewAspectRatio, getViewPrintAreas, getViewPrintSurface } from "../contracts/printSurface.js";
 
 function percentage(value) {
   return `${value * 100}%`;
@@ -6,24 +7,26 @@ function percentage(value) {
 
 export function ReadOnlyDesignStage({ template, activeViewId }) {
   const view = template.views.find((candidate) => candidate.id === activeViewId) || template.views[0];
+  const printAreas = getViewPrintAreas(template, view);
+  const unifiedSurface = Boolean(getViewPrintSurface(template, view));
 
   return (
     <figure className="min-w-0">
       <div
         className="relative mx-auto w-full max-w-[46rem] overflow-hidden rounded-xl border bg-muted/35 shadow-inner"
-        style={{ aspectRatio: view.canvas.aspectRatio }}
+        style={{ aspectRatio: getViewAspectRatio(template, view) }}
         role="img"
-        aria-label={`${view.label}. Superficie de diseño de solo lectura con ${view.printAreas.length} área imprimible.`}
+        aria-label={`${view.label}. Superficie de diseño de solo lectura con ${printAreas.length} área imprimible.`}
       >
         <div
           aria-hidden="true"
           className="absolute inset-0 opacity-45 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [background-size:24px_24px]"
         />
-        <div className="absolute inset-4 rounded-lg border bg-background/85 sm:inset-6">
+        <div className={`absolute rounded-lg border bg-background/85 ${unifiedSurface ? "inset-0" : "inset-4 sm:inset-6"}`}>
           <div className="absolute left-3 top-3 rounded-md border bg-card px-2 py-1 text-[11px] font-semibold text-muted-foreground">
             {view.surface?.label || view.label}
           </div>
-          {view.printAreas.map((area) => (
+          {printAreas.map((area) => (
             <div
               key={area.id}
               className={`absolute grid place-items-center border-2 border-dashed border-primary bg-primary/5 ${area.shape.type === "ellipse" ? "rounded-full" : "rounded-md"}`}

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { renderPreviewArtworkCanvas } from "../mockups/ArtworkRenderer.js";
 import { loadThreeRuntime } from "../three/threeRuntime.js";
 import { ThreePreviewAdapter } from "../three/ThreePreviewAdapter.js";
-import { getThreeSourceViewIds } from "../three/threeModelRegistry.js";
+import { getProduct3DSurfaceIds } from "../three/threeModelRegistry.js";
 
 const phaseLabels = {
   "loading-runtime": "Cargando motor 3D…",
@@ -13,15 +13,15 @@ const phaseLabels = {
   "updating-texture": "Actualizando textura…",
 };
 
-async function renderArtworks({ manifest, document, template, assetRegistry }) {
-  const entries = await Promise.all(getThreeSourceViewIds(manifest).map(async (sourceViewId) => [
-    sourceViewId,
-    await renderPreviewArtworkCanvas({ document, template, sourceViewId, assetRegistry, previewWidth: 1200 }),
+async function renderArtworks({ profile, document, template, assetRegistry }) {
+  const entries = await Promise.all(getProduct3DSurfaceIds(profile).map(async (printSurfaceId) => [
+    printSurfaceId,
+    await renderPreviewArtworkCanvas({ document, template, printSurfaceId, assetRegistry }),
   ]));
   return Object.fromEntries(entries);
 }
 
-export function ThreeProductPreview({ manifest, document, template, assetRegistry, onBackToDesign, onShowMockup }) {
+export function ThreeProductPreview({ profile, document, template, assetRegistry, onBackToDesign, onShowMockup }) {
   const containerRef = useRef(null);
   const adapterRef = useRef(null);
   const documentRef = useRef(document);
@@ -43,12 +43,12 @@ export function ThreeProductPreview({ manifest, document, template, assetRegistr
         setPhase("loading-runtime");
         const runtime = await loadThreeRuntime();
         if (!active) return;
-        adapter = new ThreePreviewAdapter({ runtime, manifest, onStatus: (status) => active && setPhase(status), onError: (message) => active && setError(message) });
+        adapter = new ThreePreviewAdapter({ runtime, profile, onStatus: (status) => active && setPhase(status), onError: (message) => active && setError(message) });
         adapterRef.current = adapter;
         await adapter.init(containerRef.current);
         if (!active) return;
         setPhase("preparing-texture");
-        const artworks = await renderArtworks({ manifest, document: documentRef.current, template, assetRegistry });
+        const artworks = await renderArtworks({ profile, document: documentRef.current, template, assetRegistry });
         if (!active) return;
         adapter.updateArtworks(artworks);
         readyRef.current = true;
@@ -67,7 +67,7 @@ export function ThreeProductPreview({ manifest, document, template, assetRegistr
       adapterRef.current = null;
       adapter?.dispose();
     };
-  }, [assetRegistry, manifest, template]);
+  }, [assetRegistry, profile, template]);
 
   useEffect(() => {
     if (!adapterRef.current || !readyRef.current) return undefined;
@@ -76,7 +76,7 @@ export function ThreeProductPreview({ manifest, document, template, assetRegistr
       try {
         setError("");
         setPhase("updating-texture");
-        const artworks = await renderArtworks({ manifest, document, template, assetRegistry });
+        const artworks = await renderArtworks({ profile, document, template, assetRegistry });
         if (version !== updateVersionRef.current || !adapterRef.current) return;
         adapterRef.current.updateArtworks(artworks);
         setPhase("ready");
@@ -85,12 +85,12 @@ export function ThreeProductPreview({ manifest, document, template, assetRegistr
       }
     }, 180);
     return () => clearTimeout(timer);
-  }, [assetRegistry, document, manifest, template]);
+  }, [assetRegistry, document, profile, template]);
 
   return (
     <section className="min-w-0 rounded-xl border bg-card p-3 sm:p-4" aria-labelledby="three-preview-title">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div><h2 id="three-preview-title" className="text-sm font-semibold">Preview 3D</h2><p id="three-preview-description" className="text-xs text-muted-foreground">Modelo técnico de desarrollo · arrastra para rotar y usa wheel o gesto de pinza para zoom</p></div>
+        <div><h2 id="three-preview-title" className="text-sm font-semibold">Preview 3D</h2><p id="three-preview-description" className="text-xs text-muted-foreground">{profile.modelStatus === "production" ? "Modelo productivo" : "Modelo técnico de desarrollo"} · arrastra para rotar y usa wheel o gesto de pinza para zoom</p></div>
         <Button type="button" variant="outline" size="sm" onClick={() => adapterRef.current?.resetView()} disabled={phase !== "ready"}><RotateCcw aria-hidden="true" /> Restablecer vista</Button>
       </div>
       <div className="relative min-h-[22rem] w-full min-w-0 overflow-hidden rounded-lg border bg-muted sm:min-h-[32rem]" aria-describedby="three-preview-description">

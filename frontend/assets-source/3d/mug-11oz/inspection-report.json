@@ -1,0 +1,280 @@
+{
+  "blendFile": "D:\\DESARROLLOS PROPIOS\\miTiendaPersonalizar\\MiTiendaPerso\\frontend\\assets-source\\3d\\mug-11oz\\11oz-Mug.blend",
+  "blenderVersion": "5.2.2 LTS",
+  "materials": [
+    {
+      "blendMethod": "DITHERED",
+      "name": "Dots Stroke",
+      "useNodes": true
+    },
+    {
+      "blendMethod": "DITHERED",
+      "name": "Mug-Material",
+      "useNodes": true
+    }
+  ],
+  "objects": [
+    {
+      "connectedComponents": [
+        {
+          "boundsMax": [
+            0.04012734,
+            0.04012734,
+            0.10054389
+          ],
+          "boundsMin": [
+            -0.04012734,
+            -0.04012734,
+            0.0099033
+          ],
+          "dimensions": [
+            0.08025469,
+            0.08025469,
+            0.09064059
+          ],
+          "faceCenterZRange": [
+            0.00993648,
+            0.10054086
+          ],
+          "faceClassification": {
+            "inwardRadial": 1024,
+            "mostlyHorizontal": 1248,
+            "outwardRadial": 512,
+            "zeroArea": 128
+          },
+          "polygonCount": 2464,
+          "radiusPercentiles": [
+            0.0,
+            0.0348297,
+            0.03784524,
+            0.04010091,
+            0.04012735
+          ],
+          "surfaceArea": 0.0248679252,
+          "uvBounds": {
+            "max": [
+              1.2636143,
+              2.1316433
+            ],
+            "min": [
+              0.26345238,
+              1.14740396
+            ]
+          },
+          "vertexCount": 2497
+        },
+        {
+          "boundsMax": [
+            0.04012734,
+            0.04012734,
+            0.00614729
+          ],
+          "boundsMin": [
+            -0.04012734,
+            -0.04012734,
+            0.00479023
+          ],
+          "dimensions": [
+            0.08025469,
+            0.08025469,
+            0.00135706
+          ],
+          "faceCenterZRange": [
+            0.00479297,
+            0.00613855
+          ],
+          "faceClassification": {
+            "inwardRadial": 0,
+            "mostlyHorizontal": 1248,
+            "outwardRadial": 256,
+            "zeroArea": 0
+          },
+          "polygonCount": 1440,
+          "radiusPercentiles": [
+            0.0,
+            0.03441491,
+            0.03747756,
+            0.04004197,
+            0.04012735
+          ],
+          "surfaceArea": 0.0051665458,
+          "uvBounds": {
+            "max": [
+              1.26354253,
+              1.63420761
+            ],
+            "min": [
+              0.2635242,
+              1.14424384
+            ]
+          },
+          "vertexCount": 1473
+        },
+        {
+          "boundsMax": [
+            0.00917063,
+            0.07444642,
+            0.08922277
+          ],
+          "boundsMin": [
+            -0.00917394,
+            0.03939531,
+            0.01332088
+          ],
+          "dimensions": [
+            0.01834457,
+            0.03505111,
+            0.0759019
+          ],
+          "faceCenterZRange": [
+            0.01335698,
+            0.08917302
+          ],
+          "faceClassification": {
+            "inwardRadial": 238,
+            "mostlyHorizontal": 312,
+            "outwardRadial": 370,
+            "zeroArea": 0
+          },
+          "polygonCount": 1220,
+          "radiusPercentiles": [
+            0.04041241,
+            0.04348089,
+            0.06142862,
+            0.07186158,
+            0.07444642
+          ],
+          "surfaceArea": 0.0035265671,
+          "uvBounds": {
+            "max": [
+              0.8806814,
+              -0.24189791
+            ],
+            "min": [
+              0.08878148,
+              -0.54973435
+            ]
+          },
+          "vertexCount": 1249
+        },
+        {
+          "boundsMax": [
+            0.04012734,
+            0.04079233,
+            0.09911651
+          ],
+          "boundsMin": [
+            -0.04012734,
+            -0.04012734,
+            0.00527899
+          ],
+          "dimensions": [
+            0.08025469,
+            0.08091967,
+            0.09383752
+          ],
+          "faceCenterZRange": [
+            0.01043914,
+            0.09353022
+          ],
+          "faceClassification": {
+            "inwardRadial": 0,
+            "mostlyHorizontal": 12,
+            "outwardRadial": 148,
+            "zeroArea": 0
+          },
+          "polygonCount": 148,
+          "radiusPercentiles": [
+            0.0400703,
+            0.04008377,
+            0.04012719,
+            0.04059207,
+            0.04079233
+          ],
+          "surfaceArea": 0.0232553966,
+          "uvBounds": {
+            "max": [
+              1.10046697,
+              0.71692854
+            ],
+            "min": [
+              -0.09819913,
+              0.28488827
+            ]
+          },
+          "vertexCount": 306
+        }
+      ],
+      "edgeCount": 10797,
+      "loopTriangleCount": 10682,
+      "materials": [
+        "Mug-Material"
+      ],
+      "mesh": "Cylinder.001",
+      "modifiers": [],
+      "name": "11oz-Mug",
+      "polygonCount": 5272,
+      "polygonsByMaterialIndex": {
+        "0": 5272
+      },
+      "transform": {
+        "location": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotationEuler": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "uvLayers": [
+        {
+          "active": true,
+          "bounds": {
+            "max": [
+              1.2636143,
+              2.1316433
+            ],
+            "min": [
+              -0.09819913,
+              -0.54973435
+            ]
+          },
+          "name": "UVMap"
+        }
+      ],
+      "vertexCount": 5525,
+      "visibleRender": true,
+      "worldBounds": {
+        "max": [
+          0.04012734,
+          0.07444642,
+          0.10054389
+        ],
+        "min": [
+          -0.04012734,
+          -0.04012734,
+          0.00479023
+        ]
+      },
+      "worldDimensions": [
+        0.08025469,
+        0.11457377,
+        0.09575367
+      ]
+    }
+  ],
+  "scene": {
+    "lengthUnit": "INCHES",
+    "objectCount": 1,
+    "unitScale": 1.0,
+    "unitSystem": "IMPERIAL"
+  }
+}

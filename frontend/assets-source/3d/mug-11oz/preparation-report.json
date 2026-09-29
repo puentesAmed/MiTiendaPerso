@@ -1,0 +1,99 @@
+{
+  "blenderVersion": "5.2.2 LTS",
+  "components": {
+    "CeramicDetail": {
+      "boundsMax": [
+        0.04012734,
+        0.04012734,
+        0.10054389
+      ],
+      "boundsMin": [
+        -0.04012734,
+        -0.04012734,
+        0.0099033
+      ],
+      "excludedBySurfaceRole": 0,
+      "exportedPolygons": 2336,
+      "printablePolygons": 0,
+      "removedZeroAreaPolygons": 128,
+      "sourcePolygons": 2464
+    },
+    "CeramicDetailSurface": {
+      "boundsMax": [
+        0.04012734,
+        0.04079233,
+        0.09911651
+      ],
+      "boundsMin": [
+        -0.04012734,
+        -0.04012734,
+        0.00527899
+      ],
+      "excludedBySurfaceRole": 136,
+      "exportedPolygons": 12,
+      "printablePolygons": 0,
+      "removedZeroAreaPolygons": 0,
+      "sourcePolygons": 148
+    },
+    "MugBody": {
+      "boundsMax": [
+        0.04012734,
+        0.04079233,
+        0.09911651
+      ],
+      "boundsMin": [
+        -0.04012734,
+        -0.04012734,
+        0.00527899
+      ],
+      "excludedBySurfaceRole": 12,
+      "exportedPolygons": 136,
+      "printablePolygons": 136,
+      "removedZeroAreaPolygons": 0,
+      "sourcePolygons": 148
+    },
+    "MugBottom": {
+      "boundsMax": [
+        0.04012734,
+        0.04012734,
+        0.00614729
+      ],
+      "boundsMin": [
+        -0.04012734,
+        -0.04012734,
+        0.00479023
+      ],
+      "excludedBySurfaceRole": 0,
+      "exportedPolygons": 1440,
+      "printablePolygons": 0,
+      "removedZeroAreaPolygons": 0,
+      "sourcePolygons": 1440
+    },
+    "MugHandle": {
+      "boundsMax": [
+        0.00917063,
+        0.07444642,
+        0.08922277
+      ],
+      "boundsMin": [
+        -0.00917394,
+        0.03939531,
+        0.01332088
+      ],
+      "excludedBySurfaceRole": 0,
+      "exportedPolygons": 1220,
+      "printablePolygons": 0,
+      "removedZeroAreaPolygons": 0,
+      "sourcePolygons": 1220
+    }
+  },
+  "modelStatus": "development",
+  "output": "D:\\DESARROLLOS PROPIOS\\miTiendaPersonalizar\\MiTiendaPerso\\frontend\\public\\models\\mug-11oz-v1.glb",
+  "outputBytes": 266840,
+  "source": "D:\\DESARROLLOS PROPIOS\\miTiendaPersonalizar\\MiTiendaPerso\\frontend\\assets-source\\3d\\mug-11oz\\11oz-Mug.blend",
+  "uvContract": {
+    "front": "-Y / U=0.5",
+    "seam": "+Y / U=0|1",
+    "vertical": "bottom=0, top=1"
+  }
+}

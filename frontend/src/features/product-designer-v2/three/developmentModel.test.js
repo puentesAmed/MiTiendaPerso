@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { THREE_MODEL_MANIFESTS } from "./threeModelRegistry.js";
+import { PRODUCT_3D_PROFILES } from "./threeModelRegistry.js";
 import { validateModelBindings } from "./ThreePreviewAdapter.js";
 
 test("GLB técnico contiene meshes, materiales imprimibles y UVs esperados", async () => {
@@ -29,7 +29,7 @@ test("GLTFLoader carga el fixture y valida binding/material/UV/bounds reales", a
   const buffer = await readFile(new URL("../../../../public/models/mug-development-v1.glb", import.meta.url));
   const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   const gltf = await new Promise((resolve, reject) => new GLTFLoader().parse(arrayBuffer, "", resolve, reject));
-  const result = validateModelBindings({ scene: gltf.scene, manifest: THREE_MODEL_MANIFESTS["mug-development-v1"], THREE });
+  const result = validateModelBindings({ scene: gltf.scene, profile: PRODUCT_3D_PROFILES["mug-ceramic-development-v1"], THREE });
   assert.equal(result.targets[0].mesh.name, "MugBody");
   assert.equal(result.targets[0].material.name, "PrintableSurface");
   assert.ok(Math.max(result.size.x, result.size.y, result.size.z) > 0);

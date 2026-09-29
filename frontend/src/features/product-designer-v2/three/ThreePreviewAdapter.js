@@ -1,3 +1,5 @@
+import { getThreeModelAsset } from "./threeModelRegistry.js";
+
 const WRAPPING_KEYS = { clamp: "ClampToEdgeWrapping", repeat: "RepeatWrapping", mirror: "MirroredRepeatWrapping" };
 
 function materialList(material) {
@@ -24,16 +26,17 @@ function disposeObjectResources(resources) {
   resources.materials.forEach((material) => material.dispose());
 }
 
-export function validateModelBindings({ scene, manifest, THREE }) {
+export function validateModelBindings({ scene, profile, THREE }) {
   const targets = [];
-  for (const binding of manifest.bindings) {
+  for (const surface of profile.printableSurfaces) {
+    const { binding } = surface;
     const mesh = scene.getObjectByName(binding.meshName);
     if (!mesh?.isMesh) throw new Error(`No existe el mesh 3D requerido: ${binding.meshName}.`);
     if (!mesh.geometry?.getAttribute?.("uv")) throw new Error(`El mesh ${binding.meshName} no contiene UVs.`);
     const materials = materialList(mesh.material);
     const materialIndex = materials.findIndex((material) => material?.name === binding.materialName);
     if (materialIndex < 0) throw new Error(`No existe el material ${binding.materialName} en ${binding.meshName}.`);
-    targets.push({ binding, mesh, materialIndex, material: materials[materialIndex] });
+    targets.push({ surface, binding, mesh, materialIndex, material: materials[materialIndex] });
   }
   const bounds = new THREE.Box3().setFromObject(scene);
   const size = bounds.getSize(new THREE.Vector3());
@@ -41,14 +44,22 @@ export function validateModelBindings({ scene, manifest, THREE }) {
   return { targets, bounds, size };
 }
 
-export function applyTextureConfiguration(texture, config, THREE) {
+export function applyTextureConfiguration(texture, surface, THREE) {
+  const { texture: config, uvMapping } = surface;
+  const uRange = uvMapping.uMax - uvMapping.uMin;
+  const vRange = uvMapping.vMax - uvMapping.vMin;
+  const repeat = uvMapping.repeat ?? [1, 1];
+  const offset = uvMapping.offset ?? [0, 0];
+  const repeatX = (uvMapping.flipU ? -1 : 1) * repeat[0] / uRange;
+  const offsetX = (uvMapping.flipU ? uvMapping.uMax / uRange : -uvMapping.uMin / uRange) + offset[0];
   texture.colorSpace = config.colorSpace === "srgb" ? THREE.SRGBColorSpace : THREE.LinearSRGBColorSpace;
-  texture.flipY = config.flipY;
+  texture.flipY = uvMapping.flipV;
   texture.wrapS = THREE[WRAPPING_KEYS[config.wrapS]];
   texture.wrapT = THREE[WRAPPING_KEYS[config.wrapT]];
-  texture.offset.set(...config.offset);
-  texture.repeat.set(...config.repeat);
-  texture.rotation = config.rotation;
+  texture.offset.set(offsetX, (-uvMapping.vMin / vRange) + offset[1]);
+  texture.repeat.set(repeatX, repeat[1] / vRange);
+  texture.center.set(0.5, 0.5);
+  texture.rotation = uvMapping.rotation;
   texture.magFilter = THREE.LinearFilter;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.needsUpdate = true;
@@ -79,9 +90,9 @@ export function calculateCameraFrame({ bounds, cameraConfig, THREE }) {
 }
 
 export class ThreePreviewAdapter {
-  constructor({ runtime, manifest, onStatus = () => {}, onError = () => {}, documentApi = globalThis.document }) {
+  constructor({ runtime, profile, onStatus = () => {}, onError = () => {}, documentApi = globalThis.document }) {
     this.runtime = runtime;
-    this.manifest = manifest;
+    this.profile = profile;
     this.onStatus = onStatus;
     this.onError = onError;
     this.documentApi = documentApi;
@@ -96,10 +107,10 @@ export class ThreePreviewAdapter {
     const { THREE, GLTFLoader, OrbitControls } = this.runtime;
     this.container = container;
     this.scene = new THREE.Scene();
-    this.scene.background = this.manifest.background.alpha === 1 ? new THREE.Color(this.manifest.background.color) : null;
-    this.camera = new THREE.PerspectiveCamera(this.manifest.camera.fov, 1, 0.01, 100);
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: this.manifest.background.alpha < 1, powerPreference: "high-performance", preserveDrawingBuffer: false });
-    this.renderer.setClearColor(this.manifest.background.color, this.manifest.background.alpha);
+    this.scene.background = this.profile.background.alpha === 1 ? new THREE.Color(this.profile.background.color) : null;
+    this.camera = new THREE.PerspectiveCamera(this.profile.camera.fov, 1, 0.01, 100);
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: this.profile.background.alpha < 1, powerPreference: "high-performance", preserveDrawingBuffer: false });
+    this.renderer.setClearColor(this.profile.background.color, this.profile.background.alpha);
     this.renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.domElement.setAttribute("role", "img");
@@ -116,29 +127,31 @@ export class ThreePreviewAdapter {
     };
     this.renderer.domElement.addEventListener("webglcontextlost", this.contextLostHandler);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    Object.assign(this.controls, { enableRotate: this.manifest.orbit.enableRotate, enableZoom: this.manifest.orbit.enableZoom, enablePan: this.manifest.orbit.enablePan, enableDamping: this.manifest.orbit.damping > 0, dampingFactor: this.manifest.orbit.damping, autoRotate: false, minPolarAngle: this.manifest.orbit.minPolarAngle, maxPolarAngle: this.manifest.orbit.maxPolarAngle });
+    Object.assign(this.controls, { enableRotate: this.profile.orbit.enableRotate, enableZoom: this.profile.orbit.enableZoom, enablePan: this.profile.orbit.enablePan, enableDamping: this.profile.orbit.damping > 0, dampingFactor: this.profile.orbit.damping, autoRotate: false, minPolarAngle: this.profile.orbit.minPolarAngle, maxPolarAngle: this.profile.orbit.maxPolarAngle });
     this.addLighting();
     this.observeResize();
 
     this.onStatus("loading-model");
-    const gltf = await new GLTFLoader().loadAsync(this.manifest.asset.url);
+    const asset = getThreeModelAsset(this.profile.modelId);
+    if (!asset) throw new Error(`No existe el asset 3D registrado: ${this.profile.modelId}.`);
+    const gltf = await new GLTFLoader().loadAsync(asset.url);
     if (this.disposed) {
       disposeObjectResources(collectObjectResources(gltf.scene));
       return;
     }
     this.modelLoadCount += 1;
     this.model = gltf.scene;
-    const validation = validateModelBindings({ scene: this.model, manifest: this.manifest, THREE });
+    const validation = validateModelBindings({ scene: this.model, profile: this.profile, THREE });
     this.bindingTargets = validation.targets;
     this.scene.add(this.model);
-    this.frame = calculateCameraFrame({ bounds: validation.bounds, cameraConfig: this.manifest.camera, THREE });
+    this.frame = calculateCameraFrame({ bounds: validation.bounds, cameraConfig: this.profile.camera, THREE });
     this.configureCamera();
     this.startRenderLoop();
   }
 
   addLighting() {
     const { THREE } = this.runtime;
-    if (this.manifest.lighting.preset !== "studio-soft") throw new Error("Lighting preset no soportado.");
+    if (this.profile.lighting.preset !== "studio-soft") throw new Error("Lighting preset no soportado.");
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x667085, 1.55));
     const key = new THREE.DirectionalLight(0xffffff, 2.4);
     key.position.set(3, 4, 5);
@@ -156,8 +169,8 @@ export class ThreePreviewAdapter {
     this.camera.position.copy(position);
     this.camera.updateProjectionMatrix();
     this.controls.target.copy(target);
-    this.controls.minDistance = distance * this.manifest.orbit.minDistanceFactor;
-    this.controls.maxDistance = distance * this.manifest.orbit.maxDistanceFactor;
+    this.controls.minDistance = distance * this.profile.orbit.minDistanceFactor;
+    this.controls.maxDistance = distance * this.profile.orbit.maxDistanceFactor;
     this.controls.update();
     this.initialView = { position: position.clone(), target: target.clone() };
   }
@@ -169,21 +182,21 @@ export class ThreePreviewAdapter {
     this.controls.update();
   }
 
-  updateArtworks(artworksByView) {
+  updateArtworks(artworksBySurface) {
     if (!this.bindingTargets) throw new Error("El modelo 3D aún no está preparado.");
     const { THREE } = this.runtime;
-    this.bindingTargets.forEach(({ binding, mesh, materialIndex, material }) => {
-      const artworkCanvas = artworksByView[binding.sourceViewId];
-      if (!artworkCanvas) throw new Error(`Falta artwork para la vista ${binding.sourceViewId}.`);
-      const canvas = prepareTextureCanvas(artworkCanvas, binding.texture, this.documentApi);
-      const key = `${binding.meshName}:${binding.materialName}:${binding.sourceViewId}`;
+    this.bindingTargets.forEach(({ surface, binding, mesh, materialIndex, material }) => {
+      const artworkCanvas = artworksBySurface[surface.printSurfaceId];
+      if (!artworkCanvas) throw new Error(`Falta artwork para PrintSurface ${surface.printSurfaceId}.`);
+      const canvas = prepareTextureCanvas(artworkCanvas, surface.texture, this.documentApi);
+      const key = `${binding.meshName}:${binding.materialName}:${surface.printSurfaceId}`;
       let record = this.bindingRecords.get(key);
       if (!record) {
         const clonedMaterial = material.clone();
         const materials = materialList(mesh.material);
         materials[materialIndex] = clonedMaterial;
         mesh.material = Array.isArray(mesh.material) ? materials : clonedMaterial;
-        const texture = applyTextureConfiguration(new THREE.CanvasTexture(canvas), binding.texture, THREE);
+        const texture = applyTextureConfiguration(new THREE.CanvasTexture(canvas), surface, THREE);
         clonedMaterial.map = texture;
         clonedMaterial.needsUpdate = true;
         record = { material: clonedMaterial, originalMaterial: material, texture };

@@ -1,21 +1,73 @@
 const COLOR_SPACES = new Set(["srgb", "linear"]);
 const WRAPS = new Set(["clamp", "repeat", "mirror"]);
 const LIGHTING_PRESETS = new Set(["studio-soft"]);
+const MODEL_STATUSES = new Set(["development", "verified", "production"]);
 
-export const THREE_MODEL_MANIFESTS = Object.freeze({
-  "mug-development-v1": Object.freeze({
+export const THREE_MODEL_ASSETS = Object.freeze({
+  "mug-development-v1": Object.freeze({ modelId: "mug-development-v1", url: "/models/mug-development-v1.glb", status: "development", origin: "generated-in-project" }),
+  "mug-11oz-v1": Object.freeze({ modelId: "mug-11oz-v1", url: "/models/mug-11oz-v1.glb", status: "development", origin: "licensed-source" }),
+});
+
+export const PRODUCT_3D_PROFILES = Object.freeze({
+  "mug-11oz-v1": Object.freeze({
     schemaVersion: 1,
-    revision: 2,
-    modelId: "mug-development-v1",
-    asset: Object.freeze({ url: "/models/mug-development-v1.glb", kind: "development", origin: "generated-in-project" }),
-    bindings: Object.freeze([
+    revision: 1,
+    profileId: "mug-11oz-v1",
+    modelId: "mug-11oz-v1",
+    modelStatus: "development",
+    dimensions: null,
+    referenceData: Object.freeze({ images: Object.freeze([]), verifiedDimensions: null, provenance: Object.freeze({ type: "licensed-source", reference: "CGTrader 4549774 · frontend/assets-source/3d/mug-11oz/SOURCE.md" }) }),
+    printableSurfaces: Object.freeze([
       Object.freeze({
-        sourceViewId: "wrap",
-        meshName: "MugBody",
-        materialName: "PrintableSurface",
-        texture: Object.freeze({ colorSpace: "srgb", backgroundColor: "#ffffff", flipY: true, wrapS: "clamp", wrapT: "clamp", offset: Object.freeze([0, 0]), repeat: Object.freeze([1, 1]), rotation: 0 }),
+        printSurfaceId: "wrap-main",
+        binding: Object.freeze({ meshName: "MugBody", materialName: "PrintableSurface" }),
+        uvMapping: Object.freeze({ uMin: 0, uMax: 1, vMin: 0, vMax: 1, seamU: 0, frontU: 0.5, flipU: false, flipV: true, rotation: 0 }),
+        texture: Object.freeze({ colorSpace: "srgb", backgroundColor: "#ffffff", wrapS: "clamp", wrapT: "clamp" }),
       }),
     ]),
+    materialVariants: Object.freeze({
+      defaultVariantId: "ceramic-white",
+      variantMappings: Object.freeze([{ productVariantId: null, materialVariantId: "ceramic-white" }]),
+      variants: Object.freeze([Object.freeze({
+        id: "ceramic-white",
+        materials: Object.freeze([
+          Object.freeze({ materialName: "PrintableSurface", color: "#ffffff", roughness: 0.58, metalness: 0 }),
+          Object.freeze({ materialName: "CeramicDetail", color: "#ffffff", roughness: 0.5, metalness: 0 }),
+        ]),
+      })]),
+    }),
+    camera: Object.freeze({ fov: 32, direction: Object.freeze([0.2, 0.08, 1]), targetOffset: Object.freeze([0, 0, 0]), fitPadding: 1.25 }),
+    orbit: Object.freeze({ enableRotate: true, enableZoom: true, enablePan: false, minDistanceFactor: 0.82, maxDistanceFactor: 1.9, minPolarAngle: 0.65, maxPolarAngle: 2.35, damping: 0.075 }),
+    background: Object.freeze({ color: "#f3f4f6", alpha: 1 }),
+    lighting: Object.freeze({ preset: "studio-soft" }),
+  }),
+  "mug-ceramic-development-v1": Object.freeze({
+    schemaVersion: 1,
+    revision: 1,
+    profileId: "mug-ceramic-development-v1",
+    modelId: "mug-development-v1",
+    modelStatus: "development",
+    dimensions: null,
+    referenceData: Object.freeze({ images: Object.freeze([]), verifiedDimensions: null, provenance: Object.freeze({ type: "generated-in-project", reference: "frontend/scripts/generate-development-mug-model.mjs" }) }),
+    printableSurfaces: Object.freeze([
+      Object.freeze({
+        printSurfaceId: "wrap-main",
+        binding: Object.freeze({ meshName: "MugBody", materialName: "PrintableSurface" }),
+        uvMapping: Object.freeze({ uMin: 0, uMax: 1, vMin: 0, vMax: 1, seamU: 0, frontU: 0.5, flipU: false, flipV: true, rotation: 0 }),
+        texture: Object.freeze({ colorSpace: "srgb", backgroundColor: "#ffffff", wrapS: "clamp", wrapT: "clamp" }),
+      }),
+    ]),
+    materialVariants: Object.freeze({
+      defaultVariantId: "ceramic-white",
+      variantMappings: Object.freeze([{ productVariantId: null, materialVariantId: "ceramic-white" }]),
+      variants: Object.freeze([Object.freeze({
+        id: "ceramic-white",
+        materials: Object.freeze([
+          Object.freeze({ materialName: "PrintableSurface", color: "#ffffff", roughness: 0.58, metalness: 0 }),
+          Object.freeze({ materialName: "CeramicDetail", color: "#ffffff", roughness: 0.5, metalness: 0 }),
+        ]),
+      })]),
+    }),
     camera: Object.freeze({ fov: 32, direction: Object.freeze([0.28, 0.12, 1]), targetOffset: Object.freeze([0, 0.03, 0]), fitPadding: 1.28 }),
     orbit: Object.freeze({ enableRotate: true, enableZoom: true, enablePan: false, minDistanceFactor: 0.82, maxDistanceFactor: 1.9, minPolarAngle: 0.65, maxPolarAngle: 2.35, damping: 0.075 }),
     background: Object.freeze({ color: "#f3f4f6", alpha: 1 }),
@@ -27,66 +79,96 @@ function vector(value, length, { positive = false } = {}) {
   return Array.isArray(value) && value.length === length && value.every((item) => Number.isFinite(item) && (!positive || item > 0));
 }
 
-export function validateThreeDManifest(manifest) {
+function validateDimensions(dimensions) {
+  return dimensions === null || (dimensions && ["width", "height", "depth"].every((key) => Number.isFinite(dimensions[key]) && dimensions[key] > 0) && ["mm", "cm", "in"].includes(dimensions.unit));
+}
+
+function validateMaterialVariants(materialVariants) {
+  if (!materialVariants || !materialVariants.defaultVariantId || !Array.isArray(materialVariants.variants) || !Array.isArray(materialVariants.variantMappings)) return false;
+  const ids = new Set(materialVariants.variants.map((variant) => variant.id));
+  if (!ids.has(materialVariants.defaultVariantId) || materialVariants.variantMappings.some((mapping) => !ids.has(mapping.materialVariantId))) return false;
+  return materialVariants.variants.every((variant) => variant.id && Array.isArray(variant.materials) && variant.materials.length > 0 && variant.materials.every((material) => material.materialName && /^#[0-9a-f]{6}$/i.test(material.color) && Number.isFinite(material.roughness) && material.roughness >= 0 && material.roughness <= 1 && Number.isFinite(material.metalness) && material.metalness >= 0 && material.metalness <= 1));
+}
+
+export function validateProduct3DProfile(profile) {
   const errors = [];
-  if (!manifest || typeof manifest !== "object") return { valid: false, errors: ["ThreeDManifest ausente."] };
-  if (manifest.schemaVersion !== 1) errors.push("schemaVersion no soportado.");
-  if (!Number.isInteger(manifest.revision) || manifest.revision < 1) errors.push("revision inválida.");
-  if (typeof manifest.modelId !== "string" || !manifest.modelId) errors.push("modelId inválido.");
-  if (!manifest.asset || !/^\/models\/[a-z0-9-]+\.glb$/.test(manifest.asset.url || "") || !["development", "production"].includes(manifest.asset.kind)) errors.push("asset registrado inválido.");
-  if (!Array.isArray(manifest.bindings) || manifest.bindings.length === 0) errors.push("bindings debe contener al menos un binding.");
+  if (!profile || typeof profile !== "object") return { valid: false, errors: ["Product3DProfile ausente."] };
+  if (profile.schemaVersion !== 1) errors.push("schemaVersion de Product3DProfile no soportado.");
+  if (!Number.isInteger(profile.revision) || profile.revision < 1) errors.push("revision inválida.");
+  if (typeof profile.profileId !== "string" || !profile.profileId) errors.push("profileId inválido.");
+  if (typeof profile.modelId !== "string" || !THREE_MODEL_ASSETS[profile.modelId]) errors.push("modelId no registrado.");
+  if (!MODEL_STATUSES.has(profile.modelStatus) || THREE_MODEL_ASSETS[profile.modelId]?.status !== profile.modelStatus) errors.push("modelStatus inválido o inconsistente.");
+  if (!validateDimensions(profile.dimensions)) errors.push("dimensions inválidas.");
+  if (!profile.referenceData || !Array.isArray(profile.referenceData.images) || !(profile.referenceData.verifiedDimensions === null || validateDimensions(profile.referenceData.verifiedDimensions)) || !profile.referenceData.provenance?.type) errors.push("referenceData inválida.");
+  if (!Array.isArray(profile.printableSurfaces) || profile.printableSurfaces.length === 0) errors.push("printableSurfaces debe contener al menos una superficie.");
   else {
     const bindingTargets = new Set();
-    manifest.bindings.forEach((binding, index) => {
-    const prefix = `binding ${index}`;
-    if (!binding?.sourceViewId || !binding.meshName || !binding.materialName) errors.push(`${prefix}: ids incompletos.`);
-    const target = `${binding?.meshName}:${binding?.materialName}`;
-    if (bindingTargets.has(target)) errors.push(`${prefix}: target duplicado.`);
-    bindingTargets.add(target);
-    const texture = binding?.texture;
-    if (!texture || !COLOR_SPACES.has(texture.colorSpace) || !/^#[0-9a-f]{6}$/i.test(texture.backgroundColor || "") || typeof texture.flipY !== "boolean" || !WRAPS.has(texture.wrapS) || !WRAPS.has(texture.wrapT) || !vector(texture.offset, 2) || !vector(texture.repeat, 2, { positive: true }) || !Number.isFinite(texture.rotation)) errors.push(`${prefix}: texture inválida.`);
+    const surfaceIds = new Set();
+    profile.printableSurfaces.forEach((surface, index) => {
+      const prefix = `printableSurface ${index}`;
+      if (!surface?.printSurfaceId || !surface.binding?.meshName || !surface.binding?.materialName) errors.push(`${prefix}: ids o binding incompletos.`);
+      if (surfaceIds.has(surface?.printSurfaceId)) errors.push(`${prefix}: printSurfaceId duplicado.`);
+      surfaceIds.add(surface?.printSurfaceId);
+      const target = `${surface?.binding?.meshName}:${surface?.binding?.materialName}`;
+      if (bindingTargets.has(target)) errors.push(`${prefix}: target duplicado.`);
+      bindingTargets.add(target);
+      const uv = surface?.uvMapping;
+      if (!uv || !["uMin", "uMax", "vMin", "vMax", "seamU", "frontU", "rotation"].every((key) => Number.isFinite(uv[key])) || uv.uMax <= uv.uMin || uv.vMax <= uv.vMin || uv.seamU < uv.uMin || uv.seamU > uv.uMax || uv.frontU < uv.uMin || uv.frontU > uv.uMax || typeof uv.flipU !== "boolean" || typeof uv.flipV !== "boolean" || (uv.offset !== undefined && !vector(uv.offset, 2)) || (uv.repeat !== undefined && !vector(uv.repeat, 2, { positive: true })) || ((uv.offset !== undefined || uv.repeat !== undefined) && !uv.transformJustification?.trim())) errors.push(`${prefix}: uvMapping inválido.`);
+      const texture = surface?.texture;
+      if (!texture || !COLOR_SPACES.has(texture.colorSpace) || !/^#[0-9a-f]{6}$/i.test(texture.backgroundColor || "") || !WRAPS.has(texture.wrapS) || !WRAPS.has(texture.wrapT)) errors.push(`${prefix}: texture inválida.`);
     });
   }
-  const camera = manifest.camera;
+  if (!validateMaterialVariants(profile.materialVariants)) errors.push("materialVariants inválido.");
+  const camera = profile.camera;
   if (!camera || !Number.isFinite(camera.fov) || camera.fov <= 10 || camera.fov >= 100 || !vector(camera.direction, 3) || !vector(camera.targetOffset, 3) || !Number.isFinite(camera.fitPadding) || camera.fitPadding < 1) errors.push("camera inválida.");
-  const orbit = manifest.orbit;
+  const orbit = profile.orbit;
   if (!orbit || typeof orbit.enableRotate !== "boolean" || typeof orbit.enableZoom !== "boolean" || typeof orbit.enablePan !== "boolean" || !Number.isFinite(orbit.minDistanceFactor) || !Number.isFinite(orbit.maxDistanceFactor) || orbit.minDistanceFactor <= 0 || orbit.maxDistanceFactor <= orbit.minDistanceFactor || !Number.isFinite(orbit.minPolarAngle) || !Number.isFinite(orbit.maxPolarAngle) || orbit.maxPolarAngle <= orbit.minPolarAngle || !Number.isFinite(orbit.damping) || orbit.damping < 0) errors.push("orbit inválido.");
-  if (!manifest.background || typeof manifest.background.color !== "string" || !Number.isFinite(manifest.background.alpha) || manifest.background.alpha < 0 || manifest.background.alpha > 1) errors.push("background inválido.");
-  if (!LIGHTING_PRESETS.has(manifest.lighting?.preset)) errors.push("lighting preset inválido.");
+  if (!profile.background || typeof profile.background.color !== "string" || !Number.isFinite(profile.background.alpha) || profile.background.alpha < 0 || profile.background.alpha > 1) errors.push("background inválido.");
+  if (!LIGHTING_PRESETS.has(profile.lighting?.preset)) errors.push("lighting preset inválido.");
   return { valid: errors.length === 0, errors };
 }
 
-export function validateThreeDManifestForTemplate(manifest, template) {
-  const result = validateThreeDManifest(manifest);
-  const errors = [...result.errors];
-  const viewIds = new Set(template?.views?.map((view) => view.id) || []);
-  manifest?.bindings?.forEach((binding) => {
-    if (!viewIds.has(binding.sourceViewId)) errors.push(`sourceViewId no existe: ${binding.sourceViewId}.`);
+export function validateProduct3DProfileForTemplate(profile, template) {
+  const errors = [...validateProduct3DProfile(profile).errors];
+  const surfaces = new Map(template?.printSurfaces?.map((surface) => [surface.id, surface]) || []);
+  profile?.printableSurfaces?.forEach((profileSurface) => {
+    const printSurface = surfaces.get(profileSurface.printSurfaceId);
+    if (!printSurface) {
+      errors.push(`PrintSurface no existe en ProductTemplate: ${profileSurface.printSurfaceId}.`);
+      return;
+    }
+    const uv = profileSurface.uvMapping;
+    const expectedFront = uv.flipU ? uv.uMax - 0.5 * (uv.uMax - uv.uMin) : uv.uMin + 0.5 * (uv.uMax - uv.uMin);
+    if (printSurface.orientation.front === "center" && Math.abs(uv.frontU - expectedFront) > 1e-10) errors.push(`frontU no coincide con el centro de ${printSurface.id}.`);
+    if (printSurface.orientation.seam === "horizontal-edges" && uv.seamU !== uv.uMin && uv.seamU !== uv.uMax) errors.push(`seamU no coincide con un borde de ${printSurface.id}.`);
+    if ((printSurface.orientation.horizontal === "left-to-right") === uv.flipU) errors.push(`flipU contradice la dirección de lectura de ${printSurface.id}.`);
+    if ((printSurface.orientation.vertical === "top-to-bottom") !== uv.flipV) errors.push(`flipV contradice la orientación vertical de ${printSurface.id}.`);
   });
   return { valid: errors.length === 0, errors };
 }
 
-export function getThreeDManifest(modelId) {
-  const manifest = THREE_MODEL_MANIFESTS[modelId] ?? null;
-  if (!manifest) return null;
-  const validation = validateThreeDManifest(manifest);
-  if (!validation.valid) throw new Error(`ThreeDManifest inválido: ${validation.errors.join(" ")}`);
-  return manifest;
+export function getProduct3DProfile(profileId) {
+  const profile = PRODUCT_3D_PROFILES[profileId] ?? null;
+  if (!profile) return null;
+  const validation = validateProduct3DProfile(profile);
+  if (!validation.valid) throw new Error(`Product3DProfile inválido: ${validation.errors.join(" ")}`);
+  return profile;
 }
 
-export function getThreeDManifestForTemplate(template) {
-  const modelId = template?.threeD?.modelId;
-  const manifest = modelId ? getThreeDManifest(modelId) : null;
-  if (!manifest) return null;
-  const validation = validateThreeDManifestForTemplate(manifest, template);
-  return validation.valid ? manifest : null;
+export function getProduct3DProfileForTemplate(template) {
+  const profile = template?.threeD?.profileId ? getProduct3DProfile(template.threeD.profileId) : null;
+  if (!profile) return null;
+  return validateProduct3DProfileForTemplate(profile, template).valid ? profile : null;
+}
+
+export function getThreeModelAsset(modelId) {
+  return THREE_MODEL_ASSETS[modelId] ?? null;
 }
 
 export function isThreeDModeAvailable(template) {
-  return Boolean(getThreeDManifestForTemplate(template));
+  return Boolean(getProduct3DProfileForTemplate(template));
 }
 
-export function getThreeSourceViewIds(manifest) {
-  return [...new Set((manifest?.bindings || []).map((binding) => binding.sourceViewId))];
+export function getProduct3DSurfaceIds(profile) {
+  return [...new Set((profile?.printableSurfaces || []).map((surface) => surface.printSurfaceId))];
 }
-

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 import { FabricAdapter } from "../adapters/FabricAdapter.js";
+import { getViewAspectRatio, getViewPrintAreas, getViewPrintSurface } from "../contracts/printSurface.js";
 
 function percentage(value) {
   return `${value * 100}%`;
@@ -27,6 +28,8 @@ export function EditableDesignStage({
   const selectedIdsRef = useRef(selectedElementIds);
   const callbacksRef = useRef({ onSelectionChange, onElementChange, onElementsChange, onViewportChange, onError });
   const view = template.views.find((candidate) => candidate.id === activeViewId) || template.views[0];
+  const printAreas = getViewPrintAreas(template, view);
+  const unifiedSurface = Boolean(getViewPrintSurface(template, view));
 
   useEffect(() => {
     callbacksRef.current = { onSelectionChange, onElementChange, onElementsChange, onViewportChange, onError };
@@ -100,15 +103,15 @@ export function EditableDesignStage({
     <figure className="min-w-0">
       <div
         className="relative mx-auto w-full max-w-[46rem] overflow-hidden rounded-xl border bg-muted/35 shadow-inner"
-        style={{ aspectRatio: view.canvas.aspectRatio }}
+        style={{ aspectRatio: getViewAspectRatio(template, view) }}
       >
         <div aria-hidden="true" className="absolute inset-0 opacity-45 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [background-size:24px_24px]" />
-        <div ref={surfaceRef} className="absolute inset-3 overflow-hidden rounded-lg border bg-white text-zinc-950 sm:inset-5">
-          <canvas ref={canvasRef} role="img" aria-label={`${view.label}. Lienzo de edición con ${view.printAreas.length} área imprimible.`} />
+        <div ref={surfaceRef} className={`absolute overflow-hidden rounded-lg border bg-white text-zinc-950 ${unifiedSurface ? "inset-0" : "inset-3 sm:inset-5"}`}>
+          <canvas ref={canvasRef} role="img" aria-label={`${view.label}. Lienzo de edición con ${printAreas.length} área imprimible.`} />
           <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border bg-card/95 px-2 py-1 text-[11px] font-semibold text-muted-foreground">
             {view.surface?.label || view.label}
           </div>
-          {view.printAreas.map((area) => (
+          {printAreas.map((area) => (
             <div
               key={area.id}
               aria-hidden="true"

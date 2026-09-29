@@ -1,17 +1,17 @@
 import { PRODUCT_TEMPLATE_IDS } from "./templateCatalog.js";
 
-const WRAP_PRINT_AREA = Object.freeze({
+export const MUG_WRAP_PRINT_SURFACE = Object.freeze({
+  schemaVersion: 1,
   id: "wrap-main",
-  label: "Área editorial envolvente",
-  x: 0.08,
-  y: 0.14,
-  width: 0.84,
-  height: 0.72,
-  shape: { type: "rect" },
-  clip: { enabled: true, type: "shape" },
+  label: "Superficie imprimible envolvente",
+  coordinateSystem: "normalized-0-1",
+  aspectRatio: 2.1,
+  previewTextureResolution: { width: 1008, height: 480 },
   safeArea: null,
   bleed: null,
   physicalSize: null,
+  restrictedZones: [],
+  orientation: { topology: "wrap", horizontal: "left-to-right", vertical: "top-to-bottom", front: "center", seam: "horizontal-edges" },
   constraints: {
     allowedElementTypes: ["text", "image", "shape"],
     minScale: null,
@@ -26,6 +26,7 @@ export const MUG_CERAMIC_STANDARD_V1_TEMPLATE = Object.freeze({
   templateRevision: 1,
   productType: "mug",
   label: "Taza cerámica personalizada",
+  printSurfaces: [MUG_WRAP_PRINT_SURFACE],
   editor: {
     coordinateSystem: "normalized-print-area",
     background: "neutral-grid",
@@ -35,11 +36,10 @@ export const MUG_CERAMIC_STANDARD_V1_TEMPLATE = Object.freeze({
     {
       id: "wrap",
       label: "Diseño envolvente",
-      canvas: { aspectRatio: 1.8 },
+      printSurfaceId: MUG_WRAP_PRINT_SURFACE.id,
       surface: { label: "Vista editorial 2D · sin escala de producción", tone: "light" },
-      printAreas: [WRAP_PRINT_AREA],
     },
   ],
   mockups: ["mug-white-basic-v1"],
-  threeD: { modelId: "mug-development-v1" },
+  threeD: { profileId: "mug-11oz-v1" },
 });

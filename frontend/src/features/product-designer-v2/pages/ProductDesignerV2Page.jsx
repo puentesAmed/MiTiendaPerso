@@ -9,6 +9,7 @@ import { PageContainer } from "@/components/ui/PageContainer";
 import { apiGetProductById } from "@/services/products.service";
 import { createDesignDocument } from "../contracts/designDocument.js";
 import { validateProductTemplate } from "../contracts/productTemplate.js";
+import { getViewAspectRatio, getViewPrintAreas } from "../contracts/printSurface.js";
 import { DesignerV2Shell } from "../components/DesignerV2Shell.jsx";
 import { DraftRecoveryDialog } from "../components/DraftRecoveryDialog.jsx";
 import { designerV2Reducer, initialDesignerV2State } from "../state/designerV2Reducer.js";
@@ -26,7 +27,7 @@ import { getMockupDefinition, isMockupModeAvailable } from "../mockups/mockupCat
 import { createMockupFingerprintInput, deriveMockupStatus, hashMockupFingerprint } from "../mockups/mockupState.js";
 import { renderPreviewArtwork } from "../mockups/ArtworkRenderer.js";
 import { requestMockup } from "../mockups/mockups.service.js";
-import { getThreeDManifestForTemplate, isThreeDModeAvailable } from "../three/threeModelRegistry.js";
+import { getProduct3DProfileForTemplate, isThreeDModeAvailable } from "../three/threeModelRegistry.js";
 
 const statusCopy = {
   disabled: ["Designer V2 no disponible", "Activa VITE_PRODUCT_DESIGNER_V2_ENABLED para acceder a esta foundation."],
@@ -67,7 +68,7 @@ export function ProductDesignerV2Page() {
   }, [assetRegistry, autosaveScheduler]);
 
   const mockupDefinition = useMemo(() => getMockupDefinition(state.asyncState.template), [state.asyncState.template]);
-  const threeDManifest = useMemo(() => getThreeDManifestForTemplate(state.asyncState.template), [state.asyncState.template]);
+  const product3DProfile = useMemo(() => getProduct3DProfileForTemplate(state.asyncState.template), [state.asyncState.template]);
   const mockupFingerprintInput = useMemo(() => {
     if (!mockupDefinition || !state.documentState.document || !state.asyncState.template) return "";
     return createMockupFingerprintInput({ document: state.documentState.document, template: state.asyncState.template, definition: mockupDefinition });
@@ -265,7 +266,7 @@ export function ProductDesignerV2Page() {
       }
       assetRegistry.registerBlob(asset.assetId, blob);
       const activeView = state.asyncState.template.views.find((view) => view.id === state.sessionState.activeViewId);
-      const activeArea = activeView.printAreas.find((area) => area.id === state.sessionState.activePrintAreaId);
+      const activeArea = getViewPrintAreas(state.asyncState.template, activeView).find((area) => area.id === state.sessionState.activePrintAreaId);
       dispatch({
         type: "image-added",
         payload: {
@@ -273,7 +274,7 @@ export function ProductDesignerV2Page() {
           printAreaId: state.sessionState.activePrintAreaId,
           asset,
           aspectRatio: asset.widthPx / asset.heightPx,
-          printAreaAspectRatio: (activeArea.width * activeView.canvas.aspectRatio) / activeArea.height,
+          printAreaAspectRatio: (activeArea.width * getViewAspectRatio(state.asyncState.template, activeView)) / activeArea.height,
         },
       });
     } catch (error) {
@@ -422,7 +423,7 @@ export function ProductDesignerV2Page() {
       mockupResult={mockupState.result}
       mockupError={mockupState.error}
       threeDAvailable={isThreeDModeAvailable(state.asyncState.template)}
-      threeDManifest={threeDManifest}
+      product3DProfile={product3DProfile}
       dirty={state.sessionState.dirty}
       saveStatus={state.sessionState.saveStatus}
       saveError={state.sessionState.saveError}

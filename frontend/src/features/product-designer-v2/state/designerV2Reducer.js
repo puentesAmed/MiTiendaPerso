@@ -1,5 +1,6 @@
 import { addImage, addText, deleteElements, duplicateElement, moveElementLayer, updateElement, updateElements } from "../domain/designDocumentActions.js";
 import { createDocumentHistory, pushDocument, redoDocument, undoDocument } from "./documentHistory.js";
+import { getViewPrintAreas } from "../contracts/printSurface.js";
 
 export const initialDesignerV2State = Object.freeze({
   documentState: { document: null },
@@ -42,7 +43,7 @@ export function designerV2Reducer(state, action) {
       const document = action.payload.document;
       return {
         documentState: { document },
-        sessionState: { ...initialDesignerV2State.sessionState, activeViewId: action.payload.template.views[0].id, activePrintAreaId: action.payload.template.views[0].printAreas[0].id },
+        sessionState: { ...initialDesignerV2State.sessionState, activeViewId: action.payload.template.views[0].id, activePrintAreaId: getViewPrintAreas(action.payload.template, action.payload.template.views[0])[0].id },
         historyState: createDocumentHistory(document),
         asyncState: { status: "ready", product: action.payload.product, template: action.payload.template, assets: action.payload.assets ?? null, error: null },
       };
@@ -56,13 +57,13 @@ export function designerV2Reducer(state, action) {
         ...state,
         documentState: { document },
         historyState: createDocumentHistory(document),
-        sessionState: { ...initialDesignerV2State.sessionState, activeViewId: view.id, activePrintAreaId: view.printAreas[0].id, savedDocument: action.payload.savedAt ? document : null, saveStatus: action.payload.savedAt ? "clean" : "idle", lastSavedAt: action.payload.savedAt ?? null },
+        sessionState: { ...initialDesignerV2State.sessionState, activeViewId: view.id, activePrintAreaId: getViewPrintAreas(state.asyncState.template, view)[0].id, savedDocument: action.payload.savedAt ? document : null, saveStatus: action.payload.savedAt ? "clean" : "idle", lastSavedAt: action.payload.savedAt ?? null },
       };
     }
     case "view-selected": {
       const view = state.asyncState.template?.views.find((candidate) => candidate.id === action.payload);
       if (!view) return state;
-      return { ...state, historyState: { ...state.historyState, lastGroupKey: null }, sessionState: { ...state.sessionState, activeViewId: view.id, activePrintAreaId: view.printAreas[0].id, selectedElementIds: [] } };
+      return { ...state, historyState: { ...state.historyState, lastGroupKey: null }, sessionState: { ...state.sessionState, activeViewId: view.id, activePrintAreaId: getViewPrintAreas(state.asyncState.template, view)[0].id, selectedElementIds: [] } };
     }
     case "selection-changed": {
       const selectedElementIds = Array.isArray(action.payload) ? [...new Set(action.payload.filter(Boolean))] : action.payload ? [action.payload] : [];

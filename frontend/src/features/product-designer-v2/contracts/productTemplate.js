@@ -1,4 +1,5 @@
 import { DESIGN_ELEMENT_TYPES } from "./elementModel.js";
+import { validatePrintSurface } from "./printSurface.js";
 
 export const PRODUCT_TEMPLATE_SCHEMA_VERSION = 1;
 
@@ -47,6 +48,15 @@ export function validateProductTemplate(template) {
   if (!template.productType) errors.push("Falta productType.");
   if (!template.label) errors.push("Falta label.");
   if (template.editor?.coordinateSystem !== "normalized-print-area") errors.push("editor.coordinateSystem debe ser normalized-print-area.");
+  const printSurfaceIds = new Set();
+  if (template.printSurfaces !== undefined) {
+    if (!Array.isArray(template.printSurfaces) || template.printSurfaces.length === 0) errors.push("printSurfaces debe contener superficies.");
+    else template.printSurfaces.forEach((surface) => {
+      errors.push(...validatePrintSurface(surface).errors.map((error) => `PrintSurface ${surface?.id || "sin id"}: ${error}`));
+      if (printSurfaceIds.has(surface?.id)) errors.push(`PrintSurface duplicada: ${surface.id}.`);
+      printSurfaceIds.add(surface?.id);
+    });
+  }
   if (!Array.isArray(template.views) || template.views.length === 0) {
     errors.push("ProductTemplate necesita al menos una vista.");
   } else {
@@ -56,8 +66,12 @@ export function validateProductTemplate(template) {
       if (!view?.label) errors.push(`Vista ${view?.id || "sin id"}: falta label.`);
       if (viewIds.has(view?.id)) errors.push(`Vista duplicada: ${view.id}.`);
       viewIds.add(view?.id);
-      if (!Number.isFinite(view?.canvas?.aspectRatio) || view.canvas.aspectRatio <= 0) errors.push(`Vista ${view?.id || "sin id"}: aspectRatio inválido.`);
-      if (!Array.isArray(view?.printAreas) || view.printAreas.length === 0) {
+      if (view?.printSurfaceId) {
+        if (!printSurfaceIds.has(view.printSurfaceId)) errors.push(`Vista ${view?.id || "sin id"}: PrintSurface no registrada.`);
+      } else if (!Number.isFinite(view?.canvas?.aspectRatio) || view.canvas.aspectRatio <= 0) errors.push(`Vista ${view?.id || "sin id"}: aspectRatio inválido.`);
+      if (view?.printSurfaceId) {
+        if (view.printAreas || view.canvas) errors.push(`Vista ${view.id}: no debe duplicar geometría de PrintSurface.`);
+      } else if (!Array.isArray(view?.printAreas) || view.printAreas.length === 0) {
         errors.push(`Vista ${view?.id || "sin id"}: necesita al menos un print area.`);
       } else {
         view.printAreas.forEach((printArea) => errors.push(...validatePrintArea(printArea, view.id)));
@@ -66,7 +80,7 @@ export function validateProductTemplate(template) {
   }
   if (!Array.isArray(template.mockups)) errors.push("mockups debe ser un array.");
   if (!("threeD" in template)) errors.push("Falta threeD.");
-  else if (template.threeD !== null && (typeof template.threeD !== "object" || typeof template.threeD.modelId !== "string" || !template.threeD.modelId.trim())) errors.push("threeD.modelId debe ser un identificador registrado.");
+  else if (template.threeD !== null && (typeof template.threeD !== "object" || typeof template.threeD.profileId !== "string" || !template.threeD.profileId.trim())) errors.push("threeD.profileId debe ser un identificador registrado.");
 
   return { valid: errors.length === 0, errors };
 }
