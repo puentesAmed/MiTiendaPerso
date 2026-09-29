@@ -72,6 +72,9 @@ export function designerV2Reducer(state, action) {
       return { ...state, historyState: { ...state.historyState, lastGroupKey: null }, sessionState: { ...state.sessionState, activePrintAreaId: action.payload } };
     case "viewport-changed":
       return { ...state, historyState: { ...state.historyState, lastGroupKey: null }, sessionState: { ...state.sessionState, zoom: action.payload.zoom, pan: action.payload.pan } };
+    case "mode-changed":
+      if (!["design", "mockup", "three-d"].includes(action.payload)) return state;
+      return { ...state, sessionState: { ...state.sessionState, mode: action.payload, selectedElementIds: action.payload === "design" ? state.sessionState.selectedElementIds : [] } };
     case "text-added": {
       const result = addText(state.documentState.document, action.payload);
       return commitDocument(state, result.document, { selectedElementIds: [result.element.id] });

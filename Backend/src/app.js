@@ -13,6 +13,7 @@ import { customizationRoutes } from "./routes/customizations.routes.js";
 import { shippingRoutes } from "./routes/shipping.routes.js";
 import checkoutRoutes from "./routes/checkout.routes.js";
 import paymentsRouter from "./routes/payments.routes.js";
+import { designerV2MockupsRouter } from "./routes/designer-v2-mockups.routes.js";
 
 export function createApp() {
   const app = express();
@@ -64,6 +65,7 @@ export function createApp() {
   app.use("/api/orders/track", publicActionLimiter);
   app.use("/api/checkout/shipping-options", publicActionLimiter);
   app.use("/api/payments/monei/create", publicActionLimiter);
+  app.use("/api/designer-v2/mockups", publicActionLimiter);
 
   app.use("/uploads", publicUploadsRouter);
 
@@ -74,6 +76,7 @@ export function createApp() {
   app.use("/api/customizations", customizationRoutes);
   app.use("/api/shipping", shippingRoutes);
   app.use("/api/payments", paymentsRouter);
+  app.use("/api/designer-v2/mockups", designerV2MockupsRouter);
   if (env.DROPSHIPPING_ENABLED) {
     app.use("/api/checkout", checkoutRoutes);
   }

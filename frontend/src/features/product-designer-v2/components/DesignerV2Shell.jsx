@@ -1,12 +1,15 @@
-import { createElement } from "react";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Box, Copy, Ellipsis, Eye, EyeOff, Image, Layers3, Lock, Minus, MousePointer2, PanelRight, Plus, Redo2, Save, Shapes, Trash2, Type, Undo2, Unlock } from "lucide-react";
+import { createElement, lazy, Suspense } from "react";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Box, Boxes, Copy, Ellipsis, Eye, EyeOff, Image, Layers3, Lock, Minus, MousePointer2, PanelRight, Plus, Redo2, Save, Shapes, Trash2, Type, Undo2, Unlock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { EditableDesignStage } from "./EditableDesignStage.jsx";
+import { MockupPanel } from "./MockupPanel.jsx";
 import { isElementOutOfBounds } from "../domain/designDocumentActions.js";
+
+const ThreeProductPreview = lazy(() => import("./ThreeProductPreview.jsx").then((module) => ({ default: module.ThreeProductPreview })));
 
 function ToolButtons({ mobile = false, onAddText, onChooseImage }) {
   const tools = [
@@ -140,7 +143,7 @@ function MobileToolbar({ elements, layers, properties, saveStatus, onAddText, on
   );
 }
 
-export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, dirty, saveStatus, saveError, saveConflict, lastSavedAt, canUndo, canRedo, assetRegistry, editorError, onSelectView, onSelectElement, onAddText, onChooseImage, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onSaveNow, onReloadStored, onOverwriteStored, onZoomChange, onViewportChange, onEditorError, onBack }) {
+export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, mode, mockupAvailable, mockupStatus, mockupResult, mockupError, threeDAvailable, threeDManifest, dirty, saveStatus, saveError, saveConflict, lastSavedAt, canUndo, canRedo, assetRegistry, editorError, onSelectView, onSelectMode, onGenerateMockup, onSelectElement, onAddText, onChooseImage, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onSaveNow, onReloadStored, onOverwriteStored, onZoomChange, onViewportChange, onEditorError, onBack }) {
   const view = template.views.find((candidate) => candidate.id === activeViewId) || template.views[0];
   const elements = document.views[view.id]?.elements || [];
   const selectedElements = elements.filter((element) => selectedElementIds.includes(element.id));
@@ -162,20 +165,20 @@ export function DesignerV2Shell({ product, template, document, activeViewId, act
         {editorError ? <div className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">{editorError}</div> : null}
         {saveError ? <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert"><span className="flex-1">{saveError}</span>{saveConflict ? <><Button type="button" variant="outline" size="sm" onClick={onReloadStored}>Recargar copia guardada</Button><Button type="button" variant="destructive" size="sm" onClick={onOverwriteStored}>Sobrescribir</Button></> : <Button type="button" variant="outline" size="sm" onClick={onSaveNow}>Reintentar</Button>}</div> : null}
 
-        <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-[13rem_minmax(0,1fr)_16rem]">
+        {mode === "design" ? <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-[13rem_minmax(0,1fr)_16rem]">
           <aside className="hidden space-y-5 rounded-xl border bg-card p-3 lg:block" aria-label="Herramientas y capas"><div><p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Herramientas</p><ToolButtons onAddText={onAddText} onChooseImage={onChooseImage} /></div><LayersPanel {...layers} /></aside>
           <section className="min-w-0 rounded-xl border bg-card p-3 sm:p-4" aria-labelledby="canvas-title">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div className="min-w-0"><h2 id="canvas-title" className="text-sm font-semibold">Lienzo</h2><p className="truncate text-xs text-muted-foreground">{template.label}{zoom > 1 ? " · Espacio + arrastre para desplazar" : ""}</p></div><ZoomControls zoom={zoom} onZoomChange={onZoomChange} /></div>
             <EditableDesignStage template={template} document={document} activeViewId={activeViewId} selectedElementIds={selectedElementIds} zoom={zoom} pan={pan} assetRegistry={assetRegistry} outOfBounds={outOfBounds} onSelectionChange={onSelectElement} onElementChange={onUpdateElement} onElementsChange={onUpdateElements} onViewportChange={onViewportChange} onError={onEditorError} />
           </section>
           <aside className="hidden rounded-xl border bg-card p-3 lg:block" aria-label="Propiedades"><PropertiesPanel {...properties} /></aside>
-        </div>
+        </div> : mode === "mockup" ? <div className="mt-3"><MockupPanel status={mockupStatus} result={mockupResult} error={mockupError} onGenerate={onGenerateMockup} /></div> : <div className="mt-3"><Suspense fallback={<div className="flex min-h-[22rem] items-center justify-center rounded-xl border bg-card text-sm" role="status">Cargando motor 3D…</div>}><ThreeProductPreview manifest={threeDManifest} document={document} template={template} assetRegistry={assetRegistry} onBackToDesign={() => onSelectMode("design")} onShowMockup={mockupAvailable ? () => onSelectMode("mockup") : null} /></Suspense></div>}
 
-        <MobileToolbar elements={elements} layers={layers} properties={properties} saveStatus={saveStatus} onAddText={onAddText} onChooseImage={onChooseImage} onSaveNow={onSaveNow} />
+        {mode === "design" ? <MobileToolbar elements={elements} layers={layers} properties={properties} saveStatus={saveStatus} onAddText={onAddText} onChooseImage={onChooseImage} onSaveNow={onSaveNow} /> : null}
 
         <footer className="mt-3 grid min-w-0 gap-3 rounded-xl border bg-card p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <div className="min-w-0"><p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Vistas</p><div className="flex min-w-0 gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Vistas del producto">{template.views.map((candidate) => { const count = document.views[candidate.id]?.elements.length || 0; return <button key={candidate.id} type="button" role="tab" aria-selected={activeViewId === candidate.id} onClick={() => onSelectView(candidate.id)} className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeViewId === candidate.id ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}>{candidate.label} <span aria-label={`${count} elementos`}>({count})</span></button>; })}</div></div>
-          <div><p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Modo</p><div className="flex gap-1 rounded-lg border bg-muted/35 p-1" role="tablist" aria-label="Modos del diseñador"><Button type="button" size="sm" variant="secondary" role="tab" aria-selected="true"><MousePointer2 aria-hidden="true" /> Design</Button><Button type="button" size="sm" variant="ghost" role="tab" disabled aria-label="Mockup próximamente"><Box aria-hidden="true" /> Mockup</Button></div></div>
+          <div><p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Modo</p><div className="flex gap-1 rounded-lg border bg-muted/35 p-1" role="tablist" aria-label="Modos del diseñador"><Button type="button" size="sm" variant={mode === "design" ? "secondary" : "ghost"} role="tab" aria-selected={mode === "design"} onClick={() => onSelectMode("design")}><MousePointer2 aria-hidden="true" /> Design</Button><Button type="button" size="sm" variant={mode === "mockup" ? "secondary" : "ghost"} role="tab" aria-selected={mode === "mockup"} disabled={!mockupAvailable} aria-label={mockupAvailable ? "Abrir modo Mockup" : "Mockup no disponible para este producto"} onClick={() => onSelectMode("mockup")}><Box aria-hidden="true" /> Mockup</Button>{threeDAvailable ? <Button type="button" size="sm" variant={mode === "three-d" ? "secondary" : "ghost"} role="tab" aria-selected={mode === "three-d"} aria-label="Abrir preview 3D" onClick={() => onSelectMode("three-d")}><Boxes aria-hidden="true" /> 3D</Button> : null}</div></div>
         </footer>
       </div>
     </main>

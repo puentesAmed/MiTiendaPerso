@@ -251,6 +251,36 @@ export class FabricAdapter {
     this.canvas.defaultCursor = enabled ? "grab" : "default";
   }
 
+  async exportPng({ left, top, width, height }) {
+    if (![left, top, width, height].every(Number.isFinite) || width <= 0 || height <= 0) throw new Error("Área de exportación inválida.");
+    this.canvas.discardActiveObject();
+    const viewportTransform = this.canvas.viewportTransform;
+    this.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    this.canvas.requestRenderAll();
+    try {
+      const blob = await this.canvas.toBlob({ format: "png", left, top, width, height, multiplier: 1 });
+      if (!blob) throw new Error("No se pudo exportar el artwork.");
+      return blob;
+    } finally {
+      this.canvas.setViewportTransform(viewportTransform || [1, 0, 0, 1, 0, 0]);
+      this.canvas.requestRenderAll();
+    }
+  }
+
+  exportCanvas({ left, top, width, height }) {
+    if (![left, top, width, height].every(Number.isFinite) || width <= 0 || height <= 0) throw new Error("Área de exportación inválida.");
+    this.canvas.discardActiveObject();
+    const viewportTransform = this.canvas.viewportTransform;
+    this.canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    this.canvas.requestRenderAll();
+    try {
+      return this.canvas.toCanvasElement(1, { left, top, width, height });
+    } finally {
+      this.canvas.setViewportTransform(viewportTransform || [1, 0, 0, 1, 0, 0]);
+      this.canvas.requestRenderAll();
+    }
+  }
+
   startPan(event) {
     if (!this.panEnabled || this.viewport.zoom <= 1) return;
     this.panning = { x: event.clientX, y: event.clientY, pan: { ...this.viewport.pan } };

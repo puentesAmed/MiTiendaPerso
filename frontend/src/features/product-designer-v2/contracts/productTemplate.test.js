@@ -16,8 +16,8 @@ test("template piloto de taza cumple contrato sin inventar geometría física", 
   assert.equal(printArea.physicalSize, null);
   assert.equal(printArea.safeArea, null);
   assert.equal(printArea.bleed, null);
-  assert.equal(MUG_CERAMIC_STANDARD_V1_TEMPLATE.mockups.length, 0);
-  assert.equal(MUG_CERAMIC_STANDARD_V1_TEMPLATE.threeD, null);
+  assert.deepEqual(MUG_CERAMIC_STANDARD_V1_TEMPLATE.mockups, ["mug-white-basic-v1"]);
+  assert.deepEqual(MUG_CERAMIC_STANDARD_V1_TEMPLATE.threeD, { modelId: "mug-development-v1" });
 });
 
 test("ProductTemplate inválido devuelve errores explícitos", () => {

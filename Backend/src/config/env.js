@@ -22,6 +22,7 @@ const isEnabled = (key) =>
 
 const ALIEXPRESS_CATALOG_ENABLED = isEnabled('ALIEXPRESS_CATALOG_ENABLED');
 const DROPSHIPPING_ENABLED = isEnabled('DROPSHIPPING_ENABLED');
+const MOCKUP_ENGINE_ENABLED = isEnabled('MOCKUP_ENGINE_ENABLED');
 const MONEI_ENABLED = isEnabled('MONEI_ENABLED');
 const MANUAL_PAYMENT_BIZUM_ENABLED = isEnabled(
   'MANUAL_PAYMENT_BIZUM_ENABLED'
@@ -137,6 +138,13 @@ export const env = {
   STORAGE_ROOT: CONFIGURED_STORAGE_ROOT || path.resolve(process.cwd(), 'uploads'),
   ALIEXPRESS_CATALOG_ENABLED,
   DROPSHIPPING_ENABLED,
+  MOCKUP_ENGINE: {
+    enabled: MOCKUP_ENGINE_ENABLED,
+    python: (process.env.MOCKUP_ENGINE_PYTHON || 'python').trim(),
+    root: (process.env.MOCKUP_ENGINE_ROOT || '').trim(),
+    timeoutMs: Math.min(60_000, Math.max(1_000, Number(process.env.MOCKUP_ENGINE_TIMEOUT_MS) || 15_000)),
+    maxConcurrency: 2,
+  },
   MONEI_ENABLED,
   MONGO_URI_ALIEXPRESS: process.env.MONGO_URI_ALIEXPRESS,
   DROPSHIPPING_API_URL: process.env.DROPSHIPPING_API_URL,

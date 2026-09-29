@@ -81,4 +81,18 @@ publicUploadsRouter.get("/customizations/:filename", async (req, res, next) => {
   }
 });
 
+publicUploadsRouter.get("/designer-v2/mockups/:filename", async (req, res, next) => {
+  const { filename } = req.params;
+  if (!/^[a-f0-9]{64}\.png$/.test(filename)) return res.status(404).json({ ok: false, message: "Archivo no encontrado" });
+  try {
+    const key = `designer-v2/mockups/${filename}`;
+    if (!(await storageProvider.exists(key))) return res.status(404).json({ ok: false, message: "Archivo no encontrado" });
+    return res.sendFile(storageProvider.resolve(key), (error) => {
+      if (error && !res.headersSent) next(error);
+    });
+  } catch {
+    return res.status(404).json({ ok: false, message: "Archivo no encontrado" });
+  }
+});
+
 export { publicUploadsRouter, uploadRouter };

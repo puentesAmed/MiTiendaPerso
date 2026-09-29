@@ -74,3 +74,22 @@ test("recovery inicializa historial limpio sin persistir session state", () => {
   assert.equal(state.sessionState.zoom, 1);
   assert.equal(state.sessionState.dirty, false);
 });
+
+test("modo Mockup es session state y no altera documento ni historial", () => {
+  const document = createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1" });
+  const ready = designerV2Reducer(initialDesignerV2State, { type: "ready", payload: { product: {}, template: GENERIC_FLAT_DEMO_TEMPLATE, document } });
+  const next = designerV2Reducer(ready, { type: "mode-changed", payload: "mockup" });
+  assert.equal(next.sessionState.mode, "mockup");
+  assert.equal(next.documentState.document, ready.documentState.document);
+  assert.equal(next.historyState, ready.historyState);
+});
+
+test("modo 3D es derivado, no altera documento/history y rechaza modos desconocidos", () => {
+  const document = createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1" });
+  const ready = designerV2Reducer(initialDesignerV2State, { type: "ready", payload: { product: {}, template: GENERIC_FLAT_DEMO_TEMPLATE, document } });
+  const threeD = designerV2Reducer(ready, { type: "mode-changed", payload: "three-d" });
+  assert.equal(threeD.sessionState.mode, "three-d");
+  assert.equal(threeD.documentState.document, document);
+  assert.equal(threeD.historyState, ready.historyState);
+  assert.equal(designerV2Reducer(threeD, { type: "mode-changed", payload: "unknown" }), threeD);
+});

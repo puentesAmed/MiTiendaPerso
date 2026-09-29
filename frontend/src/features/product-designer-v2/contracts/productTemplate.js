@@ -66,6 +66,7 @@ export function validateProductTemplate(template) {
   }
   if (!Array.isArray(template.mockups)) errors.push("mockups debe ser un array.");
   if (!("threeD" in template)) errors.push("Falta threeD.");
+  else if (template.threeD !== null && (typeof template.threeD !== "object" || typeof template.threeD.modelId !== "string" || !template.threeD.modelId.trim())) errors.push("threeD.modelId debe ser un identificador registrado.");
 
   return { valid: errors.length === 0, errors };
 }

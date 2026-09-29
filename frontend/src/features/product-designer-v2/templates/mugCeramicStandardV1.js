@@ -40,6 +40,6 @@ export const MUG_CERAMIC_STANDARD_V1_TEMPLATE = Object.freeze({
       printAreas: [WRAP_PRINT_AREA],
     },
   ],
-  mockups: [],
-  threeD: null,
+  mockups: ["mug-white-basic-v1"],
+  threeD: { modelId: "mug-development-v1" },
 });

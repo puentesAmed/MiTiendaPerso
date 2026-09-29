@@ -22,6 +22,11 @@ import { createDraft } from "../persistence/draftModel.js";
 import { createAutosaveScheduler } from "../persistence/autosaveScheduler.js";
 import { garbageCollectAssets } from "../persistence/assetReferences.js";
 import { createDraftReferenceKey, findDraftReference } from "../persistence/draftReferences.js";
+import { getMockupDefinition, isMockupModeAvailable } from "../mockups/mockupCatalog.js";
+import { createMockupFingerprintInput, deriveMockupStatus, hashMockupFingerprint } from "../mockups/mockupState.js";
+import { renderPreviewArtwork } from "../mockups/ArtworkRenderer.js";
+import { requestMockup } from "../mockups/mockups.service.js";
+import { getThreeDManifestForTemplate, isThreeDModeAvailable } from "../three/threeModelRegistry.js";
 
 const statusCopy = {
   disabled: ["Designer V2 no disponible", "Activa VITE_PRODUCT_DESIGNER_V2_ENABLED para acceder a esta foundation."],
@@ -41,6 +46,7 @@ export function ProductDesignerV2Page() {
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryError, setRecoveryError] = useState("");
   const [recoveryCompatible, setRecoveryCompatible] = useState(true);
+  const [mockupState, setMockupState] = useState({ loading: false, result: null, error: "" });
   const assetRegistry = useMemo(() => createRuntimeAssetRegistry(), []);
   const storage = useMemo(() => createIndexedDbStorage(), []);
   const draftRepository = useMemo(() => createDraftRepository(storage), [storage]);
@@ -51,16 +57,31 @@ export function ProductDesignerV2Page() {
   const saveQueueRef = useRef(Promise.resolve());
   const historyRef = useRef(state.historyState);
   const saveHandlerRef = useRef(null);
+  const mockupAbortRef = useRef(null);
   const autosaveScheduler = useMemo(() => createAutosaveScheduler((document) => saveHandlerRef.current?.(document)), []);
 
   useEffect(() => () => {
     autosaveScheduler.cancel();
+    mockupAbortRef.current?.abort();
     assetRegistry.dispose();
   }, [assetRegistry, autosaveScheduler]);
+
+  const mockupDefinition = useMemo(() => getMockupDefinition(state.asyncState.template), [state.asyncState.template]);
+  const threeDManifest = useMemo(() => getThreeDManifestForTemplate(state.asyncState.template), [state.asyncState.template]);
+  const mockupFingerprintInput = useMemo(() => {
+    if (!mockupDefinition || !state.documentState.document || !state.asyncState.template) return "";
+    return createMockupFingerprintInput({ document: state.documentState.document, template: state.asyncState.template, definition: mockupDefinition });
+  }, [mockupDefinition, state.asyncState.template, state.documentState.document]);
+  const mockupStatus = deriveMockupStatus({ ...mockupState, currentFingerprintInput: mockupFingerprintInput });
 
   useEffect(() => {
     historyRef.current = state.historyState;
   }, [state.historyState]);
+
+  useEffect(() => {
+    mockupAbortRef.current?.abort();
+    setMockupState({ loading: false, result: null, error: "" });
+  }, [productId]);
 
   useEffect(() => {
     let active = true;
@@ -306,6 +327,27 @@ export function ProductDesignerV2Page() {
     dispatch({ type: "viewport-changed", payload: { zoom: nextZoom, pan: nextZoom === 1 ? { x: 0, y: 0 } : state.sessionState.pan } });
   }, [state.sessionState.pan]);
 
+  const handleGenerateMockup = useCallback(async () => {
+    if (!mockupDefinition) return;
+    mockupAbortRef.current?.abort();
+    const controller = new AbortController();
+    mockupAbortRef.current = controller;
+    setMockupState((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const fingerprintInput = createMockupFingerprintInput({ document: state.documentState.document, template: state.asyncState.template, definition: mockupDefinition });
+      const [artwork, documentHash] = await Promise.all([
+        renderPreviewArtwork({ document: state.documentState.document, template: state.asyncState.template, sourceViewId: mockupDefinition.sourceViewId, assetRegistry, previewWidth: mockupDefinition.previewWidth }),
+        hashMockupFingerprint(fingerprintInput),
+      ]);
+      const result = await requestMockup({ artwork, templateId: state.asyncState.template.templateId, definition: mockupDefinition, signal: controller.signal });
+      if (!controller.signal.aborted) setMockupState({ loading: false, error: "", result: { ...result, documentHash, fingerprintInput } });
+    } catch (error) {
+      if (!controller.signal.aborted) setMockupState((current) => ({ ...current, loading: false, error: error.message || "No se pudo generar el mockup." }));
+    } finally {
+      if (mockupAbortRef.current === controller) mockupAbortRef.current = null;
+    }
+  }, [assetRegistry, mockupDefinition, state.asyncState.template, state.documentState.document]);
+
   useEffect(() => {
     const onKeyDown = (event) => {
       const target = event.target;
@@ -374,6 +416,13 @@ export function ProductDesignerV2Page() {
       selectedElementIds={state.sessionState.selectedElementIds}
       zoom={state.sessionState.zoom}
       pan={state.sessionState.pan}
+      mode={state.sessionState.mode}
+      mockupAvailable={isMockupModeAvailable(state.asyncState.template)}
+      mockupStatus={mockupStatus}
+      mockupResult={mockupState.result}
+      mockupError={mockupState.error}
+      threeDAvailable={isThreeDModeAvailable(state.asyncState.template)}
+      threeDManifest={threeDManifest}
       dirty={state.sessionState.dirty}
       saveStatus={state.sessionState.saveStatus}
       saveError={state.sessionState.saveError}
@@ -384,6 +433,8 @@ export function ProductDesignerV2Page() {
       assetRegistry={assetRegistry}
       editorError={editorError}
       onSelectView={(viewId) => dispatch({ type: "view-selected", payload: viewId })}
+      onSelectMode={(mode) => dispatch({ type: "mode-changed", payload: mode })}
+      onGenerateMockup={handleGenerateMockup}
       onSelectElement={(elementId) => dispatch({ type: "selection-changed", payload: elementId })}
       onAddText={handleAddText}
       onChooseImage={handleChooseImage}
