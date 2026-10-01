@@ -22,6 +22,7 @@ import { ProductGallery } from "../../components/ui/ProductGallery";
 import { Skeleton } from "../../components/ui/skeleton";
 import { isProductDesignerV2Enabled } from "../../features/product-designer-v2/utils/featureFlag";
 import { canUseProductDesignerV2 } from "../../features/product-designer-v2/templates/templateCatalog";
+import { buildDesignerV2Location, createDesignerVariantContext } from "../../features/product-designer-v2/domain/variantContext";
 
 function DetailSkeleton() {
   return (
@@ -145,6 +146,8 @@ export function ProductDetail() {
   const hasRequiredVariant =
     (availableSizes.length === 0 || Boolean(selectedSize)) &&
     (availableColors.length === 0 || Boolean(selectedColor));
+  const designerVariant = createDesignerVariantContext(product, { size: selectedSize, color: selectedColor });
+  const designerLocation = buildDesignerV2Location(productId, designerVariant);
 
   const aliAttributes = useMemo(() => {
     if (!isAliExpress || !Array.isArray(product?.variants)) return {};
@@ -317,7 +320,7 @@ export function ProductDetail() {
               <ShoppingCart aria-hidden="true" /> Añadir al carrito
             </Button>
 
-            {isCustomizable && (
+            {isCustomizable && (!hasDesignerV2Template || !isProductDesignerV2Enabled) && (
               canAddToCart && !isAliExpress ? (
                 <Button
                   as={Link}
@@ -336,19 +339,19 @@ export function ProductDetail() {
             )}
 
             {hasDesignerV2Template && isProductDesignerV2Enabled && (
-              canAddToCart && !isAliExpress ? (
+              canAddToCart && !isAliExpress && (!(availableSizes.length || availableColors.length) || designerVariant) ? (
                 <Button
                   as={Link}
-                  to={`/personalizar-v2/${productId}`}
-                  state={{ variant: selectedCanonicalVariant(), fromProductDetail: true }}
+                  to={designerLocation}
+                  state={{ variant: designerVariant, fromProductDetail: true }}
                   variant="secondary"
                   className="w-full"
                 >
-                  <Sparkles aria-hidden="true" /> Probar nuevo diseñador
+                  <Sparkles aria-hidden="true" /> Personalizar producto
                 </Button>
               ) : (
                 <Button type="button" variant="secondary" className="w-full" disabled>
-                  <Sparkles aria-hidden="true" /> Probar nuevo diseñador
+                  <Sparkles aria-hidden="true" /> Personalizar producto
                 </Button>
               )
             )}

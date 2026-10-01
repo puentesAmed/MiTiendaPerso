@@ -28,12 +28,14 @@ import { createMockupFingerprintInput, deriveMockupStatus, hashMockupFingerprint
 import { renderPreviewArtwork } from "../mockups/ArtworkRenderer.js";
 import { requestMockup } from "../mockups/mockups.service.js";
 import { getProduct3DProfileForTemplate, isThreeDModeAvailable } from "../three/threeModelRegistry.js";
+import { resolveDesignerVariantContext } from "../domain/variantContext.js";
 
 const statusCopy = {
   disabled: ["Designer V2 no disponible", "Activa VITE_PRODUCT_DESIGNER_V2_ENABLED para acceder a esta foundation."],
   "not-found": ["Producto no encontrado", "No existe un producto para esta ruta."],
   incompatible: ["Producto sin template compatible", "Este producto no tiene un productTemplateId registrado para Designer V2."],
   "invalid-template": ["Template inválido", "El ProductTemplate no supera la validación del contrato v1."],
+  "invalid-variant": ["Selecciona una variante", "Abre el diseñador desde la ficha y selecciona primero la talla y el color requeridos."],
   load: ["No se pudo abrir Designer V2", "No se pudo cargar el producto. Inténtalo de nuevo."],
 };
 
@@ -115,24 +117,32 @@ export function ProductDesignerV2Page() {
           dispatch({ type: "failed", payload: { product, error: { code: "invalid-template", details: validation.errors } } });
           return;
         }
+        const variant = resolveDesignerVariantContext(product, { search: location.search, stateVariant: location.state?.variant || null });
+        const requiresVariant = Boolean(product?.variants?.sizes?.length || product?.variants?.colors?.length);
+        if (requiresVariant && !variant) {
+          dispatch({ type: "failed", payload: { product, error: { code: "invalid-variant" } } });
+          return;
+        }
         const document = createDesignDocument({
           template,
           productId: product.id || product._id,
-          variant: location.state?.variant || null,
+          variant,
         });
         dispatch({ type: "ready", payload: { product, template, document } });
         try {
           const reference = findDraftReference(localStorage, document);
           if (!reference) return;
           recoveryReferenceKeyRef.current = reference.key;
-          const draft = await draftRepository.loadDraft(reference.draftId, { template, productId: document.productId });
+          const draft = await draftRepository.loadDraft(reference.draftId, { template, productId: document.productId, variant: document.variant });
           if (active && draft) setRecoveryDraft(draft);
         } catch (error) {
           if (!active) return;
           if (error instanceof IncompatibleDraftError) {
             setRecoveryDraft(error.draft);
             setRecoveryCompatible(false);
-            setRecoveryError("El diseño guardado no es compatible con esta versión. No se restaurará; puedes descartarlo explícitamente para empezar de nuevo.");
+            setRecoveryError(error.errors?.some((message) => message.includes("otra variante"))
+              ? "El diseño guardado pertenece a otra talla o color. No se restaurará sobre la variante actual; vuelve a abrir su variante original o empieza de nuevo explícitamente."
+              : "El diseño guardado no es compatible con esta versión. No se restaurará; puedes descartarlo explícitamente para empezar de nuevo.");
           }
           else setEditorError("No se puede guardar automáticamente en este dispositivo.");
         }
@@ -142,7 +152,7 @@ export function ProductDesignerV2Page() {
       });
 
     return () => { active = false; };
-  }, [draftRepository, location.state?.variant, productId]);
+  }, [draftRepository, location.search, location.state?.variant, productId]);
 
   const handleBack = () => {
     if (location.state?.fromProductDetail) navigate(-1);
@@ -216,7 +226,7 @@ export function ProductDesignerV2Page() {
     try {
       await draftRepository.deleteDraft(recoveryDraft.draftId);
       try { localStorage.removeItem(recoveryReferenceKeyRef.current || createDraftReferenceKey(state.documentState.document)); } catch { /* referencia opcional */ }
-      const document = createDesignDocument({ template: state.asyncState.template, productId: state.asyncState.product.id || state.asyncState.product._id, variant: location.state?.variant || null });
+      const document = createDesignDocument({ template: state.asyncState.template, productId: state.asyncState.product.id || state.asyncState.product._id, variant: state.documentState.document.variant });
       activeDraftRef.current = null;
       savedRevisionRef.current = null;
       dispatch({ type: "document-restored", payload: { document } });
@@ -228,7 +238,7 @@ export function ProductDesignerV2Page() {
     } finally {
       setRecoveryBusy(false);
     }
-  }, [assetRegistry, assetRepository, draftRepository, location.state?.variant, recoveryDraft, state.asyncState.product, state.asyncState.template, state.documentState.document]);
+  }, [assetRegistry, assetRepository, draftRepository, recoveryDraft, state.asyncState.product, state.asyncState.template, state.documentState.document]);
 
   const handleReloadStored = useCallback(async () => {
     const draftId = activeDraftRef.current?.draftId;

@@ -2,6 +2,18 @@ import { assertValidProductTemplate } from "./productTemplate.js";
 
 export const DESIGN_DOCUMENT_SCHEMA_VERSION = 1;
 
+function normalizeVariantContext(variant) {
+  if (!variant) return null;
+  const normalized = {
+    variantId: variant.variantId ?? null,
+    size: variant.size ?? null,
+    sizeId: variant.sizeId ?? null,
+    color: variant.color ?? null,
+    colorId: variant.colorId ?? null,
+  };
+  return Object.values(normalized).some(Boolean) ? normalized : null;
+}
+
 export function createDesignDocument({
   template,
   productId,
@@ -19,7 +31,7 @@ export function createDesignDocument({
     templateId: template.templateId,
     templateRevision: template.templateRevision,
     productId: String(productId),
-    variant: variant ? { size: variant.size ?? null, color: variant.color ?? null } : null,
+    variant: normalizeVariantContext(variant),
     assets: {},
     views: Object.fromEntries(template.views.map((view) => [view.id, { elements: [] }])),
     metadata: { createdAt: timestamp, updatedAt: timestamp },

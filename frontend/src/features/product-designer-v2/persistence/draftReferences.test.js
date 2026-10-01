@@ -15,12 +15,13 @@ const document = {
   productId: "product-1",
   templateId: "mug-ceramic-standard-v1",
   templateRevision: 1,
+  variant: { variantId: "white", sizeId: "m", colorId: "white" },
 };
 
 test("referencia exacta tiene prioridad", () => {
   const exactKey = createDraftReferenceKey(document);
   const storage = createStorage({
-    "designer-v2:draft-ref:product-1:generic-flat-demo:1": "draft-old",
+    "designer-v2:draft-ref:product-1:generic-flat-demo:1:default": "draft-old",
     [exactKey]: "draft-current",
   });
   assert.deepEqual(findDraftReference(storage, document), { key: exactKey, draftId: "draft-current", exact: true });

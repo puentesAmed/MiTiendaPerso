@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getViewAspectRatio, getViewPrintAreas, validatePrintSurface } from "./printSurface.js";
 import { MUG_CERAMIC_STANDARD_V1_TEMPLATE, MUG_WRAP_PRINT_SURFACE } from "../templates/mugCeramicStandardV1.js";
+import { TSHIRT_BACK_PRINT_SURFACE, TSHIRT_FRONT_PRINT_SURFACE, TSHIRT_LEFT_SLEEVE_PRINT_SURFACE, TSHIRT_RIGHT_SLEEVE_PRINT_SURFACE } from "../templates/tshirtBasicV1.js";
 
 test("PrintSurface de taza unifica ratio, resolución y geometría editable", () => {
   assert.deepEqual(validatePrintSurface(MUG_WRAP_PRINT_SURFACE), { valid: true, errors: [] });
@@ -25,4 +26,12 @@ test("PrintSurface rechaza resolución que no respeta su aspect ratio", () => {
   const result = validatePrintSurface({ ...MUG_WRAP_PRINT_SURFACE, previewTextureResolution: { width: 1000, height: 1000 } });
   assert.equal(result.valid, false);
   assert.match(result.errors.join(" "), /aspectRatio/);
+});
+
+test("cuatro PrintSurfaces garment validan máscara y panel UV derivado", () => {
+  [TSHIRT_FRONT_PRINT_SURFACE, TSHIRT_BACK_PRINT_SURFACE, TSHIRT_LEFT_SLEEVE_PRINT_SURFACE, TSHIRT_RIGHT_SLEEVE_PRINT_SURFACE].forEach((surface) => {
+    assert.deepEqual(validatePrintSurface(surface), { valid: true, errors: [] });
+    assert.equal(surface.regions.length, 1);
+    assert.equal(surface.regions[0].geometryRegionId, surface.id.replace("tshirt-", ""));
+  });
 });

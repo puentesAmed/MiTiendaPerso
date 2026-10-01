@@ -1,7 +1,11 @@
 const DRAFT_REFERENCE_PREFIX = "designer-v2:draft-ref:";
 
 export function createDraftReferenceKey(document) {
-  return `${DRAFT_REFERENCE_PREFIX}${document.productId}:${document.templateId}:${document.templateRevision}`;
+  const variant = document.variant;
+  const variantToken = variant
+    ? [variant.variantId, variant.sizeId, variant.colorId].map((value) => value || "-").join("~")
+    : "default";
+  return `${DRAFT_REFERENCE_PREFIX}${document.productId}:${document.templateId}:${document.templateRevision}:${variantToken}`;
 }
 
 export function findDraftReference(storage, document) {

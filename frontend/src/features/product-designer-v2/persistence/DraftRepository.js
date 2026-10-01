@@ -1,5 +1,5 @@
 import { DRAFT_STORE, StorageConflictError } from "./indexedDbStorage.js";
-import { validateDraft } from "./draftModel.js";
+import { migrateDraftToTemplate, validateDraft } from "./draftModel.js";
 
 export class IncompatibleDraftError extends Error {
   constructor(errors, draft = null) {
@@ -31,10 +31,11 @@ export function createDraftRepository(storage, { now = () => new Date().toISOStr
       }
     },
     async loadDraft(draftId, compatibility = {}) {
-      const draft = await storage.get(DRAFT_STORE, draftId);
-      if (!draft) return null;
+      const storedDraft = await storage.get(DRAFT_STORE, draftId);
+      if (!storedDraft) return null;
+      const draft = migrateDraftToTemplate(storedDraft, compatibility.template);
       const validation = validateDraft(draft, compatibility);
-      if (!validation.valid) throw new IncompatibleDraftError(validation.errors, draft);
+      if (!validation.valid) throw new IncompatibleDraftError(validation.errors, storedDraft);
       return draft;
     },
     deleteDraft: (draftId) => storage.delete(DRAFT_STORE, draftId),

@@ -13,6 +13,22 @@ function normalizedRect(value) {
     && value.x + value.width <= 1 && value.y + value.height <= 1;
 }
 
+function normalizedPolygon(points) {
+  return Array.isArray(points) && points.length >= 3 && points.every((point) => Array.isArray(point) && point.length === 2 && point.every((value) => Number.isFinite(value) && value >= 0 && value <= 1));
+}
+
+function validateEditableMask(surface, errors) {
+  if (surface.editableMask === undefined && surface.regions === undefined) return;
+  const mask = surface.editableMask;
+  if (!mask?.id || !Array.isArray(mask.include) || mask.include.length < 1 || !Array.isArray(mask.exclude)) errors.push("editableMask inválida.");
+  else if ([...mask.include, ...mask.exclude].some((shape) => !shape?.id || !normalizedPolygon(shape.polygon))) errors.push("editableMask contiene polígonos inválidos.");
+  if (!Array.isArray(surface.regions) || surface.regions.length < 1) errors.push("regions debe contener al menos un panel.");
+  else surface.regions.forEach((region) => {
+    const uv = region?.uvMapping;
+    if (!region?.id || !normalizedPolygon(region.editorPolygon) || !normalizedRect(region.editorRect) || !region.target?.meshName || !region.target?.materialName || !uv || !["uMin", "uMax", "vMin", "vMax"].every((key) => Number.isFinite(uv[key])) || uv.uMax <= uv.uMin || uv.vMax <= uv.vMin || typeof uv.flipU !== "boolean" || typeof uv.flipV !== "boolean") errors.push(`Región ${region?.id || "sin id"} inválida.`);
+  });
+}
+
 export function validatePrintSurface(surface) {
   const errors = [];
   if (!surface || typeof surface !== "object") return { valid: false, errors: ["PrintSurface ausente."] };
@@ -31,6 +47,7 @@ export function validatePrintSurface(surface) {
   if (surface.safeArea !== null && !normalizedRect(surface.safeArea)) errors.push("safeArea de PrintSurface inválida.");
   if (surface.bleed !== null && (!surface.bleed || !["top", "right", "bottom", "left"].every((key) => Number.isFinite(surface.bleed[key]) && surface.bleed[key] >= 0))) errors.push("bleed de PrintSurface inválido.");
   if (!Array.isArray(surface.restrictedZones) || surface.restrictedZones.some((zone) => !normalizedRect(zone))) errors.push("restrictedZones de PrintSurface inválido.");
+  validateEditableMask(surface, errors);
   const orientation = surface.orientation;
   if (!orientation || !TOPOLOGIES.has(orientation.topology) || !HORIZONTAL_DIRECTIONS.has(orientation.horizontal) || !VERTICAL_DIRECTIONS.has(orientation.vertical) || !["center", null].includes(orientation.front) || !["horizontal-edges", null].includes(orientation.seam)) errors.push("orientation de PrintSurface inválida.");
   if (!surface.constraints || !Array.isArray(surface.constraints.allowedElementTypes) || surface.constraints.allowedElementTypes.some((type) => !DESIGN_ELEMENT_TYPES.includes(type))) errors.push("constraints.allowedElementTypes de PrintSurface inválido.");

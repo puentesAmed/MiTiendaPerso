@@ -1,5 +1,6 @@
 import { FabricAdapter } from "../adapters/FabricAdapter.js";
 import { getViewByPrintSurfaceId, getViewPrintSurface } from "../contracts/printSurface.js";
+import { applyEditableMask, canvasToPngBlob } from "./editableMaskRenderer.js";
 
 export function getArtworkExportGeometry(template, view, previewWidth = 1200) {
   const printSurface = getViewPrintSurface(template, view);
@@ -32,7 +33,9 @@ export async function renderPreviewArtwork({ document, template, sourceViewId, p
     adapter.resize(geometry.canvasWidth, geometry.canvasHeight);
     await adapter.reconcile(document, view.id, template, assetRegistry);
     if (renderError) throw new Error(renderError);
-    return await adapter.exportPng(geometry.crop);
+    const artworkCanvas = adapter.exportCanvas(geometry.crop);
+    applyEditableMask(artworkCanvas, getViewPrintSurface(template, view)?.editableMask);
+    return await canvasToPngBlob(artworkCanvas);
   } finally {
     await adapter.dispose();
   }
@@ -49,7 +52,7 @@ export async function renderPreviewArtworkCanvas({ document, template, sourceVie
     adapter.resize(geometry.canvasWidth, geometry.canvasHeight);
     await adapter.reconcile(document, view.id, template, assetRegistry);
     if (renderError) throw new Error(renderError);
-    return adapter.exportCanvas(geometry.crop);
+    return applyEditableMask(adapter.exportCanvas(geometry.crop), getViewPrintSurface(template, view)?.editableMask);
   } finally {
     await adapter.dispose();
   }

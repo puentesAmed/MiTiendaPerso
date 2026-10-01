@@ -71,13 +71,14 @@ async function seedProducts() {
     {
       name: "Camiseta básica personalizada",
       description:
-        "Camiseta de algodón 100% con opción de impresión en pecho y espalda.",
+        "Camiseta de algodón 100% con personalización frontal y posterior. Crea tu diseño con textos e imágenes y ajústalo libremente dentro de las áreas personalizables.",
       price: 19.9,
       image: "https://via.placeholder.com/400x300?text=Camiseta+personalizada",
       stock: 50,
       active: true,
       category: "ropa",
       customizable: true,
+      productTemplateId: "tshirt-basic-v1",
       customizationAreas: [
         {
           name: "Pecho frontal",

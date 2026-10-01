@@ -42,3 +42,28 @@ export function renderUvCalibrationCanvas(printSurface, documentApi = globalThis
   definition.labels.forEach((label) => context.fillText(label.text, label.x * canvas.width, label.y * canvas.height));
   return canvas;
 }
+
+export function createGarmentCalibrationDefinition(panelId = "front") {
+  const sleeve = panelId.includes("sleeve");
+  const labels = sleeve
+    ? [{ text: "SHOULDER", x: 0.5, y: 0.12 }, { text: "CENTER", x: 0.5, y: 0.5 }, { text: "HEM", x: 0.5, y: 0.9 }]
+    : [{ text: "CENTER", x: 0.5, y: 0.5 }, { text: "TOP-CENTER", x: 0.5, y: 0.2 }, { text: "BOTTOM-CENTER", x: 0.5, y: 0.88 }, { text: "LEFT-CHEST", x: 0.36, y: 0.35 }, { text: "RIGHT-CHEST", x: 0.64, y: 0.35 }, { text: "LEFT-SIDE", x: 0.18, y: 0.56 }, { text: "RIGHT-SIDE", x: 0.82, y: 0.56 }];
+  return Object.freeze({ labels: Object.freeze(labels.map((label) => Object.freeze(label))) });
+}
+
+export function renderGarmentCalibrationCanvas(printSurface, documentApi = globalThis.document) {
+  const canvas = documentApi.createElement("canvas");
+  canvas.width = printSurface.previewTextureResolution.width;
+  canvas.height = printSurface.previewTextureResolution.height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas 2D no disponible para calibración garment.");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.font = `bold ${Math.max(12, Math.round(canvas.width / 45))}px sans-serif`;
+  createGarmentCalibrationDefinition(printSurface.id).labels.forEach((label) => {
+    context.fillStyle = "#111827";
+    context.fillText(label.text, label.x * canvas.width, label.y * canvas.height);
+  });
+  return canvas;
+}

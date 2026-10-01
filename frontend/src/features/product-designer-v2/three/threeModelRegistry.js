@@ -1,14 +1,85 @@
+import { VARIANT_COLOR_PRESENTATIONS } from "../domain/variantColors.js";
+import { TSHIRT_SURFACE_CALIBRATION } from "../domain/tshirtSurfaceCalibration.js";
+
 const COLOR_SPACES = new Set(["srgb", "linear"]);
 const WRAPS = new Set(["clamp", "repeat", "mirror"]);
 const LIGHTING_PRESETS = new Set(["studio-soft"]);
 const MODEL_STATUSES = new Set(["development", "verified", "production"]);
+const TEXTURE_COMPOSITIONS = new Set(["opaque-base", "transparent-overlay"]);
 
 export const THREE_MODEL_ASSETS = Object.freeze({
   "mug-development-v1": Object.freeze({ modelId: "mug-development-v1", url: "/models/mug-development-v1.glb", status: "development", origin: "generated-in-project" }),
   "mug-11oz-v1": Object.freeze({ modelId: "mug-11oz-v1", url: "/models/mug-11oz-v1.glb", status: "development", origin: "licensed-source" }),
+  "tshirt-web-v1": Object.freeze({ modelId: "tshirt-web-v1", url: "/models/tshirt-web.glb", status: "development", origin: "prepared-spec-020g" }),
+});
+
+const tshirtMaterialVariant = (id, color) => Object.freeze({
+  id,
+  materials: Object.freeze([
+    Object.freeze({ materialName: "TShirtFabric", color, roughness: 0.82, metalness: 0 }),
+    Object.freeze({ materialName: "TShirtFrontPrintable", color, roughness: 0.82, metalness: 0 }),
+    Object.freeze({ materialName: "TShirtBackPrintable", color, roughness: 0.82, metalness: 0 }),
+  ]),
+});
+
+function atlasRegion(printSurfaceId, calibratedRegion) {
+  return Object.freeze({ printSurfaceId, regionId: calibratedRegion.id, editorRect: calibratedRegion.editorRect, editorPolygon: calibratedRegion.editorPolygon, uvMapping: calibratedRegion.uvMapping });
+}
+
+const panelRegion = (id) => TSHIRT_SURFACE_CALIBRATION[id].regions[0];
+const panelSurface = (printSurfaceId, meshName, materialName, calibratedRegion) => Object.freeze({
+  printSurfaceId,
+  binding: Object.freeze({ meshName, materialName }),
+  uvMapping: Object.freeze({ ...calibratedRegion.uvMapping, seamU: calibratedRegion.uvMapping.uMin, frontU: (calibratedRegion.uvMapping.uMin + calibratedRegion.uvMapping.uMax) / 2, rotation: 0 }),
+  texture: Object.freeze({ colorSpace: "srgb", backgroundColor: "#ffffff", wrapS: "clamp", wrapT: "clamp", composition: "transparent-overlay" }),
+});
+
+const overlayBinding = (meshName, materialName, panelId, printSurfaceId) => Object.freeze({
+  meshName,
+  materialName,
+  geometryRegionId: panelId,
+  regions: Object.freeze([atlasRegion(printSurfaceId, panelRegion(panelId))]),
 });
 
 export const PRODUCT_3D_PROFILES = Object.freeze({
+  "tshirt-basic-v1": Object.freeze({
+    schemaVersion: 1,
+    revision: 2,
+    profileId: "tshirt-basic-v1",
+    modelId: "tshirt-web-v1",
+    modelStatus: "development",
+    dimensions: null,
+    referenceData: Object.freeze({ images: Object.freeze([]), verifiedDimensions: null, provenance: Object.freeze({ type: "prepared-spec-020g", reference: "SPEC-020G external mug/tshirt workspace · development-only public asset" }) }),
+    printableSurfaces: Object.freeze([
+      panelSurface("tshirt-front", "TShirtWebMesh_1", "TShirtFrontPrintable", panelRegion("front")),
+      panelSurface("tshirt-back", "TShirtWebMesh_2", "TShirtBackPrintable", panelRegion("back")),
+      panelSurface("tshirt-sleeve-left", "TShirtWebMesh", "TShirtFabric", panelRegion("sleeve-left")),
+      panelSurface("tshirt-sleeve-right", "TShirtWebMesh", "TShirtFabric", panelRegion("sleeve-right")),
+    ]),
+    garmentMaterials: Object.freeze(["TShirtFabric", "TShirtFrontPrintable", "TShirtBackPrintable"]),
+    artworkComposition: Object.freeze({
+      mode: "transparent-overlay",
+      atlasSize: TSHIRT_SURFACE_CALIBRATION.atlasSize,
+      geometryClassifierId: "tshirt-web-v1",
+      bindings: Object.freeze([
+        overlayBinding("TShirtWebMesh_1", "TShirtFrontPrintable", "front", "tshirt-front"),
+        overlayBinding("TShirtWebMesh", "TShirtFabric", "front", "tshirt-front"),
+        overlayBinding("TShirtWebMesh_2", "TShirtBackPrintable", "back", "tshirt-back"),
+        overlayBinding("TShirtWebMesh", "TShirtFabric", "back", "tshirt-back"),
+        overlayBinding("TShirtWebMesh", "TShirtFabric", "sleeve-left", "tshirt-sleeve-left"),
+        overlayBinding("TShirtWebMesh", "TShirtFabric", "sleeve-right", "tshirt-sleeve-right"),
+      ]),
+    }),
+    materialVariants: Object.freeze({
+      defaultVariantId: "white",
+      variantMappings: Object.freeze(VARIANT_COLOR_PRESENTATIONS.map((color) => Object.freeze({ productVariantId: color.id, materialVariantId: color.id }))),
+      variants: Object.freeze(VARIANT_COLOR_PRESENTATIONS.map((color) => tshirtMaterialVariant(color.id, color.baseColor))),
+    }),
+    camera: Object.freeze({ fov: 32, direction: Object.freeze([0, 0.04, 1]), targetOffset: Object.freeze([0, 0, 0]), fitPadding: 1.2 }),
+    orbit: Object.freeze({ enableRotate: true, enableZoom: true, enablePan: false, minDistanceFactor: 0.78, maxDistanceFactor: 1.9, minPolarAngle: 0.69, maxPolarAngle: 2.45, damping: 0.075 }),
+    background: Object.freeze({ color: "#f3f4f6", alpha: 1 }),
+    lighting: Object.freeze({ preset: "studio-soft" }),
+  }),
   "mug-11oz-v1": Object.freeze({
     schemaVersion: 1,
     revision: 1,
@@ -22,7 +93,7 @@ export const PRODUCT_3D_PROFILES = Object.freeze({
         printSurfaceId: "wrap-main",
         binding: Object.freeze({ meshName: "MugBody", materialName: "PrintableSurface" }),
         uvMapping: Object.freeze({ uMin: 0, uMax: 1, vMin: 0, vMax: 1, seamU: 0, frontU: 0.5, flipU: false, flipV: true, rotation: 0 }),
-        texture: Object.freeze({ colorSpace: "srgb", backgroundColor: "#ffffff", wrapS: "clamp", wrapT: "clamp" }),
+        texture: Object.freeze({ colorSpace: "srgb", backgroundColor: "#ffffff", wrapS: "clamp", wrapT: "clamp", composition: "opaque-base" }),
       }),
     ]),
     materialVariants: Object.freeze({
@@ -54,7 +125,7 @@ export const PRODUCT_3D_PROFILES = Object.freeze({
         printSurfaceId: "wrap-main",
         binding: Object.freeze({ meshName: "MugBody", materialName: "PrintableSurface" }),
         uvMapping: Object.freeze({ uMin: 0, uMax: 1, vMin: 0, vMax: 1, seamU: 0, frontU: 0.5, flipU: false, flipV: true, rotation: 0 }),
-        texture: Object.freeze({ colorSpace: "srgb", backgroundColor: "#ffffff", wrapS: "clamp", wrapT: "clamp" }),
+        texture: Object.freeze({ colorSpace: "srgb", backgroundColor: "#ffffff", wrapS: "clamp", wrapT: "clamp", composition: "opaque-base" }),
       }),
     ]),
     materialVariants: Object.freeze({
@@ -110,13 +181,20 @@ export function validateProduct3DProfile(profile) {
       if (surfaceIds.has(surface?.printSurfaceId)) errors.push(`${prefix}: printSurfaceId duplicado.`);
       surfaceIds.add(surface?.printSurfaceId);
       const target = `${surface?.binding?.meshName}:${surface?.binding?.materialName}`;
-      if (bindingTargets.has(target)) errors.push(`${prefix}: target duplicado.`);
+      if (!profile.artworkComposition && bindingTargets.has(target)) errors.push(`${prefix}: target duplicado.`);
       bindingTargets.add(target);
       const uv = surface?.uvMapping;
       if (!uv || !["uMin", "uMax", "vMin", "vMax", "seamU", "frontU", "rotation"].every((key) => Number.isFinite(uv[key])) || uv.uMax <= uv.uMin || uv.vMax <= uv.vMin || uv.seamU < uv.uMin || uv.seamU > uv.uMax || uv.frontU < uv.uMin || uv.frontU > uv.uMax || typeof uv.flipU !== "boolean" || typeof uv.flipV !== "boolean" || (uv.offset !== undefined && !vector(uv.offset, 2)) || (uv.repeat !== undefined && !vector(uv.repeat, 2, { positive: true })) || ((uv.offset !== undefined || uv.repeat !== undefined) && !uv.transformJustification?.trim())) errors.push(`${prefix}: uvMapping inválido.`);
       const texture = surface?.texture;
-      if (!texture || !COLOR_SPACES.has(texture.colorSpace) || !/^#[0-9a-f]{6}$/i.test(texture.backgroundColor || "") || !WRAPS.has(texture.wrapS) || !WRAPS.has(texture.wrapT)) errors.push(`${prefix}: texture inválida.`);
+      if (!texture || !COLOR_SPACES.has(texture.colorSpace) || !/^#[0-9a-f]{6}$/i.test(texture.backgroundColor || "") || !WRAPS.has(texture.wrapS) || !WRAPS.has(texture.wrapT) || (texture.composition !== undefined && !TEXTURE_COMPOSITIONS.has(texture.composition))) errors.push(`${prefix}: texture inválida.`);
     });
+  }
+  if (profile.artworkComposition !== undefined) {
+    const composition = profile.artworkComposition;
+    if (composition?.mode !== "transparent-overlay" || !Number.isInteger(composition.atlasSize) || composition.atlasSize <= 0 || !Array.isArray(composition.bindings) || composition.bindings.length === 0) errors.push("artworkComposition inválida.");
+    else if (composition.bindings.some((binding) => !binding.meshName || !binding.materialName || (composition.geometryClassifierId && !binding.geometryRegionId) || !Array.isArray(binding.regions) || binding.regions.length === 0 || binding.regions.some((region) => !region.printSurfaceId || !region.regionId || !region.editorRect || !region.uvMapping))) errors.push("artworkComposition contiene bindings inválidos.");
+    if (!Array.isArray(profile.garmentMaterials) || profile.garmentMaterials.length === 0 || profile.garmentMaterials.some((name) => typeof name !== "string" || !name)) errors.push("garmentMaterials inválido.");
+    else if (profile.materialVariants?.variants.some((variant) => profile.garmentMaterials.some((name) => !variant.materials.some((material) => material.materialName === name)))) errors.push("materialVariants no cubre garmentMaterials.");
   }
   if (!validateMaterialVariants(profile.materialVariants)) errors.push("materialVariants inválido.");
   const camera = profile.camera;
@@ -171,4 +249,14 @@ export function isThreeDModeAvailable(template) {
 
 export function getProduct3DSurfaceIds(profile) {
   return [...new Set((profile?.printableSurfaces || []).map((surface) => surface.printSurfaceId))];
+}
+
+export function getMaterialVariant(profile, productVariant = null) {
+  const materialVariants = profile?.materialVariants;
+  if (!materialVariants) return null;
+  const productVariantId = productVariant?.colorId || productVariant?.variantId || null;
+  const mapping = materialVariants.variantMappings.find((candidate) => candidate.productVariantId === productVariantId)
+    || materialVariants.variantMappings.find((candidate) => candidate.productVariantId === null);
+  const materialVariantId = mapping?.materialVariantId || materialVariants.defaultVariantId;
+  return materialVariants.variants.find((variant) => variant.id === materialVariantId) ?? null;
 }

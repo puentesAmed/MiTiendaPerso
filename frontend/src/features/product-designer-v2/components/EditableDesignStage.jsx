@@ -2,6 +2,9 @@ import { useEffect, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 import { FabricAdapter } from "../adapters/FabricAdapter.js";
 import { getViewAspectRatio, getViewPrintAreas, getViewPrintSurface } from "../contracts/printSurface.js";
+import { getPresentationSurfaceStyle, getViewEditorPresentation } from "../domain/editorPresentation.js";
+import { contrastingGuideColor, resolveVariantPresentation } from "../domain/variantColors.js";
+import { ProductEditorGuide, ProductEditorMaskOverlay } from "./ProductEditorGuide.jsx";
 
 function percentage(value) {
   return `${value * 100}%`;
@@ -30,6 +33,13 @@ export function EditableDesignStage({
   const view = template.views.find((candidate) => candidate.id === activeViewId) || template.views[0];
   const printAreas = getViewPrintAreas(template, view);
   const unifiedSurface = Boolean(getViewPrintSurface(template, view));
+  const presentation = getViewEditorPresentation(view);
+  const garmentPresentation = presentation?.type === "garment" ? presentation : null;
+  const variantPresentation = resolveVariantPresentation(document.variant);
+  const baseColor = variantPresentation?.baseColor || "#ffffff";
+  const detailColor = contrastingGuideColor(baseColor);
+  const presentationSurfaceStyle = getPresentationSurfaceStyle(garmentPresentation);
+  const debugGarmentMapping = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debugGarmentMapping") === "1";
 
   useEffect(() => {
     callbacksRef.current = { onSelectionChange, onElementChange, onElementsChange, onViewportChange, onError };
@@ -106,21 +116,32 @@ export function EditableDesignStage({
         <span className="shrink-0">Área editable</span>
       </div>
       <div
-        className="relative mx-auto w-full max-w-[46rem] overflow-hidden rounded-xl border bg-muted/35 shadow-inner"
-        style={{ aspectRatio: getViewAspectRatio(template, view) }}
+        className={`relative mx-auto overflow-hidden rounded-xl border bg-muted/35 shadow-inner ${garmentPresentation ? "max-w-full" : "w-full max-w-[46rem]"}`}
+        style={{
+          aspectRatio: garmentPresentation?.aspectRatio || getViewAspectRatio(template, view),
+          ...(garmentPresentation ? { width: `min(100%, calc(clamp(20rem, calc(100dvh - 21rem), 40rem) * ${garmentPresentation.aspectRatio}))` } : {}),
+        }}
+        data-editor-presentation={garmentPresentation?.type || "surface"}
       >
         <div aria-hidden="true" className="absolute inset-0 opacity-45 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [background-size:24px_24px]" />
-        <div ref={surfaceRef} className={`absolute overflow-hidden rounded-lg border bg-white text-zinc-950 ${unifiedSurface ? "inset-0" : "inset-3 sm:inset-5"}`}>
+        {garmentPresentation ? <ProductEditorGuide guideId={garmentPresentation.guideId} baseColor={baseColor} detailColor={detailColor} guideDefinition={garmentPresentation.guide} editableMask={garmentPresentation.editableMask} debug={debugGarmentMapping} /> : null}
+        <div
+          ref={surfaceRef}
+          className={`absolute overflow-hidden ${garmentPresentation ? "" : unifiedSurface ? "inset-0 rounded-lg border-2 border-dashed bg-white text-zinc-950" : "inset-3 rounded-lg border-2 border-dashed bg-white text-zinc-950 sm:inset-5"}`}
+          style={garmentPresentation ? presentationSurfaceStyle : undefined}
+          data-print-surface={view.printSurfaceId || "legacy"}
+        >
           <canvas ref={canvasRef} role="img" aria-label={`${view.label}. Lienzo de edición con ${printAreas.length} área imprimible.`} />
-          {printAreas.map((area) => (
+          {!garmentPresentation ? printAreas.map((area) => (
             <div
               key={area.id}
               aria-hidden="true"
               className={`pointer-events-none absolute z-10 border-2 border-dashed ${outOfBounds ? "border-destructive bg-destructive/5" : "border-primary/80 bg-primary/[0.03]"} ${area.shape.type === "ellipse" ? "rounded-full" : "rounded-md"}`}
               style={{ left: percentage(area.x), top: percentage(area.y), width: percentage(area.width), height: percentage(area.height) }}
             />
-          ))}
+          )) : null}
         </div>
+        {garmentPresentation ? <ProductEditorMaskOverlay editableMask={garmentPresentation.editableMask} /> : null}
       </div>
       <div className="mt-2 min-h-5">
         {outOfBounds ? (

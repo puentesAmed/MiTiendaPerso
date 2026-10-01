@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
 import { PRODUCT_3D_PROFILES } from "./threeModelRegistry.js";
-import { ThreePreviewAdapter, applyTextureConfiguration, calculateCameraFrame, prepareTextureCanvas, validateModelBindings } from "./ThreePreviewAdapter.js";
+import { resolveVariantPresentation } from "../domain/variantColors.js";
+import { ThreePreviewAdapter, applyTextureConfiguration, calculateCameraFrame, prepareGarmentAtlas, prepareTextureCanvas, validateModelBindings } from "./ThreePreviewAdapter.js";
 
 const profile = PRODUCT_3D_PROFILES["mug-ceramic-development-v1"];
 const printableSurface = profile.printableSurfaces[0];
+const tshirtProfile = PRODUCT_3D_PROFILES["tshirt-basic-v1"];
 
 function validScene() {
   const scene = new THREE.Scene();
@@ -49,6 +51,44 @@ test("textura compone transparencia sobre el color base declarado", () => {
   assert.equal(operations[2][0], "drawImage");
 });
 
+test("panel garment conserva alpha cuando declara transparent-overlay", () => {
+  const operations = [];
+  const output = { getContext: () => ({ set fillStyle(value) { operations.push(["fillStyle", value]); }, clearRect: (...args) => operations.push(["clearRect", ...args]), fillRect: (...args) => operations.push(["fillRect", ...args]), save: () => operations.push(["save"]), translate: (...args) => operations.push(["translate", ...args]), scale: (...args) => operations.push(["scale", ...args]), drawImage: (...args) => operations.push(["drawImage", ...args]), restore: () => operations.push(["restore"]) }) };
+  const surface = tshirtProfile.printableSurfaces[1];
+  const source = { width: 747, height: 1024 };
+  const result = prepareTextureCanvas(source, { ...surface.texture, backgroundColor: "#111111" }, { createElement: () => output }, surface.uvMapping);
+  assert.ok(result.width > source.width);
+  assert.ok(result.height > source.height);
+  assert.deepEqual(operations[0], ["clearRect", 0, 0, result.width, result.height]);
+  assert.equal(operations.some(([operation]) => operation === "fillRect"), false);
+  assert.ok(operations.some(([operation, x]) => operation === "scale" && x === -1));
+});
+
+test("atlas garment conserva transparencia y compone un panel independiente", () => {
+  const operations = [];
+  const output = { getContext: () => ({ clearRect: (...args) => operations.push(["clearRect", ...args]), save: () => operations.push(["save"]), translate: (...args) => operations.push(["translate", ...args]), scale: (...args) => operations.push(["scale", ...args]), drawImage: (...args) => operations.push(["drawImage", ...args]), restore: () => operations.push(["restore"]) }) };
+  const artworks = { "tshirt-front": { width: 754, height: 1024 }, "tshirt-back": { width: 747, height: 1024 }, "tshirt-sleeve-left": { width: 1024, height: 525 }, "tshirt-sleeve-right": { width: 1024, height: 525 } };
+  const sleeveBinding = tshirtProfile.artworkComposition.bindings.find((binding) => binding.geometryRegionId === "sleeve-left");
+  const atlas = prepareGarmentAtlas(artworks, sleeveBinding, 2048, { createElement: () => output });
+  assert.equal(atlas.width, 2048);
+  assert.deepEqual(operations[0], ["clearRect", 0, 0, 2048, 2048]);
+  assert.equal(operations.some(([operation]) => operation === "fillRect"), false);
+  assert.equal(operations.filter(([operation]) => operation === "drawImage").length, 1);
+});
+
+test("BACK aplica mirror una sola vez antes de crear la CanvasTexture", () => {
+  const operations = [];
+  const output = { getContext: () => ({ clearRect() {}, save() {}, translate() {}, scale: (...args) => operations.push(args), drawImage() {}, restore() {} }) };
+  const binding = tshirtProfile.artworkComposition.bindings.find((candidate) => candidate.meshName === "TShirtWebMesh_2" && candidate.geometryRegionId === "back");
+  prepareGarmentAtlas({ "tshirt-back": { width: 747, height: 1024 } }, binding, 2048, { createElement: () => output });
+  assert.deepEqual(operations, [[-1, 1]]);
+  const texture = applyTextureConfiguration(new THREE.Texture(), tshirtProfile.printableSurfaces.find(({ printSurfaceId }) => printSurfaceId === "tshirt-back"), THREE, { precomposedAtlas: true });
+  assert.equal(texture.flipY, false);
+  assert.deepEqual(texture.repeat.toArray(), [1, 1]);
+  assert.deepEqual(texture.offset.toArray(), [0, 0]);
+  assert.equal(texture.rotation, 0);
+});
+
 test("actualizar artwork reutiliza modelo y textura; dispose es idempotente", () => {
   class FakeCanvasTexture extends THREE.Texture { constructor(image) { super(image); this.image = image; } }
   const runtime = { THREE: { ...THREE, CanvasTexture: FakeCanvasTexture } };
@@ -77,5 +117,61 @@ test("actualizar artwork reutiliza modelo y textura; dispose es idempotente", ()
   assert.equal(observerDisconnected, 1);
   assert.equal(adapter.renderer.disposeCalls, 1);
   assert.equal(adapter.renderer.lossCalls, 1);
+});
+
+test("cambiar color actualiza materiales sin recargar el GLB", () => {
+  const model = new THREE.Group();
+  const materials = tshirtProfile.garmentMaterials.map((name) => new THREE.MeshStandardMaterial({ name, color: "#ffffff", map: new THREE.Texture() }));
+  const meshes = materials.map((material) => new THREE.Mesh(new THREE.BoxGeometry(), material));
+  model.add(...meshes);
+  const adapter = new ThreePreviewAdapter({ runtime: { THREE }, profile: tshirtProfile, productVariant: { colorId: "white" } });
+  adapter.model = model;
+  adapter.renderer = { render() {} };
+  adapter.scene = {};
+  adapter.camera = {};
+  adapter.modelLoadCount = 1;
+  adapter.updateMaterialVariant({ colorId: "black" });
+  materials.forEach((material) => {
+    assert.equal(`#${material.color.getHexString()}`, resolveVariantPresentation({ colorId: "black" }).baseColor);
+    assert.equal(material.map, null);
+  });
+  assert.equal(adapter.modelLoadCount, 1);
+});
+
+test("overlay garment reutiliza modelo y texturas al actualizar artwork", () => {
+  class FakeCanvasTexture extends THREE.Texture { constructor(image) { super(image); this.image = image; } }
+  const runtime = { THREE: { ...THREE, CanvasTexture: FakeCanvasTexture } };
+  const model = new THREE.Group();
+  const meshes = tshirtProfile.artworkComposition.bindings.map((binding) => {
+    const material = new THREE.MeshStandardMaterial({ name: binding.materialName, color: "#ffffff" });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(), material);
+    mesh.name = binding.meshName;
+    model.add(mesh);
+    return { binding, mesh, material };
+  });
+  const documentApi = { createElement: () => ({ getContext: () => ({ clearRect() {}, save() {}, translate() {}, scale() {}, drawImage() {}, restore() {} }) }) };
+  const adapter = new ThreePreviewAdapter({ runtime, profile: tshirtProfile, documentApi });
+  adapter.model = model;
+  adapter.bindingTargets = [];
+  adapter.overlayTargets = meshes;
+  adapter.renderer = { render() {} };
+  adapter.scene = {};
+  adapter.camera = {};
+  adapter.modelLoadCount = 1;
+  const artworks = { "tshirt-front": { width: 754, height: 1024 }, "tshirt-back": { width: 747, height: 1024 }, "tshirt-sleeve-left": { width: 1024, height: 525 }, "tshirt-sleeve-right": { width: 1024, height: 525 } };
+  adapter.updateArtworks(artworks);
+  const textures = [...adapter.ownedTextures];
+  assert.equal(textures.length, 6);
+  assert.equal(meshes.every(({ mesh }) => mesh.children[0]?.material.transparent === true), true);
+  meshes.forEach(({ mesh }) => {
+    const material = mesh.children[0].material;
+    assert.equal(material.side, THREE.FrontSide);
+    assert.equal(material.depthTest, true);
+    assert.equal(material.depthWrite, false);
+    assert.equal(material.blending, THREE.NormalBlending);
+  });
+  adapter.updateArtworks(artworks);
+  assert.deepEqual([...adapter.ownedTextures], textures);
+  assert.equal(adapter.modelLoadCount, 1);
 });
 

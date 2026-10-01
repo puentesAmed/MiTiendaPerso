@@ -1,5 +1,6 @@
 import { DESIGN_ELEMENT_TYPES } from "./elementModel.js";
 import { validatePrintSurface } from "./printSurface.js";
+import { validateEditorPresentation } from "../domain/editorPresentation.js";
 
 export const PRODUCT_TEMPLATE_SCHEMA_VERSION = 1;
 
@@ -68,6 +69,7 @@ export function validateProductTemplate(template) {
       viewIds.add(view?.id);
       if (view?.printSurfaceId) {
         if (!printSurfaceIds.has(view.printSurfaceId)) errors.push(`Vista ${view?.id || "sin id"}: PrintSurface no registrada.`);
+        errors.push(...validateEditorPresentation(view.editorPresentation).errors.map((error) => `Vista ${view?.id || "sin id"}: ${error}`));
       } else if (!Number.isFinite(view?.canvas?.aspectRatio) || view.canvas.aspectRatio <= 0) errors.push(`Vista ${view?.id || "sin id"}: aspectRatio inválido.`);
       if (view?.printSurfaceId) {
         if (view.printAreas || view.canvas) errors.push(`Vista ${view.id}: no debe duplicar geometría de PrintSurface.`);

@@ -43,13 +43,14 @@ export function ThreeProductPreview({ profile, document, template, assetRegistry
         setPhase("loading-runtime");
         const runtime = await loadThreeRuntime();
         if (!active) return;
-        adapter = new ThreePreviewAdapter({ runtime, profile, onStatus: (status) => active && setPhase(status), onError: (message) => active && setError(message) });
+        adapter = new ThreePreviewAdapter({ runtime, profile, productVariant: documentRef.current.variant, onStatus: (status) => active && setPhase(status), onError: (message) => active && setError(message) });
         adapterRef.current = adapter;
         await adapter.init(containerRef.current);
         if (!active) return;
         setPhase("preparing-texture");
         const artworks = await renderArtworks({ profile, document: documentRef.current, template, assetRegistry });
         if (!active) return;
+        adapter.updateMaterialVariant(documentRef.current.variant);
         adapter.updateArtworks(artworks);
         readyRef.current = true;
         setPhase("ready");
@@ -78,6 +79,7 @@ export function ThreeProductPreview({ profile, document, template, assetRegistry
         setPhase("updating-texture");
         const artworks = await renderArtworks({ profile, document, template, assetRegistry });
         if (version !== updateVersionRef.current || !adapterRef.current) return;
+        adapterRef.current.updateMaterialVariant(document.variant);
         adapterRef.current.updateArtworks(artworks);
         setPhase("ready");
       } catch (updateError) {

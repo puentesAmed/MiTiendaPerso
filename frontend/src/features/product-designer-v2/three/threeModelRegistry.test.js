@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { MUG_CERAMIC_STANDARD_V1_TEMPLATE } from "../templates/mugCeramicStandardV1.js";
 import { GENERIC_FLAT_DEMO_TEMPLATE } from "../templates/genericFlatDemo.js";
-import { PRODUCT_3D_PROFILES, THREE_MODEL_ASSETS, getProduct3DProfile, getProduct3DProfileForTemplate, getProduct3DSurfaceIds, getThreeModelAsset, isThreeDModeAvailable, validateProduct3DProfile, validateProduct3DProfileForTemplate } from "./threeModelRegistry.js";
+import { TSHIRT_BASIC_V1_TEMPLATE } from "../templates/tshirtBasicV1.js";
+import { PRODUCT_3D_PROFILES, THREE_MODEL_ASSETS, getMaterialVariant, getProduct3DProfile, getProduct3DProfileForTemplate, getProduct3DSurfaceIds, getThreeModelAsset, isThreeDModeAvailable, validateProduct3DProfile, validateProduct3DProfileForTemplate } from "./threeModelRegistry.js";
 
 const mugProfile = PRODUCT_3D_PROFILES["mug-11oz-v1"];
 const fallbackProfile = PRODUCT_3D_PROFILES["mug-ceramic-development-v1"];
+const tshirtProfile = PRODUCT_3D_PROFILES["tshirt-basic-v1"];
 
 test("registry separa Product3DProfile del asset y no acepta ids arbitrarios", () => {
   assert.equal(validateProduct3DProfile(mugProfile).valid, true);
@@ -60,4 +62,18 @@ test("contrato representa perfiles flat, wrap y garment front/back sin productTy
     { ...baseSurface, printSurfaceId: "back", binding: { meshName: "GarmentBack", materialName: "BackPrint" } },
   ] };
   [flat, wrap, garment].forEach((fixture) => assert.equal(validateProduct3DProfile(fixture).valid, true));
+});
+
+test("camiseta registra cuatro paneles exactos, asset de desarrollo y variantes por colorId", () => {
+  assert.equal(validateProduct3DProfile(tshirtProfile).valid, true);
+  assert.equal(validateProduct3DProfileForTemplate(tshirtProfile, TSHIRT_BASIC_V1_TEMPLATE).valid, true);
+  assert.equal(getProduct3DProfileForTemplate(TSHIRT_BASIC_V1_TEMPLATE), tshirtProfile);
+  assert.deepEqual(getProduct3DSurfaceIds(tshirtProfile), ["tshirt-front", "tshirt-back", "tshirt-sleeve-left", "tshirt-sleeve-right"]);
+  assert.equal(getThreeModelAsset(tshirtProfile.modelId).url, "/models/tshirt-web.glb");
+  assert.equal(getThreeModelAsset(tshirtProfile.modelId).status, "development");
+  assert.deepEqual(tshirtProfile.garmentMaterials, ["TShirtFabric", "TShirtFrontPrintable", "TShirtBackPrintable"]);
+  assert.equal(tshirtProfile.artworkComposition.geometryClassifierId, "tshirt-web-v1");
+  assert.deepEqual(new Set(tshirtProfile.artworkComposition.bindings.map((binding) => binding.geometryRegionId)), new Set(["front", "back", "sleeve-left", "sleeve-right"]));
+  assert.equal(getMaterialVariant(tshirtProfile, { colorId: "black" }).id, "black");
+  assert.equal(getMaterialVariant(tshirtProfile, { colorId: "missing" }).id, "white");
 });

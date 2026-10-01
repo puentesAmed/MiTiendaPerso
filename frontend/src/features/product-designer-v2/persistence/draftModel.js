@@ -1,4 +1,5 @@
 import { validateDesignDocument } from "../contracts/designDocument.js";
+import { sameDesignerVariant } from "../domain/variantContext.js";
 
 export function createDraft({
   draftId = globalThis.crypto.randomUUID(),
@@ -19,7 +20,7 @@ export function createDraft({
   };
 }
 
-export function validateDraft(draft, { template = null, productId = null } = {}) {
+export function validateDraft(draft, { template = null, productId = null, variant = undefined } = {}) {
   const errors = [];
   if (!draft || typeof draft !== "object") return { valid: false, errors: ["Draft inválido."] };
   if (!draft.draftId) errors.push("Falta draftId.");
@@ -32,7 +33,17 @@ export function validateDraft(draft, { template = null, productId = null } = {})
   errors.push(...documentValidation.errors);
   if (draft.document?.productId !== draft.productId || draft.document?.templateId !== draft.templateId || draft.document?.templateRevision !== draft.templateRevision) errors.push("Draft y DesignDocument no coinciden.");
   if (productId && String(draft.productId) !== String(productId)) errors.push("El draft pertenece a otro producto.");
+  if (variant !== undefined && !sameDesignerVariant(draft.document?.variant, variant)) errors.push("El draft pertenece a otra variante del producto.");
   return { valid: errors.length === 0, errors };
+}
+
+export function migrateDraftToTemplate(draft, template) {
+  if (!draft || !template || draft.templateId !== template.templateId || draft.templateRevision === template.templateRevision) return draft;
+  const migration = template.draftMigration;
+  if (!migration?.initializeMissingViews || !migration.compatibleRevisions?.includes(draft.templateRevision)) return draft;
+  const views = Object.fromEntries(template.views.map((view) => [view.id, draft.document?.views?.[view.id] ?? { elements: [] }]));
+  const document = { ...draft.document, templateRevision: template.templateRevision, views };
+  return { ...draft, templateRevision: template.templateRevision, document, assetIds: Object.keys(document.assets || {}) };
 }
 
 export function countDraftElements(draft) {

@@ -1,4 +1,7 @@
-import { getThreeModelAsset } from "./threeModelRegistry.js";
+import { getMaterialVariant, getThreeModelAsset } from "./threeModelRegistry.js";
+import { uvRectToAtlasPixels } from "../domain/tshirtSurfaceCalibration.js";
+import { classifyGeometryRegions } from "./geometryRegionRegistry.js";
+import { createFaceSubsetGeometry, resolveRegionTriangles } from "./tshirtGeometryRegions.js";
 
 const WRAPPING_KEYS = { clamp: "ClampToEdgeWrapping", repeat: "RepeatWrapping", mirror: "MirroredRepeatWrapping" };
 
@@ -38,13 +41,29 @@ export function validateModelBindings({ scene, profile, THREE }) {
     if (materialIndex < 0) throw new Error(`No existe el material ${binding.materialName} en ${binding.meshName}.`);
     targets.push({ surface, binding, mesh, materialIndex, material: materials[materialIndex] });
   }
+  const classification = classifyGeometryRegions(profile.artworkComposition?.geometryClassifierId, scene);
+  const overlayTargets = (profile.artworkComposition?.bindings || []).map((binding) => {
+    const mesh = scene.getObjectByName(binding.meshName);
+    if (!mesh?.isMesh || !mesh.geometry?.getAttribute?.("uv")) throw new Error(`No existe el mesh UV requerido por artworkComposition: ${binding.meshName}.`);
+    const materials = materialList(mesh.material);
+    const materialIndex = materials.findIndex((material) => material?.name === binding.materialName);
+    if (materialIndex < 0) throw new Error(`No existe el material ${binding.materialName} en ${binding.meshName}.`);
+    const triangleIndices = binding.geometryRegionId ? resolveRegionTriangles(classification, binding.meshName, binding.geometryRegionId) : null;
+    if (binding.geometryRegionId && triangleIndices.length === 0) return null;
+    return { binding, mesh, materialIndex, material: materials[materialIndex], triangleIndices };
+  }).filter(Boolean);
   const bounds = new THREE.Box3().setFromObject(scene);
   const size = bounds.getSize(new THREE.Vector3());
   if (bounds.isEmpty() || !Number.isFinite(size.x + size.y + size.z) || Math.max(size.x, size.y, size.z) <= 0) throw new Error("El modelo no tiene una bounding box válida.");
-  return { targets, bounds, size };
+  return { targets, overlayTargets, bounds, size };
 }
 
-export function applyTextureConfiguration(texture, surface, THREE) {
+function usesUvAtlas(surface) {
+  const uv = surface.uvMapping;
+  return uv.uMin !== 0 || uv.uMax !== 1 || uv.vMin !== 0 || uv.vMax !== 1;
+}
+
+export function applyTextureConfiguration(texture, surface, THREE, { precomposedAtlas = false } = {}) {
   const { texture: config, uvMapping } = surface;
   const uRange = uvMapping.uMax - uvMapping.uMin;
   const vRange = uvMapping.vMax - uvMapping.vMin;
@@ -53,28 +72,75 @@ export function applyTextureConfiguration(texture, surface, THREE) {
   const repeatX = (uvMapping.flipU ? -1 : 1) * repeat[0] / uRange;
   const offsetX = (uvMapping.flipU ? uvMapping.uMax / uRange : -uvMapping.uMin / uRange) + offset[0];
   texture.colorSpace = config.colorSpace === "srgb" ? THREE.SRGBColorSpace : THREE.LinearSRGBColorSpace;
-  texture.flipY = uvMapping.flipV;
+  texture.flipY = precomposedAtlas ? false : uvMapping.flipV;
   texture.wrapS = THREE[WRAPPING_KEYS[config.wrapS]];
   texture.wrapT = THREE[WRAPPING_KEYS[config.wrapT]];
-  texture.offset.set(offsetX, (-uvMapping.vMin / vRange) + offset[1]);
-  texture.repeat.set(repeatX, repeat[1] / vRange);
+  texture.offset.set(precomposedAtlas ? 0 : offsetX, precomposedAtlas ? 0 : (-uvMapping.vMin / vRange) + offset[1]);
+  texture.repeat.set(precomposedAtlas ? 1 : repeatX, precomposedAtlas ? 1 : repeat[1] / vRange);
   texture.center.set(0.5, 0.5);
-  texture.rotation = uvMapping.rotation;
+  texture.rotation = precomposedAtlas ? 0 : uvMapping.rotation;
   texture.magFilter = THREE.LinearFilter;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.needsUpdate = true;
   return texture;
 }
 
-export function prepareTextureCanvas(sourceCanvas, config, documentApi = globalThis.document) {
+export function prepareTextureCanvas(sourceCanvas, config, documentApi = globalThis.document, uvMapping = null) {
   const canvas = documentApi.createElement("canvas");
-  canvas.width = sourceCanvas.width;
-  canvas.height = sourceCanvas.height;
+  const precomposedAtlas = uvMapping && (uvMapping.uMin !== 0 || uvMapping.uMax !== 1 || uvMapping.vMin !== 0 || uvMapping.vMax !== 1);
+  const uRange = precomposedAtlas ? uvMapping.uMax - uvMapping.uMin : 1;
+  const vRange = precomposedAtlas ? uvMapping.vMax - uvMapping.vMin : 1;
+  canvas.width = precomposedAtlas ? Math.round(sourceCanvas.width / uRange) : sourceCanvas.width;
+  canvas.height = precomposedAtlas ? Math.round(sourceCanvas.height / vRange) : sourceCanvas.height;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Canvas 2D no disponible para preparar la textura.");
-  context.fillStyle = config.backgroundColor;
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(sourceCanvas, 0, 0);
+  if (config.composition === "transparent-overlay") context.clearRect(0, 0, canvas.width, canvas.height);
+  else {
+    context.fillStyle = config.backgroundColor;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  if (!precomposedAtlas) context.drawImage(sourceCanvas, 0, 0);
+  else {
+    const x = uvMapping.uMin * canvas.width;
+    const y = (1 - uvMapping.vMax) * canvas.height;
+    const width = uRange * canvas.width;
+    const height = vRange * canvas.height;
+    context.save();
+    if (uvMapping.flipU) {
+      context.translate(x + width, 0);
+      context.scale(-1, 1);
+      context.drawImage(sourceCanvas, 0, y, width, height);
+    } else context.drawImage(sourceCanvas, x, y, width, height);
+    context.restore();
+  }
+  return canvas;
+}
+
+export function prepareGarmentAtlas(artworksBySurface, binding, atlasSize, documentApi = globalThis.document) {
+  const canvas = documentApi.createElement("canvas");
+  canvas.width = atlasSize;
+  canvas.height = atlasSize;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas 2D no disponible para preparar el atlas garment.");
+  context.clearRect(0, 0, atlasSize, atlasSize);
+  binding.regions.forEach((region) => {
+    const source = artworksBySurface[region.printSurfaceId];
+    if (!source) throw new Error(`Falta artwork para PrintSurface ${region.printSurfaceId}.`);
+    const sourceRect = {
+      x: region.editorRect.x * source.width,
+      y: region.editorRect.y * source.height,
+      width: region.editorRect.width * source.width,
+      height: region.editorRect.height * source.height,
+    };
+    const target = uvRectToAtlasPixels(region.uvMapping, atlasSize);
+    context.save();
+    if (region.uvMapping.flipU) {
+      context.translate(target.x + target.width, 0);
+      context.scale(-1, 1);
+      context.drawImage(source, sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height, 0, target.y, target.width, target.height);
+    } else context.drawImage(source, sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height, target.x, target.y, target.width, target.height);
+    context.restore();
+  });
   return canvas;
 }
 
@@ -90,12 +156,14 @@ export function calculateCameraFrame({ bounds, cameraConfig, THREE }) {
 }
 
 export class ThreePreviewAdapter {
-  constructor({ runtime, profile, onStatus = () => {}, onError = () => {}, documentApi = globalThis.document }) {
+  constructor({ runtime, profile, productVariant = null, onStatus = () => {}, onError = () => {}, documentApi = globalThis.document }) {
     this.runtime = runtime;
     this.profile = profile;
     this.onStatus = onStatus;
     this.onError = onError;
     this.documentApi = documentApi;
+    this.productVariant = productVariant;
+    this.materialVariant = getMaterialVariant(profile, productVariant);
     this.bindingRecords = new Map();
     this.ownedTextures = new Set();
     this.disposed = false;
@@ -143,7 +211,9 @@ export class ThreePreviewAdapter {
     this.model = gltf.scene;
     const validation = validateModelBindings({ scene: this.model, profile: this.profile, THREE });
     this.bindingTargets = validation.targets;
+    this.overlayTargets = validation.overlayTargets;
     this.scene.add(this.model);
+    this.updateMaterialVariant(this.productVariant);
     this.frame = calculateCameraFrame({ bounds: validation.bounds, cameraConfig: this.profile.camera, THREE });
     this.configureCamera();
     this.startRenderLoop();
@@ -182,13 +252,43 @@ export class ThreePreviewAdapter {
     this.controls.update();
   }
 
+  updateMaterialVariant(productVariant) {
+    this.productVariant = productVariant;
+    this.materialVariant = getMaterialVariant(this.profile, productVariant);
+    if (!this.model || !this.materialVariant) return;
+    const configurations = new Map(this.materialVariant.materials.map((material) => [material.materialName, material]));
+    const printableMaterialNames = new Set(this.profile.printableSurfaces.map((surface) => surface.binding.materialName));
+    const transparentOverlay = this.profile.artworkComposition?.mode === "transparent-overlay";
+    const garmentMaterialNames = new Set(this.profile.garmentMaterials || []);
+    this.model.traverse((object) => {
+      materialList(object.material).filter(Boolean).forEach((material) => {
+        const configuration = configurations.get(material.name);
+        if (!configuration) return;
+        material.color?.set(transparentOverlay ? configuration.color : printableMaterialNames.has(material.name) ? "#ffffff" : configuration.color);
+        if (transparentOverlay && garmentMaterialNames.has(material.name)) material.map = null;
+        material.roughness = configuration.roughness;
+        material.metalness = configuration.metalness;
+        material.needsUpdate = true;
+      });
+    });
+    this.renderer?.render?.(this.scene, this.camera);
+  }
+
+  materialBaseColor(materialName, fallback) {
+    return this.materialVariant?.materials.find((material) => material.materialName === materialName)?.color || fallback;
+  }
+
   updateArtworks(artworksBySurface) {
     if (!this.bindingTargets) throw new Error("El modelo 3D aún no está preparado.");
+    if (this.profile.artworkComposition?.mode === "transparent-overlay") {
+      this.updateOverlayArtworks(artworksBySurface);
+      return;
+    }
     const { THREE } = this.runtime;
     this.bindingTargets.forEach(({ surface, binding, mesh, materialIndex, material }) => {
       const artworkCanvas = artworksBySurface[surface.printSurfaceId];
       if (!artworkCanvas) throw new Error(`Falta artwork para PrintSurface ${surface.printSurfaceId}.`);
-      const canvas = prepareTextureCanvas(artworkCanvas, surface.texture, this.documentApi);
+      const canvas = prepareTextureCanvas(artworkCanvas, { ...surface.texture, backgroundColor: this.materialBaseColor(binding.materialName, surface.texture.backgroundColor) }, this.documentApi, surface.uvMapping);
       const key = `${binding.meshName}:${binding.materialName}:${surface.printSurfaceId}`;
       let record = this.bindingRecords.get(key);
       if (!record) {
@@ -196,12 +296,51 @@ export class ThreePreviewAdapter {
         const materials = materialList(mesh.material);
         materials[materialIndex] = clonedMaterial;
         mesh.material = Array.isArray(mesh.material) ? materials : clonedMaterial;
-        const texture = applyTextureConfiguration(new THREE.CanvasTexture(canvas), surface, THREE);
+        clonedMaterial.color?.set("#ffffff");
+        const texture = applyTextureConfiguration(new THREE.CanvasTexture(canvas), surface, THREE, { precomposedAtlas: usesUvAtlas(surface) });
         clonedMaterial.map = texture;
         clonedMaterial.needsUpdate = true;
         record = { material: clonedMaterial, originalMaterial: material, texture };
         this.bindingRecords.set(key, record);
         this.ownedTextures.add(texture);
+      } else {
+        record.texture.image = canvas;
+        record.texture.needsUpdate = true;
+      }
+    });
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  updateOverlayArtworks(artworksBySurface) {
+    const { THREE } = this.runtime;
+    this.overlayTargets.forEach(({ binding, mesh, material, triangleIndices }) => {
+      const canvas = prepareGarmentAtlas(artworksBySurface, binding, this.profile.artworkComposition.atlasSize, this.documentApi);
+      const key = `overlay:${binding.meshName}:${binding.materialName}:${binding.geometryRegionId || "all"}`;
+      let record = this.bindingRecords.get(key);
+      if (!record) {
+        const overlayMaterial = material.clone();
+        overlayMaterial.name = `${material.name}ArtworkOverlay`;
+        overlayMaterial.color?.set("#ffffff");
+        overlayMaterial.map = applyTextureConfiguration(new THREE.CanvasTexture(canvas), { texture: { colorSpace: "srgb", wrapS: "clamp", wrapT: "clamp" }, uvMapping: { uMin: 0, uMax: 1, vMin: 0, vMax: 1, flipU: false, flipV: false, rotation: 0 } }, THREE, { precomposedAtlas: true });
+        overlayMaterial.side = THREE.FrontSide;
+        overlayMaterial.transparent = true;
+        overlayMaterial.depthTest = true;
+        overlayMaterial.depthWrite = false;
+        overlayMaterial.blending = THREE.NormalBlending;
+        overlayMaterial.alphaTest = 0.001;
+        overlayMaterial.polygonOffset = true;
+        // One depth unit prevents coplanar z-fighting without moving the overlay mesh.
+        overlayMaterial.polygonOffsetFactor = -1;
+        overlayMaterial.polygonOffsetUnits = -1;
+        overlayMaterial.needsUpdate = true;
+        const overlayGeometry = triangleIndices ? createFaceSubsetGeometry(mesh.geometry, triangleIndices) : mesh.geometry;
+        const overlay = new THREE.Mesh(overlayGeometry, overlayMaterial);
+        overlay.name = `${mesh.name}ArtworkOverlay`;
+        overlay.renderOrder = mesh.renderOrder + 1;
+        mesh.add(overlay);
+        record = { overlay, material: overlayMaterial, texture: overlayMaterial.map, ownedGeometry: triangleIndices ? overlayGeometry : null };
+        this.bindingRecords.set(key, record);
+        this.ownedTextures.add(overlayMaterial.map);
       } else {
         record.texture.image = canvas;
         record.texture.needsUpdate = true;
