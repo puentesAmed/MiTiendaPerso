@@ -88,7 +88,7 @@ export function ProductCard({ product, catalogContext }) {
             <Badge variant={isAvailable ? "success" : "destructive"} className="px-1.5">{availabilityLabel}</Badge>
           </div>
           <div className="grid gap-1.5 sm:grid-cols-2">
-            <Button size="sm" className={isCustomizable ? "w-full" : "w-full sm:col-span-2"} onClick={handleAddToCart} disabled={!isAvailable}>
+            <Button size="sm" className={canPersonalize ? "w-full" : "w-full sm:col-span-2"} onClick={handleAddToCart} disabled={!isAvailable}>
               <ShoppingCart /> {hasVariants ? "Elegir opciones" : "Añadir"}
             </Button>
             {canPersonalize && <Button as={Link} to={hasVariants ? `/productos/${productId}` : `/personalizar-v2/${productId}`} variant="outline" size="sm" className="w-full"><Sparkles /> Personalizar</Button>}

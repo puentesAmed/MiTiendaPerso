@@ -31,6 +31,19 @@ function toAdminCustomization(customization) {
         heightPx: surface.preview.heightPx,
         url: `/api/customizations/${customization._id}/surfaces/${encodeURIComponent(surface.viewId)}/preview`,
       } : null,
+      placementProof: surface.placementProof?.storageKey ? {
+        filename: surface.placementProof.filename,
+        mimeType: surface.placementProof.mimeType,
+        widthPx: surface.placementProof.widthPx,
+        heightPx: surface.placementProof.heightPx,
+        url: `/api/customizations/${customization._id}/surfaces/${encodeURIComponent(surface.viewId)}/proof`,
+      } : null,
+      placementMetadata: surface.placementMetadata?.storageKey ? {
+        filename: surface.placementMetadata.filename,
+        mimeType: surface.placementMetadata.mimeType,
+        schemaVersion: surface.placementMetadata.schemaVersion,
+        downloadUrl: `/api/customizations/${customization._id}/surfaces/${encodeURIComponent(surface.viewId)}/placement`,
+      } : null,
     })),
     productionBundle: {
       available: Boolean(customization.productionBundle?.zipStorageKey),

@@ -94,7 +94,7 @@ customizationRoutes.post(
  * ADMIN: descargar ZIP de personalización (CRÍTICO)
  * --------------------------------------------------------- */
 customizationRoutes.get(
-  "/:id/surfaces/:surfaceId/:kind(artwork|preview)",
+  "/:id/surfaces/:surfaceId/:kind(artwork|preview|proof|placement)",
   requireAuth,
   requireAdmin,
   async (req, res) => {
@@ -104,12 +104,16 @@ customizationRoutes.get(
     const surface = customization?.schemaVersion === 2
       ? customization.productionSurfaces?.find((item) => item.viewId === surfaceId || item.surfaceId === surfaceId)
       : null;
-    const artifact = surface?.[kind];
+    const artifact = kind === "proof"
+      ? surface?.placementProof
+      : kind === "placement"
+        ? surface?.placementMetadata
+        : surface?.[kind];
     if (!artifact?.storageKey || !(await storageProvider.exists(artifact.storageKey))) {
       return res.status(404).json({ ok: false, message: "Artifact no encontrado" });
     }
-    res.setHeader("Content-Type", artifact.mimeType || "image/png");
-    res.setHeader("Content-Disposition", `${kind === "preview" ? "inline" : "attachment"}; filename="${artifact.filename}"`);
+    res.setHeader("Content-Type", artifact.mimeType || (kind === "placement" ? "application/json" : "image/png"));
+    res.setHeader("Content-Disposition", `${["preview", "proof"].includes(kind) ? "inline" : "attachment"}; filename="${artifact.filename}"`);
     return res.end(await storageProvider.read(artifact.storageKey));
   }
 );

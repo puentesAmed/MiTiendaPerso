@@ -138,7 +138,6 @@ export function ProductDetail() {
   }, [id, reloadKey]);
 
   const isAliExpress = product?.provider === "aliexpress";
-  const isCustomizable = Boolean(product?.customizable);
   const hasDesignerV2Template = canUseProductDesignerV2(product);
   const productId = product?.id || product?._id;
   const availableSizes = Array.isArray(product?.variants?.sizes) ? product.variants.sizes : [];

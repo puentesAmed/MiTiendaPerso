@@ -76,6 +76,19 @@ const CustomizationSchema = new mongoose.Schema(
         widthPx: { type: Number, default: null },
         heightPx: { type: Number, default: null },
       },
+      placementProof: {
+        storageKey: { type: String, default: null },
+        filename: { type: String, default: null },
+        mimeType: { type: String, default: null },
+        widthPx: { type: Number, default: null },
+        heightPx: { type: Number, default: null },
+      },
+      placementMetadata: {
+        storageKey: { type: String, default: null },
+        filename: { type: String, default: null },
+        mimeType: { type: String, default: null },
+        schemaVersion: { type: Number, default: null },
+      },
     }],
     productionBundle: {
       zipStorageKey: { type: String, default: null },

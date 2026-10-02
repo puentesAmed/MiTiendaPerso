@@ -59,7 +59,7 @@ function v2Customization(product, templateId, templateRevision, views, uploads, 
       views: Object.fromEntries(views.map((viewId) => [viewId, { elements: [] }])),
       metadata: { createdAt: "2026-10-02T08:00:00.000Z", updatedAt: "2026-10-02T08:00:00.000Z" },
     },
-    uploads: { assets: {}, surfaces: Object.fromEntries(Object.entries(uploads).map(([viewId, artworkUploadId]) => [viewId, { artworkUploadId }])) },
+    uploads: { assets: {}, surfaces: Object.fromEntries(Object.entries(uploads).map(([viewId, artworkUploadId]) => [viewId, { artworkUploadId, proofUploadId: artworkUploadId }])) },
   };
 }
 
@@ -68,7 +68,7 @@ async function cleanupArtifacts() {
   const keys = customizations.flatMap((customization) => [
     customization.productionBundle?.zipStorageKey,
     customization.productionBundle?.manifestStorageKey,
-    ...(customization.productionSurfaces || []).flatMap((surface) => [surface.artwork?.storageKey, surface.preview?.storageKey]),
+    ...(customization.productionSurfaces || []).flatMap((surface) => [surface.artwork?.storageKey, surface.preview?.storageKey, surface.placementProof?.storageKey, surface.placementMetadata?.storageKey]),
     ...Object.values(customization.designDocument?.assets || {}).map((asset) => asset.storageKey),
   ]).filter(Boolean);
   await Promise.all([...keys, ...[...stagingIds].map((id) => `designer-v2/staging/${id}`)].map((key) => storageProvider.delete(key).catch(() => {})));
@@ -96,7 +96,7 @@ test("pedido V2 de taza congela wrap, enlaza order item y protege descargas", as
   const customizationPayload = v2Customization(product, "mug-ceramic-standard-v1", 1, ["wrap"], { wrap: await uploadArtwork(1008, 480) });
   const assetUploadId = await uploadArtwork(10, 10);
   customizationPayload.designDocument.assets["asset-1"] = { assetId: "asset-1", kind: "image", mimeType: "image/png", widthPx: 10, heightPx: 10, sizeBytes: 24, createdAt: "2026-10-02T08:00:00.000Z" };
-  customizationPayload.designDocument.views.wrap.elements.push({ id: "image-1", type: "image", assetId: "asset-1" });
+  customizationPayload.designDocument.views.wrap.elements.push({ id: "image-1", type: "image", printAreaId: "wrap-main", assetId: "asset-1", x: 0.62, y: 0.2, width: 0.25, height: 0.3, rotation: 17, opacity: 1, zIndex: 0, hidden: false });
   customizationPayload.uploads.assets["asset-1"] = assetUploadId;
   const response = await request(app).post("/api/orders").send(orderPayload(product, customizationPayload));
   assert.equal(response.status, 201, JSON.stringify(response.body));
@@ -109,6 +109,11 @@ test("pedido V2 de taza congela wrap, enlaza order item y protege descargas", as
   assert.equal(await storageProvider.exists(customization.designDocument.assets["asset-1"].storageKey), true);
   assert.deepEqual(customization.productionSurfaces.map((surface) => surface.viewId), ["wrap"]);
   assert.equal(customization.productionSurfaces[0].artwork.filename, "wrap.png");
+  assert.equal(customization.productionSurfaces[0].placementProof.filename, "wrap-placement.png");
+  const placement = JSON.parse((await storageProvider.read(customization.productionSurfaces[0].placementMetadata.storageKey)).toString("utf8"));
+  assert.equal(placement.coordinateSystem, "normalized");
+  assert.deepEqual(placement.elements[0], { id: "image-1", type: "image", printAreaId: "wrap-main", x: 0.62, y: 0.2, width: 0.25, height: 0.3, rotation: 17, opacity: 1, zIndex: 0, hidden: false, assetId: "asset-1" });
+  assert.equal(placement.physicalPlacement, null);
 
   const anonymous = await request(app).get(`/api/customizations/${customization._id}/surfaces/wrap/artwork`);
   assert.equal(anonymous.status, 401);
@@ -120,10 +125,15 @@ test("pedido V2 de taza congela wrap, enlaza order item y protege descargas", as
   const artwork = await request(app).get(`/api/customizations/${customization._id}/surfaces/wrap/artwork`).set("Authorization", adminAuth);
   assert.equal(artwork.status, 200);
   assert.equal(artwork.headers["content-type"], "image/png");
+  const proof = await request(app).get(`/api/customizations/${customization._id}/surfaces/wrap/proof`).set("Authorization", adminAuth);
+  assert.equal(proof.status, 200);
+  const placementResponse = await request(app).get(`/api/customizations/${customization._id}/surfaces/wrap/placement`).set("Authorization", adminAuth);
+  assert.equal(placementResponse.status, 200);
+  assert.doesNotMatch(placementResponse.text, /storageKey|blob:|data:image|scaleX|viewport/);
   const zip = await request(app).get(`/api/customizations/${customization._id}/zip`).set("Authorization", adminAuth);
   assert.equal(zip.status, 200);
   const zipText = (await storageProvider.read(customization.productionBundle.zipStorageKey)).toString("latin1");
-  for (const name of ["manifest.json", "design-document.json", "production/wrap.png", "previews/wrap.png"]) assert.match(zipText, new RegExp(name.replace(".", "\\.")));
+  for (const name of ["manifest.json", "design-document.json", "production/wrap.png", "previews/wrap.png", "proofs/wrap-placement.png", "placement/wrap.json"]) assert.match(zipText, new RegExp(name.replace(".", "\\.")));
 
   const started = await request(app).patch(`/api/customizations/${customization._id}/status`).set("Authorization", adminAuth).send({ status: "in_production" });
   assert.equal(started.status, 200);
@@ -140,6 +150,9 @@ test("pedido V2 de camiseta conserva cuatro superficies independientes en ZIP", 
   for (const [viewId, [width, height]] of Object.entries(dimensions)) uploads[viewId] = await uploadArtwork(width, height);
   const variant = { size: "L", color: "Blanco" };
   const payload = v2Customization(product, "tshirt-basic-v1", 2, Object.keys(dimensions), uploads, variant);
+  Object.entries(payload.designDocument.views).forEach(([viewId, view], index) => {
+    view.elements.push({ id: `${viewId}-text`, type: "text", printAreaId: dimensions[viewId] ? `tshirt-${viewId}` : viewId, x: 0.08 + index * 0.05, y: 0.12 + index * 0.08, width: 0.3, height: 0.16, rotation: index === 3 ? 35 : 0, opacity: 1, zIndex: 0, hidden: false, content: `Marker ${viewId}`, fontSize: 0.09, color: "#111111", textAlign: "center", fontWeight: 500 });
+  });
   const response = await request(app).post("/api/orders").send(orderPayload(product, payload, variant));
   assert.equal(response.status, 201, JSON.stringify(response.body));
   const customization = await Customization.findById(response.body.order.items[0].customizationId).lean();
@@ -147,7 +160,16 @@ test("pedido V2 de camiseta conserva cuatro superficies independientes en ZIP", 
   assert.deepEqual(customization.variant, variant);
   const zipBytes = await storageProvider.read(customization.productionBundle.zipStorageKey);
   const zipText = zipBytes.toString("latin1");
-  for (const viewId of Object.keys(dimensions)) assert.match(zipText, new RegExp(`production/${viewId}\\.png`));
+  for (const viewId of Object.keys(dimensions)) {
+    assert.match(zipText, new RegExp(`production/${viewId}\\.png`));
+    assert.match(zipText, new RegExp(`proofs/${viewId}-placement\\.png`));
+    assert.match(zipText, new RegExp(`placement/${viewId}\\.json`));
+    const surface = customization.productionSurfaces.find((candidate) => candidate.viewId === viewId);
+    const metadata = JSON.parse((await storageProvider.read(surface.placementMetadata.storageKey)).toString("utf8"));
+    assert.equal(metadata.viewId, viewId);
+    assert.equal(metadata.surfaceId, `tshirt-${viewId}`);
+    assert.equal(metadata.elements[0].rotation, viewId === "sleeve-right" ? 35 : 0);
+  }
 });
 
 test("backend rechaza template o surface set V2 incompatibles sin truncar", async () => {

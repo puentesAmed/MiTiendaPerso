@@ -1,3 +1,5 @@
+import { normalizedElementToSurfacePixels } from "../production/alignmentContract.js";
+
 function assertViewport(viewport) {
   if (!viewport || viewport.width <= 0 || viewport.height <= 0) throw new Error("Print area viewport inválido.");
 }
@@ -35,13 +37,12 @@ export function keepElementReachable(bounds, minimumVisible = 0.04) {
 
 export function domainElementToFabricRect(element, printAreaViewport) {
   assertViewport(printAreaViewport);
-  const width = element.width * printAreaViewport.width;
-  const height = element.height * printAreaViewport.height;
+  const pixels = normalizedElementToSurfacePixels(element, printAreaViewport);
   return {
-    centerX: printAreaViewport.x + element.x * printAreaViewport.width + width / 2,
-    centerY: printAreaViewport.y + element.y * printAreaViewport.height + height / 2,
-    width,
-    height,
+    centerX: printAreaViewport.x + pixels.centerX,
+    centerY: printAreaViewport.y + pixels.centerY,
+    width: pixels.width,
+    height: pixels.height,
     rotation: element.rotation,
   };
 }

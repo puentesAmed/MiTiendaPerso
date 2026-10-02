@@ -276,7 +276,7 @@ export async function createOrder(req, res) {
             ? [
                 customization.productionBundle?.zipStorageKey,
                 customization.productionBundle?.manifestStorageKey,
-                ...(customization.productionSurfaces || []).flatMap((surface) => [surface.artwork?.storageKey, surface.preview?.storageKey]),
+                ...(customization.productionSurfaces || []).flatMap((surface) => [surface.artwork?.storageKey, surface.preview?.storageKey, surface.placementProof?.storageKey, surface.placementMetadata?.storageKey]),
                 ...Object.values(customization.designDocument?.assets || {}).map((asset) => asset.storageKey),
               ].filter(Boolean)
             : [`customizations/${id}.zip`];
@@ -446,7 +446,11 @@ export async function getOrderByIdForUser(req, res) {
       ok: true,
       order: { ...order, items },
       summary: {
-        subtotal: roundCurrency(Math.max(0, total - shippingPrice)),
+        subtotal: Number(order.subtotal) || roundCurrency(Math.max(0, total - shippingPrice)),
+        ...(order.coupon ? {
+          discountAmount: Number(order.discountAmount) || 0,
+          coupon: order.coupon,
+        } : {}),
         shipping: shippingPrice,
         total,
       },

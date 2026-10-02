@@ -17,6 +17,7 @@ export async function createOrderRequest(items, data = {}) {
     shippingAddress: data.shippingAddress,
     billingAddress: data.billingAddress ?? null,
     notes: data.notes ?? "",
+    couponCode: data.couponCode ?? "",
   };
 
   if (import.meta.env.DEV) {
@@ -31,12 +32,14 @@ export async function createOrderRequest(items, data = {}) {
   return response;
 }
 
-export async function getShippingQuoteRequest(items, shippingAddress, signal) {
+export async function getShippingQuoteRequest(items, shippingAddress, signal, options = {}) {
   const payload = {
     items: (items || []).map((item) =>
       toCheckoutItem(item, { includeCustomization: false })
     ),
     shippingAddress,
+    couponCode: options.couponCode || "",
+    email: options.email || null,
   };
 
   const { data } = await http.post("/api/shipping/quote", payload, { signal });

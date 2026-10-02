@@ -11,12 +11,19 @@ test("Admin presenta legacy sin exigir productionSurfaces", () => {
 });
 
 test("Admin presenta taza V2 con artwork individual y bundle", () => {
-  const surface = { viewId: "wrap", preview: { url: "/preview" }, artwork: { downloadUrl: "/artwork", filename: "wrap.png" } };
+  const surface = { viewId: "wrap", preview: { url: "/preview" }, artwork: { downloadUrl: "/artwork", filename: "wrap.png" }, placementProof: { url: "/proof" }, placementMetadata: { downloadUrl: "/placement" } };
   const result = getAdminCustomizationPresentation({ schemaVersion: 2, productSnapshot: { name: "Taza" }, productionStatus: "ready", productionBundle: { available: true }, productionSurfaces: [surface] });
   assert.equal(result.product, "Taza");
   assert.equal(result.preview, "/preview");
   assert.deepEqual(result.surfaces, [surface]);
+  assert.equal(result.surfaces[0].placementProof.url, "/proof");
   assert.deepEqual(getProductionStatusTargets("ready"), ["in_production", "issue"]);
+});
+
+test("Admin tolera V2 histórico sin proof ni placement", () => {
+  const result = getAdminCustomizationPresentation({ schemaVersion: 2, productionSurfaces: [{ viewId: "wrap", artwork: { filename: "wrap.png" }, placementProof: null, placementMetadata: null }] });
+  assert.equal(result.isV2, true);
+  assert.equal(result.surfaces[0].placementProof, null);
 });
 
 test("Admin conserva cuatro superficies de camiseta", () => {

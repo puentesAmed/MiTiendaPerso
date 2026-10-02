@@ -38,7 +38,7 @@ Restaurar el ecommerce invitado completo, retirar Designer V1 del runtime, conso
 
 ### PaymentSettings
 
-Documento único con `bizum` y `bankTransfer`: enabled, displayName, instructions, recipient/details, sortOrder, updatedAt/updatedBy. El DTO público devuelve únicamente métodos habilitados y textos necesarios para checkout.
+Documento único con `bizum` y `bankTransfer`: enabled, label, instructions y recipient/accountHolder/iban según método, más timestamps. El DTO público devuelve únicamente id y label de métodos habilitados; las instrucciones completas solo se entregan tras crear el pedido.
 
 ### Coupon
 
@@ -54,6 +54,14 @@ Quote añade `subtotal`, `discountAmount`, `discountedSubtotal`, `price`, `total
 - Endpoints Admin requieren auth/admin.
 - MONEI, AliExpress y dropshipping permanecen dormidos.
 - Configuración pública de pago no devuelve secretos ni paths internos.
+- Quote, validación de cupón y lectura pública de métodos comparten throttling de acciones públicas.
+
+## Inicialización y migración
+
+- `npm run seed:commerce-settings` crea de forma idempotente el documento `PaymentSettings/default` desde ENV y el cupón `PRIMER10` si todavía no existen.
+- El script es manual: no se ejecuta al arrancar ni modifica configuración existente.
+- Si no existe documento persistente de pagos, el runtime usa ENV como fallback compatible durante la transición.
+- No se elimina ni transforma ningún documento histórico; los pedidos nuevos guardan los snapshots y los antiguos conservan el fallback de lectura actual.
 
 ## Criterios de aceptación
 

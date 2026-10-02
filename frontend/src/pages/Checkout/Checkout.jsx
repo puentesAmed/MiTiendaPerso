@@ -242,6 +242,12 @@ function OrderSummary({ items, totalAmount, shippingQuote, shippingLoading, ship
             <dt className="text-muted-foreground">Subtotal {shippingQuote ? "" : "estimado"}</dt>
             <dd className="font-medium">{formatMoney(subtotal)}</dd>
           </div>
+          {shippingQuote?.discountAmount > 0 && (
+            <div className="flex justify-between gap-3 text-success">
+              <dt>Descuento ({shippingQuote.coupon?.code})</dt>
+              <dd className="font-medium">−{formatMoney(shippingQuote.discountAmount)}</dd>
+            </div>
+          )}
           <div className="flex justify-between gap-3">
             <dt className="text-muted-foreground">Envío</dt>
             <dd className="max-w-48 text-right font-medium">
@@ -273,7 +279,6 @@ export function Checkout() {
   const { user } = useAuth();
   const { items, totalAmount, clearCart, updateQuantity, removeItem } = useCart();
   const navigate = useNavigate();
-  const guestSession = loadGuestSession();
   const submitLock = useRef(false);
 
   const [guestEmail, setGuestEmail] = useState("");
@@ -290,6 +295,8 @@ export function Checkout() {
   const [shippingQuote, setShippingQuote] = useState(null);
   const [shippingLoading, setShippingLoading] = useState(false);
   const [shippingError, setShippingError] = useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCouponCode, setAppliedCouponCode] = useState("");
   const [shippingAddress, setShippingAddress] = useState({
     fullName: "",
     street: "",
@@ -390,7 +397,7 @@ export function Checkout() {
       try {
         setShippingLoading(true);
         setShippingError("");
-        const data = await getShippingQuoteRequest(items, shippingAddress, controller.signal);
+        const data = await getShippingQuoteRequest(items, shippingAddress, controller.signal, { couponCode: appliedCouponCode, email: user ? null : guestEmail });
         if (!data.ok) throw new Error(data.message || "Error de envío");
         setShippingQuote(data.quote);
       } catch (quoteError) {
@@ -404,7 +411,7 @@ export function Checkout() {
     };
     fetchQuote();
     return () => controller.abort();
-  }, [shippingAddress, items, isShippingAddressValid, loading]);
+  }, [shippingAddress, items, isShippingAddressValid, loading, appliedCouponCode, guestEmail, user]);
 
   const productNeedsCustomization = (item) => {
     if (!item.customizationRequired) return false;
@@ -439,6 +446,7 @@ export function Checkout() {
         shippingAddress,
         billingAddress: useSameBilling ? shippingAddress : billingAddress,
         notes,
+        couponCode: appliedCouponCode,
       });
       if (!data.ok) {
         setError(data.message || "No se pudo crear el pedido.");
@@ -558,6 +566,16 @@ export function Checkout() {
               <label htmlFor="order-notes" className="mb-1.5 block text-sm font-medium">Notas del pedido <span className="font-normal text-muted-foreground">(opcional)</span></label>
               <Textarea id="order-notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Indicaciones útiles para preparar o entregar el pedido" />
             </div>
+          </Card>
+
+          <Card className="p-4 shadow-none">
+            <h2 className="font-semibold">Cupón</h2>
+            <p className="mt-1 text-sm text-muted-foreground">La validez y el descuento se calculan en el servidor.</p>
+            <div className="mt-3 flex gap-2">
+              <Input value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Código" aria-label="Código de cupón" />
+              <Button type="button" variant="outline" onClick={() => setAppliedCouponCode(couponCode.trim())}>{appliedCouponCode ? "Actualizar" : "Aplicar"}</Button>
+            </div>
+            {!shippingLoading && shippingQuote?.coupon?.code === appliedCouponCode && <p className="mt-2 text-xs text-success">Cupón {appliedCouponCode} aplicado.</p>}
           </Card>
 
           <Card className="p-4 shadow-none">

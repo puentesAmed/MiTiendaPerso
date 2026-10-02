@@ -1,5 +1,5 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from "react";
-import { Boxes, CheckCircle2, ClipboardCheck, Download, Edit3, Eye, Package, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { Boxes, CheckCircle2, ClipboardCheck, Download, Edit3, Eye, Package, Plus, RefreshCw, Search, ShieldCheck, Trash2, TicketPercent, WalletCards } from "lucide-react";
 import { http } from "../../services/http";
 import { adminConfirmDeliveryDate, adminGetOrders, adminUpdateOrderStatus, confirmOrderPayment } from "../../services/orders.service";
 import { getOrderItemVariant } from "../../utils/orderVariantAdapter";
@@ -25,6 +25,8 @@ const SECTIONS = [
   { id: "orders", label: "Pedidos", icon: ClipboardCheck },
   { id: "products", label: "Productos", icon: Package },
   { id: "customizations", label: "Personalizaciones", icon: Edit3 },
+  { id: "payments", label: "Pagos", icon: WalletCards },
+  { id: "coupons", label: "Cupones", icon: TicketPercent },
 ];
 
 const ORDER_STATUS_OPTIONS = [
@@ -99,6 +101,10 @@ export function Admin() {
   const [errorCustomizations, setErrorCustomizations] = useState("");
   const [customizationQuery, setCustomizationQuery] = useState("");
   const [selectedCustomization, setSelectedCustomization] = useState(null);
+  const [paymentSettings, setPaymentSettings] = useState(null);
+  const [savingPaymentSettings, setSavingPaymentSettings] = useState(false);
+  const [coupons, setCoupons] = useState([]);
+  const [couponForm, setCouponForm] = useState({ code: "", percentOff: "10", minimumSubtotal: "0", enabled: true, firstOrderOnly: false, maxUses: "", startsAt: "", endsAt: "" });
 
   const showNotice = useCallback((type, title, message = "") => setNotice({ type, title, message }), []);
 
@@ -135,7 +141,48 @@ export function Admin() {
     } finally { setLoadingCustomizations(false); }
   }, []);
 
-  useEffect(() => { loadProducts(); loadOrders(); loadCustomizations(); }, [loadProducts, loadOrders, loadCustomizations]);
+  const loadCommerceSettings = useCallback(async () => {
+    try {
+      const [paymentsResponse, couponsResponse] = await Promise.all([
+        http.get("/api/payments/admin/settings"),
+        http.get("/api/coupons/admin"),
+      ]);
+      setPaymentSettings(paymentsResponse.data.settings);
+      setCoupons(couponsResponse.data.coupons || []);
+    } catch (error) {
+      showNotice("error", "No se pudo cargar la configuración comercial", error.response?.data?.message || error.message);
+    }
+  }, [showNotice]);
+
+  useEffect(() => { loadProducts(); loadOrders(); loadCustomizations(); loadCommerceSettings(); }, [loadProducts, loadOrders, loadCustomizations, loadCommerceSettings]);
+
+  const updatePaymentMethod = (method, field, value) => setPaymentSettings((current) => ({ ...current, [method]: { ...current[method], [field]: value } }));
+  const handleSavePaymentSettings = async () => {
+    try {
+      setSavingPaymentSettings(true);
+      const { data } = await http.put("/api/payments/admin/settings", paymentSettings);
+      setPaymentSettings(data.settings);
+      showNotice("success", "Métodos de pago actualizados");
+    } catch (error) { showNotice("error", "No se pudieron guardar los métodos", error.response?.data?.message || error.message); }
+    finally { setSavingPaymentSettings(false); }
+  };
+
+  const handleCreateCoupon = async (event) => {
+    event.preventDefault();
+    try {
+      await http.post("/api/coupons/admin", { ...couponForm, code: couponForm.code.trim().toUpperCase(), percentOff: Number(couponForm.percentOff), minimumSubtotal: Number(couponForm.minimumSubtotal), maxUses: couponForm.maxUses ? Number(couponForm.maxUses) : null });
+      setCouponForm({ code: "", percentOff: "10", minimumSubtotal: "0", enabled: true, firstOrderOnly: false, maxUses: "", startsAt: "", endsAt: "" });
+      await loadCommerceSettings();
+      showNotice("success", "Cupón creado");
+    } catch (error) { showNotice("error", "No se pudo crear el cupón", error.response?.data?.message || error.message); }
+  };
+
+  const toggleCoupon = async (coupon) => {
+    try {
+      await http.put(`/api/coupons/admin/${coupon._id}`, { enabled: !coupon.enabled });
+      setCoupons((current) => current.map((item) => item._id === coupon._id ? { ...item, enabled: !item.enabled } : item));
+    } catch (error) { showNotice("error", "No se pudo actualizar el cupón", error.response?.data?.message || error.message); }
+  };
 
   const summary = useMemo(() => ({
     orders: orders.length,
@@ -251,12 +298,13 @@ export function Admin() {
     } catch { showNotice("error", "No se pudo descargar el ZIP"); }
   };
 
-  const handleDownloadArtwork = async (surface) => {
+  const handleDownloadSurfaceArtifact = async (surface, kind = "artwork") => {
     try {
-      const response = await http.get(surface.artwork.downloadUrl, { responseType: "blob" });
+      const artifact = kind === "placement" ? surface.placementMetadata : surface.artwork;
+      const response = await http.get(artifact.downloadUrl, { responseType: "blob" });
       const url = URL.createObjectURL(response.data);
-      const anchor = document.createElement("a"); anchor.href = url; anchor.download = surface.artwork.filename; document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
-    } catch { showNotice("error", "No se pudo descargar el artwork"); }
+      const anchor = document.createElement("a"); anchor.href = url; anchor.download = artifact.filename; document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
+    } catch { showNotice("error", "No se pudo descargar el artefacto"); }
   };
 
   const handleProductionStatus = async (customization, status) => {
@@ -282,13 +330,26 @@ export function Admin() {
 
       {section === "customizations" && <section aria-labelledby="admin-customizations-title" className="mt-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 id="admin-customizations-title" className="text-lg font-semibold">Personalizaciones</h2><p className="mt-1 text-sm text-muted-foreground">Previews y archivos ya generados.</p></div><Button type="button" variant="outline" size="sm" onClick={loadCustomizations} disabled={loadingCustomizations}><RefreshCw aria-hidden="true" /> Recargar</Button></div><div className="relative mt-4 max-w-md"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input value={customizationQuery} onChange={(event) => setCustomizationQuery(event.target.value)} placeholder="Buscar producto, usuario o ID" className="pl-9" aria-label="Buscar personalizaciones" /></div>{loadingCustomizations && <LoadingState message="Cargando personalizaciones…" />}{!loadingCustomizations && errorCustomizations && <ErrorState title="No se pudieron cargar las personalizaciones" description={errorCustomizations} onRetry={loadCustomizations} />}{!loadingCustomizations && !errorCustomizations && filteredCustomizations.length === 0 && <EmptyState title="No hay personalizaciones" description="No existen diseños que coincidan con la búsqueda." />}{!loadingCustomizations && !errorCustomizations && filteredCustomizations.length > 0 && <CustomizationsList customizations={filteredCustomizations} onView={setSelectedCustomization} onDownload={handleDownloadZip} />}</section>}
 
+      {section === "payments" && <PaymentSettingsSection settings={paymentSettings} busy={savingPaymentSettings} onChange={updatePaymentMethod} onSave={handleSavePaymentSettings} />}
+      {section === "coupons" && <CouponsSection coupons={coupons} form={couponForm} onFormChange={(key, value) => setCouponForm((current) => ({ ...current, [key]: value }))} onCreate={handleCreateCoupon} onToggle={toggleCoupon} />}
+
       <PaymentDialog target={paymentTarget} busy={confirmingPayment} onClose={() => !confirmingPayment && setPaymentTarget(null)} onConfirm={handleConfirmPayment} />
       <DeleteProductDialog target={deleteProductTarget} busy={deletingProduct} onClose={() => !deletingProduct && setDeleteProductTarget(null)} onConfirm={handleDeleteProduct} />
       <ProductFormDialog open={productFormOpen} editing={editingProduct} form={form} busy={savingProduct} onOpenChange={setProductFormOpen} onChange={updateForm} onSubmit={handleSubmitProduct} />
       <OrderDetailDialog order={selectedOrder} busyOrderId={savingOrderId} deliveryDate={deliveryDateInput} savingDelivery={savingDeliveryDate} onClose={() => setSelectedOrder(null)} onStatusChange={handleChangeOrderStatus} onDeliveryDateChange={setDeliveryDateInput} onConfirmDelivery={handleConfirmDelivery} onConfirmPayment={setPaymentTarget} />
-      <CustomizationDetailDialog customization={selectedCustomization} onClose={() => setSelectedCustomization(null)} onDownload={handleDownloadZip} onDownloadArtwork={handleDownloadArtwork} onStatusChange={handleProductionStatus} />
+      <CustomizationDetailDialog customization={selectedCustomization} onClose={() => setSelectedCustomization(null)} onDownload={handleDownloadZip} onDownloadSurfaceArtifact={handleDownloadSurfaceArtifact} onStatusChange={handleProductionStatus} />
     </PageContainer>
   );
+}
+
+function PaymentSettingsSection({ settings, busy, onChange, onSave }) {
+  if (!settings) return <LoadingState message="Cargando métodos de pago…" />;
+  const methods = [["bizum", "Bizum"], ["bankTransfer", "Transferencia bancaria"]];
+  return <section className="mt-5" aria-labelledby="admin-payments-title"><h2 id="admin-payments-title" className="text-lg font-semibold">Métodos de pago manual</h2><p className="mt-1 text-sm text-muted-foreground">Solo los métodos activos se muestran en checkout. Los pedidos conservan una copia de sus instrucciones.</p><div className="mt-4 grid gap-4 lg:grid-cols-2">{methods.map(([key, label]) => <Card key={key} className="space-y-3 p-4 shadow-none"><label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={Boolean(settings[key]?.enabled)} onChange={(event) => onChange(key, "enabled", event.target.checked)} /> {label} activo</label>{key === "bizum" ? <Field label="Destinatario"><Input value={settings[key]?.recipient || ""} onChange={(event) => onChange(key, "recipient", event.target.value)} /></Field> : <><Field label="Titular"><Input value={settings[key]?.accountHolder || ""} onChange={(event) => onChange(key, "accountHolder", event.target.value)} /></Field><Field label="IBAN"><Input value={settings[key]?.iban || ""} onChange={(event) => onChange(key, "iban", event.target.value)} /></Field></>}<Field label="Instrucciones"><Textarea value={settings[key]?.instructions || ""} onChange={(event) => onChange(key, "instructions", event.target.value)} /></Field></Card>)}</div><Button type="button" className="mt-4" onClick={onSave} disabled={busy}>{busy ? "Guardando…" : "Guardar métodos"}</Button></section>;
+}
+
+function CouponsSection({ coupons, form, onFormChange, onCreate, onToggle }) {
+  return <section className="mt-5" aria-labelledby="admin-coupons-title"><h2 id="admin-coupons-title" className="text-lg font-semibold">Cupones porcentuales</h2><p className="mt-1 text-sm text-muted-foreground">Crea y activa descuentos validados siempre por el servidor.</p><form onSubmit={onCreate} className="mt-4 grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4"><Field label="Código"><Input required value={form.code} onChange={(event) => onFormChange("code", event.target.value.toUpperCase())} /></Field><Field label="Descuento %"><Input required type="number" min="1" max="100" value={form.percentOff} onChange={(event) => onFormChange("percentOff", event.target.value)} /></Field><Field label="Subtotal mínimo"><Input type="number" min="0" step="0.01" value={form.minimumSubtotal} onChange={(event) => onFormChange("minimumSubtotal", event.target.value)} /></Field><Field label="Límite de usos"><Input type="number" min="1" value={form.maxUses} onChange={(event) => onFormChange("maxUses", event.target.value)} placeholder="Sin límite" /></Field><Field label="Inicio"><Input type="datetime-local" value={form.startsAt} onChange={(event) => onFormChange("startsAt", event.target.value)} /></Field><Field label="Fin"><Input type="datetime-local" value={form.endsAt} onChange={(event) => onFormChange("endsAt", event.target.value)} /></Field><div className="flex flex-col justify-end gap-2"><label className="text-sm"><input type="checkbox" checked={form.firstOrderOnly} onChange={(event) => onFormChange("firstOrderOnly", event.target.checked)} /> Solo primer pedido</label><Button type="submit" size="sm"><Plus /> Crear</Button></div></form><div className="mt-4 grid gap-2">{coupons.map((coupon) => <Card key={coupon._id} className="flex flex-wrap items-center justify-between gap-3 p-3 shadow-none"><div><strong>{coupon.code}</strong><p className="text-xs text-muted-foreground">{coupon.percentOff}% · mínimo {coupon.minimumSubtotal || 0} € · {coupon.usageCount || 0}{coupon.maxUses ? `/${coupon.maxUses}` : ""} usos{coupon.firstOrderOnly ? " · primer pedido" : ""}</p></div><Button type="button" size="sm" variant={coupon.enabled ? "secondary" : "outline"} onClick={() => onToggle(coupon)}>{coupon.enabled ? "Activo" : "Inactivo"}</Button></Card>)}{coupons.length === 0 && <EmptyState title="No hay cupones" description="Crea el primer cupón con el formulario." />}</div></section>;
 }
 
 function OrdersList({ orders, savingOrderId, onStatusChange, onView, onConfirmPayment }) {
@@ -338,10 +399,11 @@ function OrderDetailDialog({ order, busyOrderId, deliveryDate, savingDelivery, o
   return <Dialog open={Boolean(order)} onOpenChange={(open) => !open && onClose()}><DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>Pedido {shortId(order._id)}</DialogTitle><DialogDescription>{formatOrderDate(order.createdAt)} · Snapshot histórico almacenado</DialogDescription></DialogHeader><div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]"><div className="min-w-0 space-y-4"><div className="flex flex-wrap gap-2"><OrderStatusBadge status={order.status} /><PaymentStatusBadge status={getPaymentStatus(order)} /><Badge variant="outline">{paymentMethodLabel(getPaymentMethod(order))}</Badge></div><Card className="p-4 shadow-none"><h3 className="font-semibold">Cliente y entrega</h3><p className="mt-2 break-words text-sm font-medium">{getOrderUserLabel(order)}</p><p className="break-all text-sm text-muted-foreground">{getOrderEmail(order)}</p>{address && <address className="mt-3 break-words text-sm not-italic text-muted-foreground">{address.fullName}<br />{address.street}<br />{address.postalCode} {address.city}<br />{address.state}{address.country ? ` · ${address.country}` : ""}</address>}</Card><div><h3 className="mb-2 font-semibold">Artículos</h3><div className="divide-y rounded-xl border bg-card">{order.items?.map((item, index) => { const variant = getOrderItemVariant(item); return <article key={item._id || `${item.productId}-${index}`} className="p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words font-medium">{item.name || "Producto"}</p>{variant && <p className="mt-1 text-xs text-muted-foreground">{variant.size && `Talla: ${variant.size}`}{variant.size && variant.color && " · "}{variant.color && `Color: ${variant.color}`}</p>}{item.customizationId && <Badge variant="outline" className="mt-2">Personalizado</Badge>}<p className="mt-2 text-xs text-muted-foreground">Cantidad: {item.quantity}</p></div><Price value={Number(item.price || 0) * Number(item.quantity || 0)} className="text-sm" /></div></article>; })}</div></div>{order.notes && <Card className="p-4 shadow-none"><h3 className="font-semibold">Notas</h3><p className="mt-2 break-words text-sm text-muted-foreground">{order.notes}</p></Card>}</div><aside className="space-y-4"><Card className="p-4 shadow-none"><h3 className="font-semibold">Resumen histórico</h3><dl className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Subtotal</dt><dd><Price value={subtotal} className="text-sm" /></dd></div><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Envío</dt><dd><Price value={shipping} className="text-sm" /></dd></div><div className="flex justify-between gap-3 border-t pt-2 font-semibold"><dt>Total</dt><dd><Price value={total} className="text-base" /></dd></div></dl></Card><Card className="p-4 shadow-none"><h3 className="font-semibold">Estado operativo</h3><div className="mt-3"><OrderStatusControl order={order} busy={busyOrderId === order._id} onChange={onStatusChange} /></div>{canConfirmPayment && <Button type="button" size="sm" className="mt-3 w-full" onClick={() => onConfirmPayment(order)}>Confirmar pago recibido</Button>}</Card><Card className="p-4 shadow-none"><h3 className="font-semibold">Entrega</h3>{order.shipping?.estimatedDeliveryDate && <p className="mt-2 text-xs text-muted-foreground">Estimada: {new Date(order.shipping.estimatedDeliveryDate).toLocaleDateString("es-ES")}</p>}{order.shipping?.confirmedDeliveryDate && <p className="mt-1 text-xs text-success">Confirmada: {new Date(order.shipping.confirmedDeliveryDate).toLocaleDateString("es-ES")}</p>}<Field label="Confirmar fecha"><Input type="date" value={deliveryDate} onChange={(event) => onDeliveryDateChange(event.target.value)} /></Field><Button type="button" variant="outline" size="sm" className="mt-2 w-full" disabled={!deliveryDate || savingDelivery} onClick={onConfirmDelivery}>{savingDelivery ? "Guardando…" : "Confirmar entrega"}</Button></Card></aside></div><DialogFooter><DialogClose render={<Button type="button" variant="outline" />}>Cerrar</DialogClose></DialogFooter></DialogContent></Dialog>;
 }
 
-function CustomizationDetailDialog({ customization, onClose, onDownload, onDownloadArtwork, onStatusChange }) {
+function CustomizationDetailDialog({ customization, onClose, onDownload, onDownloadSurfaceArtifact, onStatusChange }) {
+  const [proofSurface, setProofSurface] = useState(null);
   if (!customization) return null;
   const { isV2, product, preview, bundleReady } = getAdminCustomizationPresentation(customization); const statusTargets = getProductionStatusTargets(customization.productionStatus || "pending");
-  return <Dialog open={Boolean(customization)} onOpenChange={(open) => !open && onClose()}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>{product}</DialogTitle><DialogDescription>Pedido {shortId(customization.orderId)} · {shortId(customization._id)}</DialogDescription></DialogHeader>{isV2 ? <><dl className="grid gap-2 rounded-lg border p-3 text-sm sm:grid-cols-2"><div><dt className="text-muted-foreground">Template</dt><dd>{customization.productSnapshot?.productTemplateId} · rev. {customization.productSnapshot?.templateRevision}</dd></div><div><dt className="text-muted-foreground">Cantidad</dt><dd>{customization.quantity}</dd></div><div><dt className="text-muted-foreground">Talla</dt><dd>{customization.variant?.size || "—"}</dd></div><div><dt className="text-muted-foreground">Color</dt><dd>{customization.variant?.color || "—"}</dd></div></dl><div className="space-y-3"><h3 className="font-semibold">Superficies</h3>{customization.productionSurfaces?.map((surface) => <Card key={surface.surfaceId} className="grid gap-3 p-3 shadow-none sm:grid-cols-[8rem_minmax(0,1fr)_auto] sm:items-center"><ProtectedProductImage src={surface.preview?.url} alt={`Preview ${surface.label}`} className="h-24 w-32 rounded-md border" /><div><p className="font-medium">{surface.label}</p><p className="text-xs text-muted-foreground">{surface.artwork.filename} · {surface.artwork.widthPx}×{surface.artwork.heightPx}px</p></div><Button type="button" variant="outline" size="sm" onClick={() => onDownloadArtwork(surface)}><Download aria-hidden="true" /> PNG</Button></Card>)}</div><Field label="Estado de producción"><Select value={customization.productionStatus || "pending"} disabled={statusTargets.length === 0} onChange={(event) => onStatusChange(customization, event.target.value)}><option value={customization.productionStatus || "pending"}>{customization.productionStatus || "pending"}</option>{statusTargets.map((status) => <option key={status} value={status}>{status}</option>)}</Select></Field></> : <>{preview ? <ProductImage src={preview} alt={`Vista previa de ${product}`} ratio="16 / 9" className="rounded-lg border" /> : <div className="rounded-lg border bg-muted p-8 text-center text-sm text-muted-foreground">Sin vista previa generada</div>}<div><h3 className="mb-2 font-semibold">Diseño almacenado</h3><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-xs">{JSON.stringify(customization.design || {}, null, 2)}</pre></div></>}<DialogFooter><DialogClose render={<Button type="button" variant="outline" />}>Cerrar</DialogClose>{bundleReady && <Button type="button" onClick={() => onDownload(customization)}><Download aria-hidden="true" /> Descargar ZIP</Button>}</DialogFooter></DialogContent></Dialog>;
+  return <><Dialog open={Boolean(customization)} onOpenChange={(open) => !open && onClose()}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>{product}</DialogTitle><DialogDescription>Pedido {shortId(customization.orderId)} · {shortId(customization._id)}</DialogDescription></DialogHeader>{isV2 ? <><dl className="grid gap-2 rounded-lg border p-3 text-sm sm:grid-cols-2"><div><dt className="text-muted-foreground">Template</dt><dd>{customization.productSnapshot?.productTemplateId} · rev. {customization.productSnapshot?.templateRevision}</dd></div><div><dt className="text-muted-foreground">Cantidad</dt><dd>{customization.quantity}</dd></div><div><dt className="text-muted-foreground">Talla</dt><dd>{customization.variant?.size || "—"}</dd></div><div><dt className="text-muted-foreground">Color</dt><dd>{customization.variant?.color || "—"}</dd></div></dl><div className="space-y-3"><h3 className="font-semibold">Superficies</h3>{customization.productionSurfaces?.map((surface) => <Card key={surface.surfaceId} className="grid gap-3 p-3 shadow-none sm:grid-cols-[8rem_minmax(0,1fr)_auto] sm:items-center"><ProtectedProductImage src={surface.preview?.url} alt={`Preview ${surface.label}`} className="h-24 w-32 rounded-md border" /><div><p className="font-medium">{surface.label}</p><p className="text-xs text-muted-foreground">{surface.artwork.filename} · {surface.artwork.widthPx}×{surface.artwork.heightPx}px</p></div><div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" size="sm" onClick={() => onDownloadSurfaceArtifact(surface)}><Download aria-hidden="true" /> PNG</Button>{surface.placementProof?.url && <Button type="button" variant="outline" size="sm" onClick={() => setProofSurface(surface)}><Eye aria-hidden="true" /> Ver colocación</Button>}{surface.placementMetadata?.downloadUrl && <Button type="button" variant="ghost" size="sm" onClick={() => onDownloadSurfaceArtifact(surface, "placement")}><Download aria-hidden="true" /> JSON</Button>}</div></Card>)}</div><Field label="Estado de producción"><Select value={customization.productionStatus || "pending"} disabled={statusTargets.length === 0} onChange={(event) => onStatusChange(customization, event.target.value)}><option value={customization.productionStatus || "pending"}>{customization.productionStatus || "pending"}</option>{statusTargets.map((status) => <option key={status} value={status}>{status}</option>)}</Select></Field></> : <>{preview ? <ProductImage src={preview} alt={`Vista previa de ${product}`} ratio="16 / 9" className="rounded-lg border" /> : <div className="rounded-lg border bg-muted p-8 text-center text-sm text-muted-foreground">Sin vista previa generada</div>}<div><h3 className="mb-2 font-semibold">Diseño almacenado</h3><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-xs">{JSON.stringify(customization.design || {}, null, 2)}</pre></div></>}<DialogFooter><DialogClose render={<Button type="button" variant="outline" />}>Cerrar</DialogClose>{bundleReady && <Button type="button" onClick={() => onDownload(customization)}><Download aria-hidden="true" /> Descargar ZIP</Button>}</DialogFooter></DialogContent></Dialog><Dialog open={Boolean(proofSurface)} onOpenChange={(open) => !open && setProofSurface(null)}><DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>Colocación · {proofSurface?.label}</DialogTitle><DialogDescription>{customization.productSnapshot?.productTemplateId} · rev. {customization.productSnapshot?.templateRevision} · artwork {proofSurface?.artwork?.widthPx}×{proofSurface?.artwork?.heightPx}px</DialogDescription></DialogHeader>{proofSurface?.placementProof?.url && <ProtectedProductImage src={proofSurface.placementProof.url} alt={`Prueba de colocación ${proofSurface.label}`} ratio={`${proofSurface.placementProof.widthPx} / ${proofSurface.placementProof.heightPx}`} className="max-h-[70vh] w-full rounded-lg border" />}<DialogFooter><DialogClose render={<Button type="button" variant="outline" />}>Cerrar</DialogClose></DialogFooter></DialogContent></Dialog></>;
 }
 
 function ProtectedProductImage({ src, ...props }) {

@@ -1,5 +1,6 @@
 import { http } from "../../../services/http.js";
 import { renderPreviewArtwork } from "../mockups/ArtworkRenderer.js";
+import { renderPlacementProof } from "./PlacementProofRenderer.js";
 
 async function uploadBlob(blob, filename) {
   const form = new FormData();
@@ -11,8 +12,15 @@ async function uploadBlob(blob, filename) {
 
 export async function prepareProductionHandoff({ document, template, assetRegistry }) {
   const surfaceEntries = await Promise.all(template.views.map(async (view) => {
-    const artwork = await renderPreviewArtwork({ document, template, sourceViewId: view.id, assetRegistry });
-    return [view.id, { artworkUploadId: await uploadBlob(artwork, `${view.id}.png`) }];
+    const [artwork, proof] = await Promise.all([
+      renderPreviewArtwork({ document, template, sourceViewId: view.id, assetRegistry }),
+      renderPlacementProof({ document, template, view, assetRegistry, productLabel: template.label }),
+    ]);
+    const [artworkUploadId, proofUploadId] = await Promise.all([
+      uploadBlob(artwork, `${view.id}.png`),
+      uploadBlob(proof, `${view.id}-placement.png`),
+    ]);
+    return [view.id, { artworkUploadId, proofUploadId }];
   }));
   const assetEntries = await Promise.all(Object.keys(document.assets || {}).map(async (assetId) => {
     const blob = assetRegistry.getBlob(assetId);

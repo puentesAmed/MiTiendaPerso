@@ -65,6 +65,9 @@ export function createApp() {
   app.use("/auth/register", authLimiter);
   app.use("/api/orders/track", publicActionLimiter);
   app.use("/api/checkout/shipping-options", publicActionLimiter);
+  app.use("/api/shipping/quote", publicActionLimiter);
+  app.use("/api/coupons/validate", publicActionLimiter);
+  app.use("/api/payments/manual/methods", publicActionLimiter);
   app.use("/api/payments/monei/create", publicActionLimiter);
   app.use("/api/designer-v2/mockups", publicActionLimiter);
   app.use("/api/uploads/designer-v2", publicActionLimiter);

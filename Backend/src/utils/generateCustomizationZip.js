@@ -69,6 +69,16 @@ export async function generateCustomizationZip(customizationDoc) {
             name: `previews/${surface.preview.filename}`,
           });
         }
+        if (surface.placementProof?.storageKey) {
+          archive.append(await storageProvider.read(surface.placementProof.storageKey), {
+            name: `proofs/${surface.placementProof.filename}`,
+          });
+        }
+        if (surface.placementMetadata?.storageKey) {
+          archive.append(await storageProvider.read(surface.placementMetadata.storageKey), {
+            name: `placement/${surface.placementMetadata.filename}`,
+          });
+        }
       }
       customizationDoc.productionBundle = {
         ...(customizationDoc.productionBundle?.toObject?.() || customizationDoc.productionBundle || {}),
@@ -144,7 +154,7 @@ export async function generateCustomizationZip(customizationDoc) {
         ...(customizationDoc.productionBundle?.toObject?.() || customizationDoc.productionBundle || {}),
         zipStorageKey: finalKey,
         generatedAt: new Date(),
-        version: 1,
+        version: 2,
       };
       customizationDoc.productionStatus = "ready";
       customizationDoc.productionStatusUpdatedAt = new Date();
@@ -174,7 +184,7 @@ export function buildProductionManifest(customizationDoc) {
   if (customizationDoc.schemaVersion !== 2) throw new Error("Manifest disponible solo para Customization V2");
   const product = customizationDoc.productSnapshot || {};
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     customizationId: String(customizationDoc._id),
     orderId: customizationDoc.orderId ? String(customizationDoc.orderId) : null,
     orderItemId: customizationDoc.orderItemId ? String(customizationDoc.orderItemId) : null,
@@ -192,6 +202,8 @@ export function buildProductionManifest(customizationDoc) {
       label: surface.label,
       artworkFile: `production/${surface.artwork.filename}`,
       previewFile: surface.preview?.filename ? `previews/${surface.preview.filename}` : undefined,
+      placementProofFile: surface.placementProof?.filename ? `proofs/${surface.placementProof.filename}` : undefined,
+      placementMetadataFile: surface.placementMetadata?.filename ? `placement/${surface.placementMetadata.filename}` : undefined,
       widthPx: surface.artwork.widthPx,
       heightPx: surface.artwork.heightPx,
       mimeType: surface.artwork.mimeType,

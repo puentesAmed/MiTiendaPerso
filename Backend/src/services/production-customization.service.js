@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { Customization } from "../models/Customization.js";
 import { getProductionTemplate } from "../production/template-catalog.js";
 import { readPngDimensions } from "../production/png.js";
+import { buildPlacementMetadata } from "../production/placement-contract.js";
 import { storageProvider } from "../storage/index.js";
 import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
 
@@ -83,6 +84,9 @@ export async function createProductionCustomization({ owner, product, line, payl
   for (const viewId of expectedViews) {
     if (!Array.isArray(document.views[viewId]?.elements)) throw new ProductionCustomizationError(`Vista inválida: ${viewId}`);
     for (const element of document.views[viewId].elements) {
+      if (!["x", "y", "width", "height", "rotation", "opacity", "zIndex"].every((field) => Number.isFinite(element?.[field]))) {
+        throw new ProductionCustomizationError(`La vista ${viewId} contiene coordenadas de dominio inválidas`);
+      }
       if (element?.type === "image" && (!element.assetId || !document.assets[element.assetId])) {
         throw new ProductionCustomizationError(`La vista ${viewId} referencia un asset inexistente`);
       }
@@ -132,23 +136,36 @@ export async function createProductionCustomization({ owner, product, line, payl
     const productionSurfaces = [];
     for (const expected of template.surfaces) {
       const uploadId = payload?.uploads?.surfaces?.[expected.viewId]?.artworkUploadId;
+      const proofUploadId = payload?.uploads?.surfaces?.[expected.viewId]?.proofUploadId;
       const bytes = await readUpload(uploadId);
+      const proofBytes = await readUpload(proofUploadId);
       consumedUploads.add(uploadId);
+      consumedUploads.add(proofUploadId);
       const dimensions = readPngDimensions(bytes);
+      const proofDimensions = readPngDimensions(proofBytes);
       if (dimensions.width !== expected.widthPx || dimensions.height !== expected.heightPx) {
         throw new ProductionCustomizationError(`Resolución productiva inválida para ${expected.viewId}`);
       }
       const artworkKey = `customizations/${id}/production/${expected.filename}`;
       const previewKey = `customizations/${id}/previews/${expected.filename}`;
+      const proofFilename = `${expected.viewId}-placement.png`;
+      const proofKey = `customizations/${id}/proofs/${proofFilename}`;
+      const placementFilename = `${expected.viewId}.json`;
+      const placementKey = `customizations/${id}/placement/${placementFilename}`;
+      const placement = buildPlacementMetadata({ document: frozenDocument, template, surface: expected });
       await storageProvider.save(artworkKey, bytes);
       await storageProvider.save(previewKey, bytes);
-      persistedKeys.push(artworkKey, previewKey);
+      await storageProvider.save(proofKey, proofBytes);
+      await storageProvider.save(placementKey, Buffer.from(JSON.stringify(placement, null, 2)));
+      persistedKeys.push(artworkKey, previewKey, proofKey, placementKey);
       productionSurfaces.push({
         viewId: expected.viewId,
         surfaceId: expected.surfaceId,
         label: expected.label,
         artwork: { storageKey: artworkKey, filename: expected.filename, mimeType: "image/png", widthPx: dimensions.width, heightPx: dimensions.height },
         preview: { storageKey: previewKey, filename: expected.filename, mimeType: "image/png", widthPx: dimensions.width, heightPx: dimensions.height },
+        placementProof: { storageKey: proofKey, filename: proofFilename, mimeType: "image/png", widthPx: proofDimensions.width, heightPx: proofDimensions.height },
+        placementMetadata: { storageKey: placementKey, filename: placementFilename, mimeType: "application/json", schemaVersion: placement.schemaVersion },
       });
     }
 
