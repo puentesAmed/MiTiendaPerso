@@ -5,11 +5,17 @@ import {
   getManualPaymentMethods,
   markOrderAsPaidForTest,
   moneiWebhook,
+  adminGetPaymentSettings,
+  adminUpdatePaymentSettings,
 } from "../controllers/payments.controller.js";
+import { requireAuth } from "../middleware/auth.middleware.js";
+import { requireAdmin } from "../middleware/admin.middleware.js";
 
 const router = Router();
 
 router.get("/manual/methods", getManualPaymentMethods);
+router.get("/admin/settings", requireAuth, requireAdmin, adminGetPaymentSettings);
+router.put("/admin/settings", requireAuth, requireAdmin, adminUpdatePaymentSettings);
 
 // MONEI webhook
 router.post("/webhooks/monei", moneiWebhook);

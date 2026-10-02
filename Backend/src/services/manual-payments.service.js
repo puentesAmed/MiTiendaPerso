@@ -1,15 +1,6 @@
-import { env } from "../config/env.js";
+import { getPaymentSettings } from "./payment-settings.service.js";
 
-const MANUAL_PAYMENT_METHODS = {
-  bizum: {
-    label: "Bizum",
-    isEnabled: () => env.MANUAL_PAYMENTS.bizum.enabled,
-  },
-  bank_transfer: {
-    label: "Transferencia bancaria",
-    isEnabled: () => env.MANUAL_PAYMENTS.bankTransfer.enabled,
-  },
-};
+const methodKey = (method) => method === "bank_transfer" ? "bankTransfer" : method;
 
 export class ManualPaymentError extends Error {
   constructor(message) {
@@ -19,21 +10,27 @@ export class ManualPaymentError extends Error {
   }
 }
 
-export function assertManualPaymentMethod(method) {
-  if (!MANUAL_PAYMENT_METHODS[method]?.isEnabled()) {
+export async function assertManualPaymentMethod(method) {
+  const settings = await getPaymentSettings();
+  const definition = settings[methodKey(method)];
+  if (!definition?.enabled) {
     throw new ManualPaymentError("Método de pago no soportado");
   }
+  return definition;
 }
 
-export function getEnabledManualPaymentMethods() {
-  return Object.entries(MANUAL_PAYMENT_METHODS)
-    .filter(([, definition]) => definition.isEnabled())
+export async function getEnabledManualPaymentMethods() {
+  const settings = await getPaymentSettings();
+  return [
+    ["bizum", settings.bizum],
+    ["bank_transfer", settings.bankTransfer],
+  ].filter(([, definition]) => definition.enabled)
     .map(([id, definition]) => ({ id, label: definition.label }));
 }
 
-export function buildManualPaymentInstructions(order) {
+export async function buildManualPaymentInstructions(order) {
   const method = order.payment?.method;
-  assertManualPaymentMethod(method);
+  const definition = order.payment?.instructionsSnapshot || await assertManualPaymentMethod(method);
 
   const common = {
     method,
@@ -46,15 +43,15 @@ export function buildManualPaymentInstructions(order) {
   if (method === "bizum") {
     return {
       ...common,
-      recipient: env.MANUAL_PAYMENTS.bizum.recipient,
-      instructions: env.MANUAL_PAYMENTS.bizum.instructions,
+      recipient: definition.recipient,
+      instructions: definition.instructions,
     };
   }
 
   return {
     ...common,
-    accountHolder: env.MANUAL_PAYMENTS.bankTransfer.accountHolder,
-    iban: env.MANUAL_PAYMENTS.bankTransfer.iban,
-    instructions: env.MANUAL_PAYMENTS.bankTransfer.instructions,
+    accountHolder: definition.accountHolder,
+    iban: definition.iban,
+    instructions: definition.instructions,
   };
 }

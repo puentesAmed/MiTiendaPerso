@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import { Order } from "../models/Order.js";
 import { env } from "../config/env.js";
 import { getEnabledManualPaymentMethods } from "../services/manual-payments.service.js";
+import { getPaymentSettings, updatePaymentSettings } from "../services/payment-settings.service.js";
 
 async function sendToDropshippingIfEnabled({ order }) {
   if (!env.DROPSHIPPING_ENABLED) return;
@@ -13,11 +14,23 @@ async function sendToDropshippingIfEnabled({ order }) {
   await sendToDropshipping({ order });
 }
 
-export function getManualPaymentMethods(_req, res) {
+export async function getManualPaymentMethods(_req, res) {
   return res.json({
     ok: true,
-    methods: getEnabledManualPaymentMethods(),
+    methods: await getEnabledManualPaymentMethods(),
   });
+}
+
+export async function adminGetPaymentSettings(_req, res) {
+  return res.json({ ok: true, settings: await getPaymentSettings() });
+}
+
+export async function adminUpdatePaymentSettings(req, res) {
+  try {
+    return res.json({ ok: true, settings: await updatePaymentSettings(req.body || {}) });
+  } catch (error) {
+    return res.status(400).json({ ok: false, message: error.message });
+  }
 }
 
 export async function moneiWebhook(req, res) {

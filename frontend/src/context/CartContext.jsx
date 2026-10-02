@@ -16,63 +16,13 @@ import {
   updateCartLineCustomization,
   updateCartLineQuantity,
 } from "../utils/cartLineAdapter";
+import { getGuestId, loadGuestSession, saveGuestSession } from "../services/guestSession.service";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const CartContext = createContext(null);
 
 const getCartStorageKey = (userId) => `miTienda_cart_v2_${userId}`;
 const getLegacyCartStorageKey = (userId) => `miTienda_cart_v1_${userId}`;
-const GUEST_KEY = "guest_id";
-const GUEST_SESSION_KEY = "guest_session_v1";
-const GUEST_SESSION_TTL_DAYS = 7;
-
-function getGuestId() {
-  let id = localStorage.getItem(GUEST_KEY);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(GUEST_KEY, id);
-  }
-  return id;
-}
-
-function loadGuestSession() {
-  try {
-    const raw = localStorage.getItem(GUEST_SESSION_KEY);
-    if (!raw) return null;
-    const session = JSON.parse(raw);
-    const diffDays =
-      (Date.now() - new Date(session.updatedAt).getTime()) /
-      (1000 * 60 * 60 * 24);
-    if (diffDays > GUEST_SESSION_TTL_DAYS) {
-      localStorage.removeItem(GUEST_SESSION_KEY);
-      return null;
-    }
-    return session;
-  } catch {
-    return null;
-  }
-}
-
-function saveGuestSession(partial) {
-  try {
-    const existing = loadGuestSession() || {};
-    const next = partial.cart
-      ? buildGuestCartSession(existing, partial.cart, {
-          guestId: getGuestId(),
-        })
-      : {
-          ...existing,
-          ...partial,
-          version: existing.version || 1,
-          guestId: existing.guestId || getGuestId(),
-          updatedAt: new Date().toISOString(),
-        };
-    localStorage.setItem(GUEST_SESSION_KEY, JSON.stringify(next));
-  } catch {
-    // El carrito no debe bloquear la navegación si storage no está disponible.
-  }
-}
-
 function reportMigrationWarnings(result) {
   if (result.omittedCount > 0) {
     console.warn(
@@ -100,6 +50,22 @@ export function CartProvider({ children }) {
         const sourceRaw = v2Raw || legacyRaw;
         if (sourceRaw) result = normalizeStoredCart(JSON.parse(sourceRaw));
 
+        const guestSession = loadGuestSession();
+        const guestResult = normalizeStoredCart(guestSession?.cart || []);
+        if (guestResult.items.length > 0) {
+          result = {
+            ...result,
+            items: guestResult.items.reduce(
+              (current, line) => addOrMergeCartLine(current, line),
+              result.items
+            ),
+            omittedCount: result.omittedCount + guestResult.omittedCount,
+            warnings: [...result.warnings, ...guestResult.warnings],
+          };
+          localStorage.setItem(v2Key, JSON.stringify(buildCartStoragePayload(result.items)));
+          saveGuestSession({ cartVersion: 2, cart: [] });
+        }
+
         if (!v2Raw && legacyRaw) {
           localStorage.setItem(
             v2Key,
@@ -113,7 +79,7 @@ export function CartProvider({ children }) {
       const session = loadGuestSession();
       result = normalizeStoredCart(session?.cart || []);
       if (session?.cart && session.cartVersion !== 2) {
-        saveGuestSession({ cartVersion: 2, cart: result.items });
+        saveGuestSession(buildGuestCartSession(session || {}, result.items, { guestId: getGuestId() }));
       }
     }
 
@@ -134,7 +100,7 @@ export function CartProvider({ children }) {
         JSON.stringify(buildCartStoragePayload(items))
       );
     } else {
-      saveGuestSession({ cartVersion: 2, cart: items });
+      saveGuestSession(buildGuestCartSession(loadGuestSession() || {}, items, { guestId: getGuestId() }));
     }
   }, [hydratedIdentity, identity, items, userId]);
 

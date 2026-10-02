@@ -21,7 +21,7 @@ export async function getShippingQuote(req, res) {
     }
 
     const { subtotal } = await resolveAuthoritativeOrderLines(items);
-    const quote = calculateShippingQuote({
+    const quote = await calculateShippingQuote({
       authoritativeSubtotal: subtotal,
       shippingAddress,
     });

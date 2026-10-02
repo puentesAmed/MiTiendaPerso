@@ -16,7 +16,7 @@ import {
   getManualPaymentMethodsRequest,
   getShippingQuoteRequest,
 } from "../../services/orders.service";
-import { loadGuestSession, saveGuestSession } from "../../services/guestSession.service";
+import { getGuestId, loadGuestSession, saveGuestSession } from "../../services/guestSession.service";
 import { checkEmailExists } from "../../services/auth.service";
 import { CustomizationInlineSummary } from "../../components/checkout/CustomizationInlineSummary";
 import { Alert } from "../../components/ui/alert";
@@ -36,17 +36,7 @@ import { Price } from "../../components/ui/Price";
 import { ProductImage } from "../../components/ui/ProductImage";
 import { Textarea } from "../../components/ui/textarea";
 
-const GUEST_KEY = "guest_id";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function getGuestId() {
-  let id = localStorage.getItem(GUEST_KEY);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(GUEST_KEY, id);
-  }
-  return id;
-}
 
 function formatMoney(value) {
   const amount = Number(value);
@@ -419,12 +409,15 @@ export function Checkout() {
   const productNeedsCustomization = (item) => {
     if (!item.customizationRequired) return false;
     if (!item.customization || item.customization.type !== "designer") return true;
+    if (item.customization.schemaVersion === 2) {
+      return !item.customization.designDocument;
+    }
     const sides = item.customization.design?.elementsBySide || {};
     return !(Array.isArray(sides.front) && sides.front.length) && !(Array.isArray(sides.back) && sides.back.length);
   };
 
   const editCustomization = (item) => {
-    navigate(`/personalizar/${item.productId}`, {
+    navigate(`/personalizar-v2/${item.productId}`, {
       state: {
         customization: item.customization,
         lineKey: item.lineKey,
@@ -464,7 +457,6 @@ export function Checkout() {
       });
       setTimeout(() => {
         clearCart();
-        localStorage.removeItem("guest_session_v1");
       }, 0);
     } catch (submitError) {
       setError(submitError.response?.data?.message || "Error inesperado al crear el pedido.");
@@ -538,7 +530,6 @@ export function Checkout() {
                 )}
                 <p className="mt-2 text-xs text-muted-foreground">
                   Guardamos temporalmente estos datos en tu dispositivo para completar el pedido.
-                  {guestSession?.expiresInDays !== undefined && ` La sesión caduca en ${guestSession.expiresInDays} ${guestSession.expiresInDays === 1 ? "día" : "días"}.`}
                 </p>
               </div>
             </Card>

@@ -30,8 +30,17 @@ function base64ToBuffer(input) {
  */
 export async function generateCustomizationZip(customizationDoc) {
   const customizationId = customizationDoc._id.toString();
-  const finalKey = `customizations/${customizationId}.zip`;
-  const temporaryKey = `customizations/.tmp-${randomUUID()}.zip`;
+  const isV2 = customizationDoc.schemaVersion === 2;
+  if (isV2 && customizationDoc.productionBundle?.zipStorageKey && await storageProvider.exists(customizationDoc.productionBundle.zipStorageKey)) {
+    customizationDoc.zipUrl ||= `/api/customizations/${customizationId}/zip`;
+    return customizationDoc.zipUrl;
+  }
+  const finalKey = isV2
+    ? `customizations/${customizationId}/bundle.zip`
+    : `customizations/${customizationId}.zip`;
+  const temporaryKey = isV2
+    ? `customizations/${customizationId}/.tmp-${randomUUID()}.zip`
+    : `customizations/.tmp-${randomUUID()}.zip`;
   const output = await storageProvider.createWriteStream(temporaryKey);
   const archive = archiver("zip", { zlib: { level: 9 } });
   const completed = new Promise((resolve, reject) => {
@@ -42,26 +51,51 @@ export async function generateCustomizationZip(customizationDoc) {
   archive.pipe(output);
 
   try {
-    archive.append(JSON.stringify(customizationDoc.design || {}, null, 2), {
-      name: "design.json",
-    });
+    if (isV2) {
+      const manifest = buildProductionManifest(customizationDoc);
+      const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2));
+      const manifestStorageKey = `customizations/${customizationId}/manifest.json`;
+      await storageProvider.save(manifestStorageKey, manifestBytes);
+      archive.append(manifestBytes, { name: "manifest.json" });
+      archive.append(JSON.stringify(customizationDoc.designDocument || {}, null, 2), {
+        name: "design-document.json",
+      });
+      for (const surface of customizationDoc.productionSurfaces || []) {
+        archive.append(await storageProvider.read(surface.artwork.storageKey), {
+          name: `production/${surface.artwork.filename}`,
+        });
+        if (surface.preview?.storageKey) {
+          archive.append(await storageProvider.read(surface.preview.storageKey), {
+            name: `previews/${surface.preview.filename}`,
+          });
+        }
+      }
+      customizationDoc.productionBundle = {
+        ...(customizationDoc.productionBundle?.toObject?.() || customizationDoc.productionBundle || {}),
+        manifestStorageKey,
+      };
+    } else {
+      archive.append(JSON.stringify(customizationDoc.design || {}, null, 2), {
+        name: "design.json",
+      });
+    }
 
-    if (customizationDoc.previewImageHD) {
+    if (!isV2 && customizationDoc.previewImageHD) {
       const buf = base64ToBuffer(customizationDoc.previewImageHD);
       if (buf) archive.append(buf, { name: "preview.png" });
     }
 
-    if (customizationDoc.previewsBySide?.front) {
+    if (!isV2 && customizationDoc.previewsBySide?.front) {
       const buf = base64ToBuffer(customizationDoc.previewsBySide.front);
       if (buf) archive.append(buf, { name: "design_front.png" });
     }
 
-    if (customizationDoc.previewsBySide?.back) {
+    if (!isV2 && customizationDoc.previewsBySide?.back) {
       const buf = base64ToBuffer(customizationDoc.previewsBySide.back);
       if (buf) archive.append(buf, { name: "design_back.png" });
     }
 
-    if (customizationDoc.mockupFront) {
+    if (!isV2 && customizationDoc.mockupFront) {
       try {
         const buffer = await downloadFile(customizationDoc.mockupFront);
         archive.append(buffer, { name: "mockup_front.png" });
@@ -70,7 +104,7 @@ export async function generateCustomizationZip(customizationDoc) {
       }
     }
 
-    if (customizationDoc.mockupBack) {
+    if (!isV2 && customizationDoc.mockupBack) {
       try {
         const buffer = await downloadFile(customizationDoc.mockupBack);
         archive.append(buffer, { name: "mockup_back.png" });
@@ -79,7 +113,7 @@ export async function generateCustomizationZip(customizationDoc) {
       }
     }
 
-    const sides = customizationDoc.design?.elementsBySide || {};
+    const sides = !isV2 ? customizationDoc.design?.elementsBySide || {} : {};
     const assets = [];
     for (const side of ["front", "back"]) {
       for (const element of sides[side] || []) {
@@ -101,9 +135,21 @@ export async function generateCustomizationZip(customizationDoc) {
 
     await archive.finalize();
     await completed;
+    await storageProvider.delete(finalKey).catch(() => {});
     await storageProvider.move(temporaryKey, finalKey);
 
     customizationDoc.zipUrl = `/api/customizations/${customizationId}/zip`;
+    if (isV2) {
+      customizationDoc.productionBundle = {
+        ...(customizationDoc.productionBundle?.toObject?.() || customizationDoc.productionBundle || {}),
+        zipStorageKey: finalKey,
+        generatedAt: new Date(),
+        version: 1,
+      };
+      customizationDoc.productionStatus = "ready";
+      customizationDoc.productionStatusUpdatedAt = new Date();
+      customizationDoc.productionError = null;
+    }
     try {
       await customizationDoc.save();
     } catch (error) {
@@ -122,4 +168,34 @@ export async function generateCustomizationZip(customizationDoc) {
     await storageProvider.delete(temporaryKey).catch(() => {});
     throw error;
   }
+}
+
+export function buildProductionManifest(customizationDoc) {
+  if (customizationDoc.schemaVersion !== 2) throw new Error("Manifest disponible solo para Customization V2");
+  const product = customizationDoc.productSnapshot || {};
+  return {
+    schemaVersion: 1,
+    customizationId: String(customizationDoc._id),
+    orderId: customizationDoc.orderId ? String(customizationDoc.orderId) : null,
+    orderItemId: customizationDoc.orderItemId ? String(customizationDoc.orderItemId) : null,
+    product: {
+      productId: String(customizationDoc.productId),
+      name: product.name,
+      templateId: product.productTemplateId,
+      templateRevision: product.templateRevision,
+    },
+    variant: customizationDoc.variant || null,
+    quantity: customizationDoc.quantity,
+    surfaces: (customizationDoc.productionSurfaces || []).map((surface) => ({
+      viewId: surface.viewId,
+      surfaceId: surface.surfaceId,
+      label: surface.label,
+      artworkFile: `production/${surface.artwork.filename}`,
+      previewFile: surface.preview?.filename ? `previews/${surface.preview.filename}` : undefined,
+      widthPx: surface.artwork.widthPx,
+      heightPx: surface.artwork.heightPx,
+      mimeType: surface.artwork.mimeType,
+    })),
+    createdAt: customizationDoc.createdAt || new Date(),
+  };
 }

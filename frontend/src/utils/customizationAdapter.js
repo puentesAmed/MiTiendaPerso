@@ -6,9 +6,24 @@ export function normalizeCustomization(customization, product = null) {
   if (!customization || !isDesignerCustomization(customization)) return customization ?? null;
 
   const designVersion =
-    customization.designVersion === 2 || customization.designVersion === 1
+    customization.schemaVersion === 2
+      ? 2
+      : customization.designVersion === 2 || customization.designVersion === 1
       ? customization.designVersion
       : 1;
+
+  if (designVersion === 2) {
+    return {
+      ...customization,
+      type: "designer",
+      schemaVersion: 2,
+      designVersion: 2,
+      designDocument: customization.designDocument || null,
+      uploads: customization.uploads || null,
+      previewImage: customization.previewImage || null,
+      productId: customization.productId || product?._id || product?.id || null,
+    };
+  }
 
   const design = customization.design || {
     side: "front",
@@ -29,6 +44,20 @@ export function normalizeCustomization(customization, product = null) {
     previewImage,
     productId: customization.productId || product?._id || product?.id || null,
   };
+}
+
+export function createDesignerV2CustomizationPayload({ clientId, designDocument, uploads, productId, productSnapshot }) {
+  return normalizeCustomization({
+    type: "designer",
+    schemaVersion: 2,
+    designVersion: 2,
+    clientId,
+    designDocument,
+    uploads,
+    previewImage: null,
+    productId,
+    productSnapshot,
+  }, productSnapshot);
 }
 
 export function createDesignerCustomizationPayload({

@@ -8,6 +8,9 @@ import { Card } from "./ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Price } from "./ui/Price";
 import { ProductImage } from "./ui/ProductImage";
+import { canUseProductDesignerV2 } from "../features/product-designer-v2/templates/templateCatalog";
+import { isProductDesignerV2Enabled } from "../features/product-designer-v2/utils/featureFlag";
+import { animateAddToCart } from "../utils/cartAnimation";
 
 const PRODUCTS_SCROLL_KEY = "products_scroll_y";
 
@@ -19,6 +22,7 @@ export function ProductCard({ product, catalogContext }) {
   const name = product?.name || product?.title || "Producto";
   const mainImage = product?.image || (Array.isArray(product?.images) && product.images.length > 0 ? product.images[0] : null);
   const isCustomizable = !!product?.customizable;
+  const canPersonalize = isProductDesignerV2Enabled && canUseProductDesignerV2(product);
   const hasNewVariantsArray = Array.isArray(product?.variants);
   const hasOldSizeVariants = product?.variants?.sizes?.length > 0;
   const hasOldColorVariants = product?.variants?.colors?.length > 0;
@@ -51,7 +55,7 @@ export function ProductCard({ product, catalogContext }) {
     restoreFilters: catalogContext?.filters,
   });
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (event) => {
     if (hasVariants) {
       rememberProductsScroll();
       navigate(`/productos/${productId}`, { state: getProductsReturnState() });
@@ -59,6 +63,7 @@ export function ProductCard({ product, catalogContext }) {
     }
     const isFirstItem = items.length === 0;
     addItem({ product, quantity: 1, variant: null, customization: null });
+    animateAddToCart({ sourceElement: event.currentTarget, imageUrl: mainImage });
     if (isFirstItem) setIsOpen(true);
   };
 
@@ -86,7 +91,7 @@ export function ProductCard({ product, catalogContext }) {
             <Button size="sm" className={isCustomizable ? "w-full" : "w-full sm:col-span-2"} onClick={handleAddToCart} disabled={!isAvailable}>
               <ShoppingCart /> {hasVariants ? "Elegir opciones" : "Añadir"}
             </Button>
-            {isCustomizable && <Button as={Link} to={hasVariants ? `/productos/${productId}` : `/personalizar/${productId}`} variant="outline" size="sm" className="w-full"><Sparkles /> Personalizar</Button>}
+            {canPersonalize && <Button as={Link} to={hasVariants ? `/productos/${productId}` : `/personalizar-v2/${productId}`} variant="outline" size="sm" className="w-full"><Sparkles /> Personalizar</Button>}
           </div>
         </div>
       </Card>

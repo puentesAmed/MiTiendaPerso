@@ -2,6 +2,15 @@ const KEY = "guest_session_v1";
 const MAX_DAYS = 7;
 const HYDRATED_KEY = "guest_session_hydrated_v1";
 
+export function getGuestId() {
+  let id = localStorage.getItem("guest_id");
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("guest_id", id);
+  }
+  return id;
+}
+
 export function loadGuestSession() {
   try {
     const raw = localStorage.getItem(KEY);
@@ -25,12 +34,7 @@ export function loadGuestSession() {
     // 🔑 MARCAMOS QUE YA SE HIDRATÓ
     localStorage.setItem(HYDRATED_KEY, "true");
 
-    const expiresInDays = Math.max(
-      0,
-      MAX_DAYS - Math.floor(age)
-    );
-
-    return {session, expiresInDays};
+    return session;
   } catch {
     localStorage.setItem(HYDRATED_KEY, "true");
     return null;
@@ -51,7 +55,7 @@ export function saveGuestSession(payload) {
       ...prev,
       ...payload,
       version: 1,
-      guestId: prev.guestId || crypto.randomUUID(),
+      guestId: prev.guestId || getGuestId(),
       updatedAt: new Date().toISOString(),
     };
 

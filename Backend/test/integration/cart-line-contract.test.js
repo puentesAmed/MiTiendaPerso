@@ -14,6 +14,7 @@ import {
   updateCartLineCustomization,
   updateCartLineQuantity,
 } from "../../../frontend/src/utils/cartLineAdapter.js";
+import { createDesignerV2CustomizationPayload } from "../../../frontend/src/utils/customizationAdapter.js";
 
 const product = {
   _id: "507f1f77bcf86cd799439011",
@@ -38,6 +39,34 @@ function line(overrides = {}) {
 function designer(clientId, design = { elementsBySide: { front: [], back: [] } }) {
   return { type: "designer", designVersion: 1, clientId, design };
 }
+
+test("00 CartLineV2 y checkout conservan DesignDocument con uploads opacos sin blobs", () => {
+  const designDocument = {
+    schemaVersion: 1,
+    documentId: "document-v2",
+    productId: product._id,
+    templateId: "tshirt-basic-v1",
+    templateRevision: 2,
+    variant: { size: "M", color: "Negro" },
+    assets: {},
+    views: { front: { elements: [] }, back: { elements: [] }, "sleeve-left": { elements: [] }, "sleeve-right": { elements: [] } },
+    metadata: { createdAt: "2026-10-02T08:00:00.000Z", updatedAt: "2026-10-02T08:00:00.000Z" },
+  };
+  const customization = createDesignerV2CustomizationPayload({
+    clientId: "client-v2",
+    designDocument,
+    uploads: { assets: {}, surfaces: { front: { artworkUploadId: "opaque-id" } } },
+    productId: product._id,
+    productSnapshot: product,
+  });
+  const cartLine = line({ product: { ...product, customizable: true }, customization });
+  const restored = normalizeStoredCart(buildCartStoragePayload([cartLine])).items[0];
+  const checkout = toCheckoutItem(restored);
+  assert.equal(checkout.customization.schemaVersion, 2);
+  assert.equal(checkout.customization.designDocument.documentId, "document-v2");
+  assert.equal(checkout.customization.uploads.surfaces.front.artworkUploadId, "opaque-id");
+  assert.doesNotMatch(JSON.stringify(checkout), /blob:|data:image\//);
+});
 
 test("01 misma identidad se fusiona e incrementa cantidad", () => {
   const first = line();

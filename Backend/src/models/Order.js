@@ -53,6 +53,9 @@ const orderSchema = new mongoose.Schema(
       },
     ],
     total: { type: Number, required: true, min: 0 },
+    subtotal: { type: Number, default: 0, min: 0 },
+    discountAmount: { type: Number, default: 0, min: 0 },
+    coupon: { type: mongoose.Schema.Types.Mixed, default: null },
 
     // Estado logístico del pedido
     status: {
@@ -102,6 +105,7 @@ const orderSchema = new mongoose.Schema(
         type: String,
         default: null,
       },
+      instructionsSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
     },
 
     // Legacy de compatibilidad (lectura en algunas vistas)

@@ -38,6 +38,32 @@ const upload = multer({
   },
 });
 
+const designerV2Upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_IMAGE_SIZE_BYTES, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (!IMAGE_EXTENSIONS.has(file.mimetype)) return cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", "file"));
+    cb(null, true);
+  },
+});
+
+uploadRouter.post("/designer-v2", (req, res) => {
+  designerV2Upload.single("file")(req, res, async (error) => {
+    if (error) {
+      return res.status(error.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({ ok: false, message: "Artifact de imagen no válido" });
+    }
+    if (!req.file) return res.status(400).json({ ok: false, message: "Falta el artifact" });
+    const uploadId = randomUUID();
+    try {
+      await storageProvider.deleteOlderThan("designer-v2/staging", new Date(Date.now() - 24 * 60 * 60 * 1000));
+      await storageProvider.save(`designer-v2/staging/${uploadId}`, req.file.buffer);
+      return res.status(201).json({ ok: true, uploadId, mimeType: req.file.mimetype, sizeBytes: req.file.size });
+    } catch (storageError) {
+      return res.status(500).json({ ok: false, message: "No se pudo persistir el artifact" });
+    }
+  });
+});
+
 uploadRouter.post("/image", (req, res) => {
   upload.single("file")(req, res, (error) => {
     if (error) {

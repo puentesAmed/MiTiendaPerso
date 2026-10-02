@@ -12,9 +12,6 @@ import { createSuspenseWrapper } from "./loadingFallback";
 import { NotFound } from "../pages/NotFound/NotFound.jsx";
 
 // Lazy-load heavy pages (named exports) - inline imports for Vite code splitting
-const ProductDesignerPage = lazy(() =>
-  import("../pages/ProductDesigner/ProductDesignerPage.jsx").then((m) => ({ default: m.ProductDesignerPage }))
-);
 const ProductDesignerV2Page = lazy(() =>
   import("../features/product-designer-v2/pages/ProductDesignerV2Page.jsx").then((m) => ({ default: m.ProductDesignerV2Page }))
 );
@@ -58,7 +55,6 @@ const ContactoLegal = lazy(() =>
 );
 
 // Create wrapper components with Suspense for each lazy page
-const ProductDesignerPageSuspense = createSuspenseWrapper(ProductDesignerPage);
 const ProductDesignerV2PageSuspense = createSuspenseWrapper(ProductDesignerV2Page);
 const CartSuspense = createSuspenseWrapper(Cart);
 const CheckoutSuspense = createSuspenseWrapper(Checkout);
@@ -90,8 +86,11 @@ export const router = createBrowserRouter([
       // Productos (públicos)
       { path: "productos", element: <Products /> },
       { path: "productos/:id", element: <ProductDetail /> },
-      { path: "personalizar/:id", element: <ProductDesignerPageSuspense /> },
       { path: "personalizar-v2/:productId", element: <ProductDesignerV2PageSuspense /> },
+      { path: "carrito", element: <CartSuspense /> },
+      { path: "checkout", element: <CheckoutSuspense /> },
+      { path: "confirmacion-pedido", element: <OrderConfirmationSuspense /> },
+      { path: "seguimiento-pedido", element: <OrderTrackingSuspense /> },
 
       // Legal - lazy loaded (públicas)
       { path: "politica-privacidad", element: <PrivacyPolicySuspense /> },
@@ -106,13 +105,9 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute />,
         children: [
-          // Carrito / Checkout / Cuenta - lazy loaded
-          { path: "carrito", element: <CartSuspense /> },
-          { path: "checkout", element: <CheckoutSuspense /> },
+          // Cuenta - lazy loaded
           { path: "mis-pedidos", element: <MyOrdersSuspense /> },
           { path: "mis-pedidos/:id", element: <OrderDetailSuspense /> },
-          { path: "confirmacion-pedido", element: <OrderConfirmationSuspense /> },
-          { path: "seguimiento-pedido", element: <OrderTrackingSuspense /> },
 
           // Admin - lazy loaded, requiere rol admin
           {

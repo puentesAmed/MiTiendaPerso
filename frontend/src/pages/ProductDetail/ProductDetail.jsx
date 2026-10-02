@@ -23,6 +23,7 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { isProductDesignerV2Enabled } from "../../features/product-designer-v2/utils/featureFlag";
 import { canUseProductDesignerV2 } from "../../features/product-designer-v2/templates/templateCatalog";
 import { buildDesignerV2Location, createDesignerVariantContext } from "../../features/product-designer-v2/domain/variantContext";
+import { animateAddToCart } from "../../utils/cartAnimation";
 
 function DetailSkeleton() {
   return (
@@ -216,7 +217,7 @@ export function ProductDetail() {
     color: selectedColor || null,
   });
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (event) => {
     if (isAliExpress || !canAddToCart) return;
     addItem({
       product,
@@ -224,6 +225,7 @@ export function ProductDetail() {
       variant: selectedCanonicalVariant(),
       customization: null,
     });
+    animateAddToCart({ sourceElement: event.currentTarget, imageUrl: galleryImages[0] });
     setAddedDialogOpen(true);
   };
 
@@ -319,24 +321,6 @@ export function ProductDetail() {
             <Button type="button" size="lg" className="w-full" onClick={handleAddToCart} disabled={!canAddToCart}>
               <ShoppingCart aria-hidden="true" /> Añadir al carrito
             </Button>
-
-            {isCustomizable && (!hasDesignerV2Template || !isProductDesignerV2Enabled) && (
-              canAddToCart && !isAliExpress ? (
-                <Button
-                  as={Link}
-                  to={`/personalizar/${productId}`}
-                  state={{ variant: selectedCanonicalVariant() }}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Sparkles aria-hidden="true" /> Personalizar producto
-                </Button>
-              ) : (
-                <Button type="button" variant="outline" className="w-full" disabled>
-                  <Sparkles aria-hidden="true" /> Personalizar producto
-                </Button>
-              )
-            )}
 
             {hasDesignerV2Template && isProductDesignerV2Enabled && (
               canAddToCart && !isAliExpress && (!(availableSizes.length || availableColors.length) || designerVariant) ? (

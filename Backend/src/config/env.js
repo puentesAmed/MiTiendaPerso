@@ -30,6 +30,16 @@ const MANUAL_PAYMENT_BIZUM_ENABLED = isEnabled(
 const MANUAL_PAYMENT_BANK_TRANSFER_ENABLED = isEnabled(
   'MANUAL_PAYMENT_BANK_TRANSFER_ENABLED'
 );
+const SHIPPING_DISTANCE_ENABLED = isEnabled('SHIPPING_DISTANCE_ENABLED');
+let SHIPPING_DISTANCE_BANDS = [];
+try {
+  SHIPPING_DISTANCE_BANDS = JSON.parse(process.env.SHIPPING_DISTANCE_BANDS_JSON || '[]');
+} catch {
+  throw new Error('SHIPPING_DISTANCE_BANDS_JSON debe ser JSON válido.');
+}
+if (SHIPPING_DISTANCE_ENABLED && (!process.env.SHIPPING_ORIGIN_LAT || !process.env.SHIPPING_ORIGIN_LON || !SHIPPING_DISTANCE_BANDS.length)) {
+  throw new Error('El envío por distancia requiere SHIPPING_ORIGIN_LAT, SHIPPING_ORIGIN_LON y SHIPPING_DISTANCE_BANDS_JSON.');
+}
 
 if (STORAGE_PROVIDER !== 'local') {
   throw new Error(`STORAGE_PROVIDER no soportado: ${STORAGE_PROVIDER}`);
@@ -162,6 +172,13 @@ export const env = {
       iban: process.env.MANUAL_PAYMENT_BANK_IBAN,
       instructions: process.env.MANUAL_PAYMENT_BANK_INSTRUCTIONS,
     },
+  },
+  SHIPPING_DISTANCE: {
+    enabled: SHIPPING_DISTANCE_ENABLED,
+    origin: { lat: Number(process.env.SHIPPING_ORIGIN_LAT), lon: Number(process.env.SHIPPING_ORIGIN_LON) },
+    orsApiKey: (process.env.ORS_API_KEY || '').trim(),
+    bands: SHIPPING_DISTANCE_BANDS,
+    cacheTtlMs: Math.max(60_000, Number(process.env.SHIPPING_DISTANCE_CACHE_TTL_MS) || 3_600_000),
   },
   SMTP: {
     configured: SMTP_CONFIGURED,

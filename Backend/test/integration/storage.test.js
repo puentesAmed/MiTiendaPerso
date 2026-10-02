@@ -24,6 +24,9 @@ test("provider local usa root configurable y soporta save/read/exists/delete", a
   assert.deepEqual(await provider.read(key), Buffer.from("image"));
   assert.equal(provider.getPublicUrl(key), "/uploads/customizations/example.png");
 
+  assert.equal(await provider.deleteOlderThan("customizations", new Date(Date.now() + 1000)), 1);
+  assert.equal(await provider.exists(key), false);
+
   await provider.delete(key);
   assert.equal(await provider.exists(key), false);
 });

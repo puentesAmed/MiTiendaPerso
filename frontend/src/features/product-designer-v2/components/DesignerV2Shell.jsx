@@ -1,5 +1,5 @@
 import { createElement, lazy, Suspense } from "react";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Box, Boxes, Copy, Ellipsis, Eye, EyeOff, Image, Layers3, Lock, Minus, MousePointer2, PanelRight, Plus, Redo2, Save, Shapes, Trash2, Type, Undo2, Unlock } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Box, Boxes, Copy, Ellipsis, Eye, EyeOff, Image, Layers3, Lock, Minus, MousePointer2, PanelRight, Plus, Redo2, Save, Shapes, ShoppingCart, Trash2, Type, Undo2, Unlock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,7 +144,7 @@ function MobileToolbar({ elements, layers, properties, saveStatus, onAddText, on
   );
 }
 
-export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, mode, mockupAvailable, mockupStatus, mockupResult, mockupError, threeDAvailable, product3DProfile, dirty, saveStatus, saveError, saveConflict, lastSavedAt, canUndo, canRedo, assetRegistry, editorError, onSelectView, onSelectMode, onGenerateMockup, onSelectElement, onAddText, onChooseImage, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onSaveNow, onReloadStored, onOverwriteStored, onZoomChange, onViewportChange, onEditorError, onBack }) {
+export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, mode, mockupAvailable, mockupStatus, mockupResult, mockupError, threeDAvailable, product3DProfile, dirty, saveStatus, saveError, saveConflict, lastSavedAt, canUndo, canRedo, assetRegistry, editorError, onSelectView, onSelectMode, onGenerateMockup, onSelectElement, onAddText, onChooseImage, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onSaveNow, onReloadStored, onOverwriteStored, onZoomChange, onViewportChange, onEditorError, onBack, onAddToCart, handoffBusy }) {
   const view = template.views.find((candidate) => candidate.id === activeViewId) || template.views[0];
   const printAreas = getViewPrintAreas(template, view);
   const elements = document.views[view.id]?.elements || [];
@@ -178,6 +178,7 @@ export function DesignerV2Shell({ product, template, document, activeViewId, act
           <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><h1 id="designer-v2-title" className="truncate text-base font-bold tracking-tight sm:text-lg">Designer V2</h1><Badge variant="outline" className="hidden sm:inline-flex">{saveStatusLabel(saveStatus)}</Badge></div><p className="truncate text-xs text-muted-foreground">{product.name || "Producto"}{document.variant?.size ? ` · Talla ${document.variant.size}` : ""}{document.variant?.color ? ` · Color ${document.variant.color}` : ""}{lastSavedAt && !dirty ? ` · ${new Date(lastSavedAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : ""}</p></div>
           <div className="flex items-center gap-1" aria-label="Historial de edición"><Button type="button" variant="ghost" size="icon" disabled={!canUndo} onClick={onUndo} aria-label="Deshacer"><Undo2 aria-hidden="true" /></Button><Button type="button" variant="ghost" size="icon" disabled={!canRedo} onClick={onRedo} aria-label="Rehacer"><Redo2 aria-hidden="true" /></Button></div>
           <Button type="button" size="sm" onClick={onSaveNow} disabled={saveStatus === "saving"} title="Guarda localmente mediante IndexedDB"><Save aria-hidden="true" /> <span className="hidden sm:inline">Guardar en este dispositivo</span></Button>
+          <Button type="button" size="sm" onClick={onAddToCart} disabled={handoffBusy}><ShoppingCart aria-hidden="true" /> <span className="hidden sm:inline">{handoffBusy ? "Preparando…" : "Añadir al carrito"}</span></Button>
         </header>
 
         <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground" role="status"><strong>{saveStatusLabel(saveStatus)}.</strong> El diseño se conserva localmente en este navegador.</div>

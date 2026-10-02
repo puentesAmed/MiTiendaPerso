@@ -3,8 +3,10 @@ import {
   access,
   mkdir,
   readFile,
+  readdir,
   rename,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
@@ -89,6 +91,28 @@ export class LocalStorageProvider {
   async move(sourceKey, destinationKey) {
     await this.ensureParent(destinationKey);
     await rename(this.resolve(sourceKey), this.resolve(destinationKey));
+  }
+
+  async deleteOlderThan(prefix, cutoff) {
+    const directory = this.resolve(prefix);
+    let entries;
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch (error) {
+      if (error?.code === "ENOENT") return 0;
+      throw error;
+    }
+    let deleted = 0;
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const key = `${this.normalizeKey(prefix)}/${entry.name}`;
+      const metadata = await stat(this.resolve(key));
+      if (metadata.mtime < cutoff) {
+        await this.delete(key);
+        deleted += 1;
+      }
+    }
+    return deleted;
   }
 
   getPublicUrl(key) {

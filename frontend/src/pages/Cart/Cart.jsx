@@ -118,7 +118,7 @@ export function Cart() {
                           {item.customization && (
                             <CartCustomizationSummary
                               item={item}
-                              onEdit={() => navigate(`/personalizar/${item.productId}`, {
+                              onEdit={() => navigate(`/personalizar-v2/${item.productId}`, {
                                 state: {
                                   lineKey: item.lineKey,
                                   variant: item.variant,

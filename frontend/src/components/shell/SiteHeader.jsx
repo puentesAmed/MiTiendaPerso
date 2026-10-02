@@ -65,6 +65,7 @@ export function SiteHeader() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [cartPulse, setCartPulse] = useState(false);
 
   const cartCount = useMemo(
     () => items?.reduce((total, item) => total + (Number(item.quantity) || 0), 0) ?? 0,
@@ -84,6 +85,15 @@ export function SiteHeader() {
     }, 0);
     return () => clearTimeout(syncRoute);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const pulse = () => {
+      setCartPulse(false);
+      requestAnimationFrame(() => setCartPulse(true));
+    };
+    window.addEventListener("cart:item-added", pulse);
+    return () => window.removeEventListener("cart:item-added", pulse);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -159,7 +169,7 @@ export function SiteHeader() {
             <Button as={Link} to="/login" variant="ghost" size="sm" className="hidden md:flex"><LogIn /> Entrar</Button>
           )}
 
-          <Button as={Link} to="/carrito" variant="ghost" size="icon" className="relative size-11" aria-label={`Carrito${cartCount ? `, ${cartCount} unidades` : " vacío"}`}>
+          <Button as={Link} to="/carrito" variant="ghost" size="icon" data-cart-target onAnimationEnd={() => setCartPulse(false)} className={`relative size-11 ${cartPulse ? "animate-bounce motion-reduce:animate-none" : ""}`} aria-label={`Carrito${cartCount ? `, ${cartCount} unidades` : " vacío"}`}>
             <ShoppingBag aria-hidden="true" />
             {cartCount > 0 && <Badge variant="default" className="absolute -right-0.5 top-0 min-w-4 justify-center rounded-full px-1 text-[9px] leading-4">{cartCount > 99 ? "99+" : cartCount}</Badge>}
           </Button>

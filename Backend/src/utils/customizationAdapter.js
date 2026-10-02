@@ -4,7 +4,7 @@ export function isDesignerCustomization(customization) {
 
 export function getCustomizationDesignVersion(customization) {
   if (!isDesignerCustomization(customization)) return null;
-  return customization.designVersion === 2 ? 2 : 1;
+  return customization.schemaVersion === 2 || customization.designVersion === 2 ? 2 : 1;
 }
 
 export function normalizeCustomizationPayload(customization) {
@@ -22,5 +22,8 @@ export function normalizeCustomizationPayload(customization) {
     design,
     previewsBySide,
     previewImage,
+    schemaVersion: customization.schemaVersion === 2 ? 2 : 1,
+    designDocument: customization.schemaVersion === 2 ? customization.designDocument || null : null,
+    uploads: customization.schemaVersion === 2 ? customization.uploads || null : null,
   };
 }

@@ -7,7 +7,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { apiGetProductById } from "@/services/products.service";
-import { createDesignDocument } from "../contracts/designDocument.js";
+import { createDesignDocument, validateDesignDocument } from "../contracts/designDocument.js";
 import { validateProductTemplate } from "../contracts/productTemplate.js";
 import { getViewAspectRatio, getViewPrintAreas, getViewPrintSurface } from "../contracts/printSurface.js";
 import { DesignerV2Shell } from "../components/DesignerV2Shell.jsx";
@@ -29,6 +29,9 @@ import { renderPreviewArtwork } from "../mockups/ArtworkRenderer.js";
 import { requestMockup } from "../mockups/mockups.service.js";
 import { getProduct3DProfileForTemplate, isThreeDModeAvailable } from "../three/threeModelRegistry.js";
 import { resolveDesignerVariantContext } from "../domain/variantContext.js";
+import { useCart } from "../../../hooks/useCart.js";
+import { createDesignerV2CustomizationPayload } from "../../../utils/customizationAdapter.js";
+import { prepareProductionHandoff } from "../production/productionHandoff.js";
 
 const statusCopy = {
   disabled: ["Designer V2 no disponible", "Activa VITE_PRODUCT_DESIGNER_V2_ENABLED para acceder a esta foundation."],
@@ -43,6 +46,7 @@ export function ProductDesignerV2Page() {
   const { productId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { addItem, updateCustomization } = useCart();
   const [state, dispatch] = useReducer(designerV2Reducer, initialDesignerV2State);
   const [editorError, setEditorError] = useState("");
   const [recoveryDraft, setRecoveryDraft] = useState(null);
@@ -50,6 +54,7 @@ export function ProductDesignerV2Page() {
   const [recoveryError, setRecoveryError] = useState("");
   const [recoveryCompatible, setRecoveryCompatible] = useState(true);
   const [mockupState, setMockupState] = useState({ loading: false, result: null, error: "" });
+  const [handoffBusy, setHandoffBusy] = useState(false);
   const assetRegistry = useMemo(() => createRuntimeAssetRegistry(), []);
   const storage = useMemo(() => createIndexedDbStorage(), []);
   const draftRepository = useMemo(() => createDraftRepository(storage), [storage]);
@@ -123,11 +128,22 @@ export function ProductDesignerV2Page() {
           dispatch({ type: "failed", payload: { product, error: { code: "invalid-variant" } } });
           return;
         }
-        const document = createDesignDocument({
+        let document = createDesignDocument({
           template,
           productId: product.id || product._id,
           variant,
         });
+        const cartDocument = location.state?.customization?.schemaVersion === 2
+          ? location.state.customization.designDocument
+          : null;
+        if (cartDocument && validateDesignDocument(cartDocument, template).valid) {
+          try {
+            await restoreRuntimeAssets(cartDocument, assetRepository, assetRegistry);
+            document = cartDocument;
+          } catch {
+            setEditorError("No se puede reabrir este diseño porque faltan sus assets locales; se ha iniciado una copia nueva.");
+          }
+        }
         dispatch({ type: "ready", payload: { product, template, document } });
         try {
           const reference = findDraftReference(localStorage, document);
@@ -152,7 +168,7 @@ export function ProductDesignerV2Page() {
       });
 
     return () => { active = false; };
-  }, [draftRepository, location.search, location.state?.variant, productId]);
+  }, [assetRegistry, assetRepository, draftRepository, location.search, location.state?.customization, location.state?.variant, productId]);
 
   const handleBack = () => {
     if (location.state?.fromProductDetail) navigate(-1);
@@ -364,6 +380,30 @@ export function ProductDesignerV2Page() {
     }
   }, [assetRegistry, mockupDefinition, state.asyncState.template, state.documentState.document]);
 
+  const handleAddToCart = useCallback(async () => {
+    if (handoffBusy) return;
+    setEditorError("");
+    setHandoffBusy(true);
+    try {
+      const uploads = await prepareProductionHandoff({ document: state.documentState.document, template: state.asyncState.template, assetRegistry });
+      const product = state.asyncState.product;
+      const customization = createDesignerV2CustomizationPayload({
+        clientId: location.state?.customization?.clientId || crypto.randomUUID(),
+        designDocument: state.documentState.document,
+        uploads,
+        productId: product._id || product.id,
+        productSnapshot: { _id: product._id || product.id, name: product.name },
+      });
+      if (location.state?.lineKey) updateCustomization(location.state.lineKey, customization);
+      else addItem({ product, quantity: 1, variant: state.documentState.document.variant, customization });
+      navigate(location.state?.returnTo || "/carrito");
+    } catch (error) {
+      setEditorError(error.response?.data?.message || error.message || "No se pudo preparar el diseño para producción.");
+    } finally {
+      setHandoffBusy(false);
+    }
+  }, [addItem, assetRegistry, handoffBusy, location.state, navigate, state.asyncState.product, state.asyncState.template, state.documentState.document, updateCustomization]);
+
   useEffect(() => {
     const onKeyDown = (event) => {
       const target = event.target;
@@ -468,6 +508,8 @@ export function ProductDesignerV2Page() {
       onViewportChange={handleViewportChange}
       onEditorError={setEditorError}
       onBack={handleBack}
+      onAddToCart={handleAddToCart}
+      handoffBusy={handoffBusy}
       />
       <DraftRecoveryDialog
         draft={recoveryDraft}

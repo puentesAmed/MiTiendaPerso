@@ -15,6 +15,7 @@ import { orderAdminEmail } from "../emails/templates/orderAdminEmail.js";
 import { orderStatusEmail } from "../emails/templates/orderStatusEmail.js";
 
 import { isDesignerCustomization, normalizeCustomizationPayload } from "../utils/customizationAdapter.js";
+import { createProductionCustomization, ProductionCustomizationError } from "../services/production-customization.service.js";
 import {
   OrderCalculationError,
   resolveAuthoritativeOrderLines,
@@ -29,6 +30,7 @@ import {
   buildManualPaymentInstructions,
   ManualPaymentError,
 } from "../services/manual-payments.service.js";
+import { consumeCoupon, CouponError, releaseCoupon, validateCoupon } from "../services/coupon.service.js";
 
 
 /**
@@ -39,6 +41,7 @@ import {
 export async function createOrder(req, res) {
   const createdCustomizationIds = [];
   let orderPersisted = false;
+  let consumedCouponId = null;
 
   try {
     const userId = req.userId || null;
@@ -50,6 +53,7 @@ export async function createOrder(req, res) {
       shippingAddress,
       billingAddress,
       notes,
+      couponCode,
     } = req.body;
 
     if (!userId && (!guestId || !guestEmail)) {
@@ -66,25 +70,49 @@ export async function createOrder(req, res) {
       });
     }
 
-    assertManualPaymentMethod(paymentMethod);
+    const paymentDefinition = await assertManualPaymentMethod(paymentMethod);
 
     const { lines, subtotal, stockRequirements } =
       await resolveAuthoritativeOrderLines(items);
-    const shipping = calculateShippingQuote({
-      authoritativeSubtotal: subtotal,
+    const coupon = await validateCoupon({ code: couponCode, subtotal, userId, guestEmail });
+    const discountedSubtotal = roundCurrency(subtotal - (coupon?.discountAmount || 0));
+    const shipping = await calculateShippingQuote({
+      authoritativeSubtotal: discountedSubtotal,
       shippingAddress,
     });
-    const calculatedTotal = roundCurrency(subtotal + shipping.price);
+    const calculatedTotal = roundCurrency(discountedSubtotal + shipping.price);
+    const orderId = new mongoose.Types.ObjectId();
+
+    if (coupon?.couponId) {
+      await consumeCoupon(coupon.couponId);
+      consumedCouponId = coupon.couponId;
+    }
 
     // Todas las validaciones autoritativas terminan antes de efectos laterales.
     const orderItems = [];
     for (const line of lines) {
+      const orderItemId = new mongoose.Types.ObjectId();
       let customizationId = null;
       const normalizedCustomization = normalizeCustomizationPayload(
         line.customization
       );
 
       if (
+        line.product.customizable &&
+        isDesignerCustomization(normalizedCustomization) &&
+        normalizedCustomization.schemaVersion === 2
+      ) {
+        const customization = await createProductionCustomization({
+          owner: { userId: userId || null, guestId: userId ? null : guestId },
+          product: line.product,
+          line,
+          payload: normalizedCustomization,
+          orderId,
+          orderItemId,
+        });
+        customizationId = customization._id;
+        createdCustomizationIds.push(customization._id);
+      } else if (
         line.product.customizable &&
         isDesignerCustomization(normalizedCustomization) &&
         normalizedCustomization.design
@@ -108,7 +136,7 @@ export async function createOrder(req, res) {
           previewImage,
           previewsBySide,
           status: "pending",
-          orderId: null,
+          orderId,
         });
 
         try {
@@ -122,6 +150,7 @@ export async function createOrder(req, res) {
       }
 
       orderItems.push({
+        _id: orderItemId,
         productId: line.productId,
         name: line.name,
         price: line.price,
@@ -151,6 +180,8 @@ export async function createOrder(req, res) {
       );
 
       if (stockResult.modifiedCount !== 1) {
+        await releaseCoupon(consumedCouponId);
+        consumedCouponId = null;
         return res.status(409).json({
           ok: false,
           message: "El stock ha cambiado. Revisa el carrito e inténtalo de nuevo.",
@@ -159,10 +190,14 @@ export async function createOrder(req, res) {
     }
 
     const order = await Order.create({
+      _id: orderId,
       userId: userId || null,
       guestId: userId ? null : guestId,
       guestEmail: userId ? null : guestEmail,
       items: orderItems,
+      subtotal,
+      discountAmount: coupon?.discountAmount || 0,
+      coupon: coupon ? { code: coupon.code, type: coupon.type, value: coupon.value, discountAmount: coupon.discountAmount } : null,
       total: calculatedTotal,
       shippingAddress,
       billingAddress: billingAddress || shippingAddress,
@@ -177,6 +212,7 @@ export async function createOrder(req, res) {
         providerPaymentId: null,
         metadata: {},
         paidAt: null,
+        instructionsSnapshot: paymentDefinition,
       },
       paymentStatus: "pending",
       paymentConfirmedAt: null,
@@ -226,13 +262,25 @@ export async function createOrder(req, res) {
       ok: true,
       orderId: order._id,
       order,
-      paymentInstructions: buildManualPaymentInstructions(order),
+      paymentInstructions: await buildManualPaymentInstructions(order),
     });
   } catch (err) {
+    if (!orderPersisted && consumedCouponId) {
+      await releaseCoupon(consumedCouponId).catch(() => {});
+    }
     if (!orderPersisted && createdCustomizationIds.length > 0) {
       await Promise.all(
         createdCustomizationIds.map(async (id) => {
-          await storageProvider.delete(`customizations/${id}.zip`).catch(() => {});
+          const customization = await Customization.findById(id).lean().catch(() => null);
+          const artifactKeys = customization?.schemaVersion === 2
+            ? [
+                customization.productionBundle?.zipStorageKey,
+                customization.productionBundle?.manifestStorageKey,
+                ...(customization.productionSurfaces || []).flatMap((surface) => [surface.artwork?.storageKey, surface.preview?.storageKey]),
+                ...Object.values(customization.designDocument?.assets || {}).map((asset) => asset.storageKey),
+              ].filter(Boolean)
+            : [`customizations/${id}.zip`];
+          await Promise.all(artifactKeys.map((key) => storageProvider.delete(key).catch(() => {})));
           await Customization.deleteOne({ _id: id }).catch(() => {});
         })
       );
@@ -241,7 +289,9 @@ export async function createOrder(req, res) {
     if (
       err instanceof OrderCalculationError ||
       err instanceof ShippingCalculationError ||
-      err instanceof ManualPaymentError
+      err instanceof ManualPaymentError ||
+      err instanceof CouponError ||
+      err instanceof ProductionCustomizationError
     ) {
       return res.status(err.status || 400).json({
         ok: false,
@@ -312,6 +362,15 @@ export async function getOrdersByUser(req, res) {
 function summarizeCustomization(customization) {
   if (!customization || typeof customization !== "object") return null;
 
+  if (customization.schemaVersion === 2) {
+    return {
+      schemaVersion: 2,
+      previewImage: customization.previewImage || null,
+      textSummary: [],
+      notes: null,
+    };
+  }
+
   const elementsBySide = customization.design?.elementsBySide || {};
   const textSummary = [
     ...(Array.isArray(elementsBySide.front) ? elementsBySide.front : []),
@@ -344,7 +403,7 @@ export async function getOrderByIdForUser(req, res) {
     const order = await Order.findOne({ _id: id, userId })
       .populate({
         path: "items.customizationId",
-        select: "previewImage previewsBySide design.elementsBySide design.notes",
+        select: "schemaVersion previewImage previewsBySide design.elementsBySide design.notes",
       })
       .lean();
 
@@ -374,7 +433,7 @@ export async function getOrderByIdForUser(req, res) {
     let paymentInstructions = null;
     if (canShowInstructions) {
       try {
-        paymentInstructions = buildManualPaymentInstructions(order);
+        paymentInstructions = await buildManualPaymentInstructions(order);
       } catch (error) {
         if (!(error instanceof ManualPaymentError)) throw error;
       }

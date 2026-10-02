@@ -21,6 +21,8 @@ import { ProductImage } from "../../components/ui/ProductImage";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { ShineBorder } from "../../components/ui/shine-border";
 import { apiGetProducts } from "../../services/products.service";
+import { canUseProductDesignerV2 } from "../../features/product-designer-v2/templates/templateCatalog";
+import { isProductDesignerV2Enabled } from "../../features/product-designer-v2/utils/featureFlag";
 
 const FEATURED_PRODUCT_LIMIT = 4;
 const FEATURED_CATEGORY_LIMIT = 3;
@@ -40,8 +42,8 @@ function hasVariants(product) {
 
 function personalizationPath(product) {
   const id = product?.id || product?._id;
-  if (!id || !product?.customizable) return "/productos";
-  return hasVariants(product) ? `/productos/${id}` : `/personalizar/${id}`;
+  if (!id || !isProductDesignerV2Enabled || !canUseProductDesignerV2(product)) return "/productos";
+  return hasVariants(product) ? `/productos/${id}` : `/personalizar-v2/${id}`;
 }
 
 function categoryLabel(value) {
@@ -67,9 +69,9 @@ function HomeHero({ products }) {
           </p>
           <div className="mt-6 flex flex-wrap gap-2.5">
             <Button as={Link} to="/productos" size="lg">Ver productos <ArrowRight /></Button>
-            <Button as={Link} to={heroProduct?.customizable ? personalizationPath(heroProduct) : "/#personalizacion"} variant="outline" size="lg">
-              {heroProduct?.customizable ? "Personalizar" : "Cómo funciona"}
-              {heroProduct?.customizable ? <Palette /> : <ArrowRight />}
+            <Button as={Link} to={canUseProductDesignerV2(heroProduct) ? personalizationPath(heroProduct) : "/#personalizacion"} variant="outline" size="lg">
+              {canUseProductDesignerV2(heroProduct) ? "Personalizar" : "Cómo funciona"}
+              {canUseProductDesignerV2(heroProduct) ? <Palette /> : <ArrowRight />}
             </Button>
           </div>
         </div>
