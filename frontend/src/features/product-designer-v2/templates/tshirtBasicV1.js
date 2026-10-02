@@ -8,13 +8,17 @@ const PANEL_CONSTRAINTS = Object.freeze({
   rotation: Object.freeze({ mode: "free", min: null, max: null }),
 });
 
-function garmentPresentation(guideId, aspectRatio, calibration) {
+const FULL_DISPLAY_FIT = Object.freeze({ maxWidthRatio: 1, maxHeightRatio: 1 });
+const SLEEVE_DISPLAY_FIT = Object.freeze({ maxWidthRatio: 0.72, maxHeightRatio: 0.72 });
+
+function garmentPresentation(guideId, aspectRatio, calibration, displayFit = FULL_DISPLAY_FIT) {
   return Object.freeze({
     type: "garment",
     guideId,
     aspectRatio,
+    displayFit,
     guideBounds: Object.freeze({ x: 0, y: 0, width: 1, height: 1 }),
-    printSurface: Object.freeze({ x: 0, y: 0, width: 1, height: 1 }),
+    printSurface: calibration.editorFrame,
     guide: calibration.guide,
     editableMask: calibration.mask,
     regions: calibration.regions,
@@ -90,8 +94,8 @@ export const TSHIRT_BASIC_V1_TEMPLATE = Object.freeze({
   views: Object.freeze([
     Object.freeze({ id: "front", label: "Frontal", printSurfaceId: TSHIRT_FRONT_PRINT_SURFACE.id, surface: Object.freeze({ label: "Vista frontal", tone: "light" }), editorPresentation: garmentPresentation("tshirt-web-front", TSHIRT_FRONT_PRINT_SURFACE.aspectRatio, TSHIRT_SURFACE_CALIBRATION.front) }),
     Object.freeze({ id: "back", label: "Trasera", printSurfaceId: TSHIRT_BACK_PRINT_SURFACE.id, surface: Object.freeze({ label: "Vista trasera", tone: "light" }), editorPresentation: garmentPresentation("tshirt-web-back", TSHIRT_BACK_PRINT_SURFACE.aspectRatio, TSHIRT_SURFACE_CALIBRATION.back) }),
-    Object.freeze({ id: "sleeve-left", label: "Manga izquierda", printSurfaceId: TSHIRT_LEFT_SLEEVE_PRINT_SURFACE.id, surface: Object.freeze({ label: "Vista de manga izquierda", tone: "light" }), editorPresentation: garmentPresentation("tshirt-web-sleeve-left", TSHIRT_LEFT_SLEEVE_PRINT_SURFACE.aspectRatio, TSHIRT_SURFACE_CALIBRATION["sleeve-left"]) }),
-    Object.freeze({ id: "sleeve-right", label: "Manga derecha", printSurfaceId: TSHIRT_RIGHT_SLEEVE_PRINT_SURFACE.id, surface: Object.freeze({ label: "Vista de manga derecha", tone: "light" }), editorPresentation: garmentPresentation("tshirt-web-sleeve-right", TSHIRT_RIGHT_SLEEVE_PRINT_SURFACE.aspectRatio, TSHIRT_SURFACE_CALIBRATION["sleeve-right"]) }),
+    Object.freeze({ id: "sleeve-left", label: "Manga izquierda", printSurfaceId: TSHIRT_LEFT_SLEEVE_PRINT_SURFACE.id, surface: Object.freeze({ label: "Vista de manga izquierda", tone: "light" }), editorPresentation: garmentPresentation("tshirt-web-sleeve-left", TSHIRT_LEFT_SLEEVE_PRINT_SURFACE.aspectRatio, TSHIRT_SURFACE_CALIBRATION["sleeve-left"], SLEEVE_DISPLAY_FIT) }),
+    Object.freeze({ id: "sleeve-right", label: "Manga derecha", printSurfaceId: TSHIRT_RIGHT_SLEEVE_PRINT_SURFACE.id, surface: Object.freeze({ label: "Vista de manga derecha", tone: "light" }), editorPresentation: garmentPresentation("tshirt-web-sleeve-right", TSHIRT_RIGHT_SLEEVE_PRINT_SURFACE.aspectRatio, TSHIRT_SURFACE_CALIBRATION["sleeve-right"], SLEEVE_DISPLAY_FIT) }),
   ]),
   mockups: Object.freeze([]),
   threeD: Object.freeze({ profileId: "tshirt-basic-v1" }),

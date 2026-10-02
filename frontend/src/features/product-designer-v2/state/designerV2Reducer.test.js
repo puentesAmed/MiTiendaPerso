@@ -22,6 +22,15 @@ test("cambiar vista conserva DesignDocument", () => {
   assert.equal(changed.historyState.past.length, 0);
 });
 
+test("cambiar vista recupera el fit editorial al 100 %", () => {
+  const document = createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1" });
+  let state = designerV2Reducer(initialDesignerV2State, { type: "ready", payload: { product: {}, template: GENERIC_FLAT_DEMO_TEMPLATE, document } });
+  state = designerV2Reducer(state, { type: "viewport-changed", payload: { zoom: 1.7, pan: { x: 32, y: -18 } } });
+  state = designerV2Reducer(state, { type: "view-selected", payload: "secondary" });
+  assert.equal(state.sessionState.zoom, 1);
+  assert.deepEqual(state.sessionState.pan, { x: 0, y: 0 });
+});
+
 test("selección y viewport son sesión; editar y undo/redo son historial", () => {
   const document = createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1", idFactory: () => "document-1", now: () => "2026-09-28T00:00:00.000Z" });
   let state = designerV2Reducer(initialDesignerV2State, { type: "ready", payload: { product: {}, template: GENERIC_FLAT_DEMO_TEMPLATE, document } });

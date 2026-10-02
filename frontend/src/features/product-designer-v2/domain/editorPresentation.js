@@ -19,12 +19,37 @@ function isNormalizedRect(rect) {
     && rect.x + rect.width <= 1 && rect.y + rect.height <= 1;
 }
 
+function pointOnSegment([pointX, pointY], [startX, startY], [endX, endY]) {
+  const cross = (pointY - startY) * (endX - startX) - (pointX - startX) * (endY - startY);
+  if (Math.abs(cross) > 1e-9) return false;
+  return pointX >= Math.min(startX, endX) - 1e-9 && pointX <= Math.max(startX, endX) + 1e-9
+    && pointY >= Math.min(startY, endY) - 1e-9 && pointY <= Math.max(startY, endY) + 1e-9;
+}
+
+function polygonContainsPoint(polygon, point) {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
+    if (pointOnSegment(point, polygon[previous], polygon[index])) return true;
+    const [x, y] = polygon[index];
+    const [previousX, previousY] = polygon[previous];
+    if ((y > point[1]) !== (previousY > point[1]) && point[0] < ((previousX - x) * (point[1] - y)) / (previousY - y) + x) inside = !inside;
+  }
+  return inside;
+}
+
+export function editorialGuideContainsMask(guideDefinition, maskDefinition) {
+  const outlines = guideDefinition?.outline || [];
+  return Boolean(outlines.length && maskDefinition?.include?.length)
+    && maskDefinition.include.every(({ polygon }) => polygon.every((point) => outlines.some((outline) => polygonContainsPoint(outline, point))));
+}
+
 export function validateEditorPresentation(presentation) {
   if (!presentation) return { valid: true, errors: [] };
   const errors = [];
   if (presentation.type !== "garment") errors.push("editorPresentation.type no soportado.");
   if (!PRODUCT_EDITOR_GUIDES[presentation.guideId] && !presentation.editableMask) errors.push("editorPresentation.guideId no registrado.");
   if (!Number.isFinite(presentation.aspectRatio) || presentation.aspectRatio <= 0) errors.push("editorPresentation.aspectRatio inválido.");
+  if (presentation.displayFit && (![presentation.displayFit.maxWidthRatio, presentation.displayFit.maxHeightRatio].every((value) => Number.isFinite(value) && value > 0 && value <= 1))) errors.push("editorPresentation.displayFit inválido.");
   if (!isNormalizedRect(presentation.guideBounds)) errors.push("editorPresentation.guideBounds inválido.");
   if (!isNormalizedRect(presentation.printSurface)) errors.push("editorPresentation.printSurface inválido.");
   if (isNormalizedRect(presentation.guideBounds) && isNormalizedRect(presentation.printSurface)) {
@@ -32,6 +57,7 @@ export function validateEditorPresentation(presentation) {
     const surface = presentation.printSurface;
     if (surface.x < guide.x || surface.y < guide.y || surface.x + surface.width > guide.x + guide.width || surface.y + surface.height > guide.y + guide.height) errors.push("editorPresentation debe contener la PrintSurface dentro de la guía.");
   }
+  if (presentation.guide && presentation.editableMask && !editorialGuideContainsMask(presentation.guide, presentation.editableMask)) errors.push("La guía editorial debe contener la máscara editable.");
   return { valid: errors.length === 0, errors };
 }
 
@@ -42,10 +68,11 @@ export function getViewEditorPresentation(view) {
 export function getPresentationSurfaceStyle(presentation) {
   const surface = presentation?.printSurface;
   if (!surface) return null;
+  const percentage = (value) => `${Number((value * 100).toFixed(6))}%`;
   return {
-    left: `${surface.x * 100}%`,
-    top: `${surface.y * 100}%`,
-    width: `${surface.width * 100}%`,
-    height: `${surface.height * 100}%`,
+    left: percentage(surface.x),
+    top: percentage(surface.y),
+    width: percentage(surface.width),
+    height: percentage(surface.height),
   };
 }

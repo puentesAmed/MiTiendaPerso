@@ -64,6 +64,14 @@ function projectedHull(geometry, triangleIndices) {
   return simplifyClosed(convexHull(points));
 }
 
+function projectedBounds(points) {
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, width: Number((Math.max(...xs) - x).toFixed(6)), height: Number((Math.max(...ys) - y).toFixed(6)) };
+}
+
 function collarHull(geometry, bounds) {
   const position = geometry.getAttribute("position");
   const uv = geometry.getAttribute("uv");
@@ -122,8 +130,10 @@ const fabricGeometry = gltf.scene.getObjectByName("TShirtWebMesh").geometry;
 const guideContours = Object.fromEntries(["front", "back"].map((panelId) => {
   const entries = classification.regions[panelId];
   const primary = entries.find((entry) => entry.meshName !== "TShirtWebMesh");
+  const outerGarmentContour = projectedHull(gltf.scene.getObjectByName(primary.meshName).geometry, primary.triangleIndices);
   return [panelId, {
-    outerGarmentContour: projectedHull(gltf.scene.getObjectByName(primary.meshName).geometry, primary.triangleIndices),
+    outerGarmentContour,
+    editorFrame: projectedBounds(outerGarmentContour),
     neckContour: collarHull(fabricGeometry, COLLAR_UV[panelId]),
     panelSilhouette: "UV contour persisted in tshirtSurfaceCalibration.js",
   }];

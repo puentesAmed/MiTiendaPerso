@@ -35,6 +35,7 @@ export function EditableDesignStage({
   const unifiedSurface = Boolean(getViewPrintSurface(template, view));
   const presentation = getViewEditorPresentation(view);
   const garmentPresentation = presentation?.type === "garment" ? presentation : null;
+  const displayFit = garmentPresentation?.displayFit || { maxWidthRatio: 1, maxHeightRatio: 1 };
   const variantPresentation = resolveVariantPresentation(document.variant);
   const baseColor = variantPresentation?.baseColor || "#ffffff";
   const detailColor = contrastingGuideColor(baseColor);
@@ -119,9 +120,10 @@ export function EditableDesignStage({
         className={`relative mx-auto overflow-hidden rounded-xl border bg-muted/35 shadow-inner ${garmentPresentation ? "max-w-full" : "w-full max-w-[46rem]"}`}
         style={{
           aspectRatio: garmentPresentation?.aspectRatio || getViewAspectRatio(template, view),
-          ...(garmentPresentation ? { width: `min(100%, calc(clamp(20rem, calc(100dvh - 21rem), 40rem) * ${garmentPresentation.aspectRatio}))` } : {}),
+          ...(garmentPresentation ? { width: `min(calc(100% * ${displayFit.maxWidthRatio}), calc(clamp(20rem, calc(100dvh - 21rem), 40rem) * ${garmentPresentation.aspectRatio} * ${displayFit.maxHeightRatio}))` } : {}),
         }}
         data-editor-presentation={garmentPresentation?.type || "surface"}
+        data-display-fit={garmentPresentation ? `${displayFit.maxWidthRatio}:${displayFit.maxHeightRatio}` : undefined}
       >
         <div aria-hidden="true" className="absolute inset-0 opacity-45 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [background-size:24px_24px]" />
         {garmentPresentation ? <ProductEditorGuide guideId={garmentPresentation.guideId} baseColor={baseColor} detailColor={detailColor} guideDefinition={garmentPresentation.guide} editableMask={garmentPresentation.editableMask} debug={debugGarmentMapping} /> : null}

@@ -10,6 +10,7 @@ export function ProductEditorGuide({ guideId, baseColor, detailColor, guideDefin
     return (
       <svg className="pointer-events-none absolute inset-0 size-full" viewBox="0 0 1 1" preserveAspectRatio="none" role="presentation" aria-hidden="true" focusable="false" data-editor-guide={guideId}>
         {outline.map((points, index) => <path key={index} d={polygonPath(points)} fill={baseColor} stroke={detailColor} strokeWidth="0.004" vectorEffect="non-scaling-stroke" />)}
+        {guideDefinition?.cutoutPaths?.map((path) => <path key={path} d={path} fill="var(--muted)" stroke={detailColor} strokeWidth="0.004" vectorEffect="non-scaling-stroke" data-guide-armhole="true" />)}
         {guideDefinition?.neckContour ? <path d={polygonPath(guideDefinition.neckContour)} fill="var(--muted)" stroke={detailColor} strokeWidth="0.004" vectorEffect="non-scaling-stroke" data-guide-neck="true" /> : null}
         {debug ? editableMask.include.map((shape) => <g key={shape.id}><path d={polygonPath(shape.polygon)} fill="none" stroke="#f97316" strokeWidth="0.003" strokeDasharray="0.01 0.006" /><text x={shape.polygon[0][0]} y={shape.polygon[0][1]} fill="#f97316" fontSize="0.025">{shape.label}</text></g>) : null}
       </svg>

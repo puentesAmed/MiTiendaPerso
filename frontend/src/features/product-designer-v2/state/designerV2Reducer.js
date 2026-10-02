@@ -63,7 +63,7 @@ export function designerV2Reducer(state, action) {
     case "view-selected": {
       const view = state.asyncState.template?.views.find((candidate) => candidate.id === action.payload);
       if (!view) return state;
-      return { ...state, historyState: { ...state.historyState, lastGroupKey: null }, sessionState: { ...state.sessionState, activeViewId: view.id, activePrintAreaId: getViewPrintAreas(state.asyncState.template, view)[0].id, selectedElementIds: [] } };
+      return { ...state, historyState: { ...state.historyState, lastGroupKey: null }, sessionState: { ...state.sessionState, activeViewId: view.id, activePrintAreaId: getViewPrintAreas(state.asyncState.template, view)[0].id, selectedElementIds: [], zoom: 1, pan: { x: 0, y: 0 } } };
     }
     case "selection-changed": {
       const selectedElementIds = Array.isArray(action.payload) ? [...new Set(action.payload.filter(Boolean))] : action.payload ? [action.payload] : [];
