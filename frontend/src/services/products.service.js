@@ -13,6 +13,11 @@ export async function apiGetProductById(id) {
   return data.product ? normalizeProduct(data.product) : null;
 }
 
+export async function apiQuoteCustomization(id, payload) {
+  const { data } = await http.post(`/api/products/${id}/customization-quote`, payload);
+  return data.quote;
+}
+
 
 // ADMIN: crear producto
 export async function adminCreateProduct(payload) {

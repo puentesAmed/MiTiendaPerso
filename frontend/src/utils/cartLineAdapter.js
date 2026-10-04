@@ -67,6 +67,10 @@ export function buildCartLineKey({ productId, variant, customization }) {
   const size = normalizedVariant?.size || "-";
   const color = normalizedVariant?.color || "-";
   const customizationId = customization?.clientId || "none";
+  const selectedSurfaceIds = customization?.selectedSurfaceIds || customization?.designDocument?.selectedSurfaceIds || [];
+  const surfaceToken = Array.isArray(selectedSurfaceIds) && selectedSurfaceIds.length > 0
+    ? [...selectedSurfaceIds].sort().join("~")
+    : "legacy";
 
   return [
     "v2:local:",
@@ -77,10 +81,14 @@ export function buildCartLineKey({ productId, variant, customization }) {
     encodeURIComponent(color),
     ":custom=",
     encodeURIComponent(String(customizationId)),
+    ":surfaces=",
+    encodeURIComponent(surfaceToken),
   ].join("");
 }
 
-function getDisplayPrice(product) {
+function getDisplayPrice(product, customization = null) {
+  const quotedUnitPrice = Number(customization?.customizationPricing?.unitPrice);
+  if (Number.isFinite(quotedUnitPrice)) return quotedUnitPrice;
   const value =
     typeof product?.price === "object" ? product.price?.final : product?.price;
   const price = Number(value);
@@ -119,7 +127,7 @@ export function createCartLine({
     presentation: {
       name: product?.name || "Producto",
       image: product?.image || product?.images?.[0] || "",
-      displayPrice: getDisplayPrice(product),
+      displayPrice: getDisplayPrice(product, normalizedCustomization),
     },
   };
 
@@ -284,6 +292,12 @@ export function updateCartLineCustomization(
   const updated = {
     ...current,
     customization: normalized,
+    presentation: {
+      ...current.presentation,
+      displayPrice: Number.isFinite(Number(normalized?.customizationPricing?.unitPrice))
+        ? Number(normalized.customizationPricing.unitPrice)
+        : current.presentation.displayPrice,
+    },
   };
   updated.lineKey = buildCartLineKey(updated);
 

@@ -9,6 +9,10 @@ const productEligibleTemplateIds = new Set([
   PRODUCT_TEMPLATE_IDS.TSHIRT_BASIC_V1,
 ]);
 
+export function getProductEligibleTemplateIds() {
+  return [...productEligibleTemplateIds];
+}
+
 export function canUseProductDesignerV2(product) {
   return Boolean(
     product?.customizable

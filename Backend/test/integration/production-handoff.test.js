@@ -217,6 +217,32 @@ test("pedido V2 de camiseta conserva cuatro superficies independientes en ZIP", 
   }
 });
 
+test("pedido nuevo produce únicamente las superficies seleccionadas y cotizadas", async () => {
+  const product = await Product.create({
+    name: "Camiseta por superficies", price: 25, stock: 10, active: true, customizable: true,
+    productTemplateId: "tshirt-basic-v1", variants: { sizes: ["L"], colors: ["Blanco"] },
+    customizationPricing: { enabled: true, surfaces: [
+      { surfaceId: "tshirt-front", enabled: true, required: true, priceModifier: 0 },
+      { surfaceId: "tshirt-back", enabled: true, required: false, priceModifier: 5 },
+    ] },
+  });
+  const variant = { size: "L", color: "Blanco" };
+  const payload = v2Customization(product, "tshirt-basic-v1", 2, ["front"], { front: await uploadArtwork(754, 1024) }, variant);
+  payload.selectedSurfaceIds = ["tshirt-front"];
+  payload.designDocument.selectedSurfaceIds = ["tshirt-front"];
+
+  const response = await request(app).post("/api/orders").send(orderPayload(product, payload, variant));
+  assert.equal(response.status, 201, JSON.stringify(response.body));
+  const item = response.body.order.items[0];
+  assert.equal(item.basePrice, 25);
+  assert.equal(item.price, 25);
+  assert.deepEqual(item.selectedSurfaceIds, ["tshirt-front"]);
+  assert.equal(item.customizationPricing.customizationAmount, 0);
+  const customization = await Customization.findById(item.customizationId).lean();
+  assert.deepEqual(customization.selectedSurfaceIds, ["tshirt-front"]);
+  assert.deepEqual(customization.productionSurfaces.map((surface) => surface.viewId), ["front"]);
+});
+
 test("backend rechaza template o surface set V2 incompatibles sin truncar", async () => {
   const product = await Product.create({ name: "Taza", price: 20, stock: 10, active: true, customizable: true, productTemplateId: "mug-ceramic-standard-v1" });
   const uploadId = await uploadArtwork(1008, 480);

@@ -195,6 +195,8 @@ export function buildProductionManifest(customizationDoc) {
       templateRevision: product.templateRevision,
     },
     variant: customizationDoc.variant || null,
+    selectedSurfaceIds: customizationDoc.selectedSurfaceIds || [],
+    customizationPricing: customizationDoc.customizationPricing || null,
     quantity: customizationDoc.quantity,
     surfaces: (customizationDoc.productionSurfaces || []).map((surface) => ({
       viewId: surface.viewId,

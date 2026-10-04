@@ -46,7 +46,7 @@ export function normalizeCustomization(customization, product = null) {
   };
 }
 
-export function createDesignerV2CustomizationPayload({ clientId, designDocument, uploads, productId, productSnapshot }) {
+export function createDesignerV2CustomizationPayload({ clientId, designDocument, uploads, productId, productSnapshot, selectedSurfaceIds, customizationPricing }) {
   return normalizeCustomization({
     type: "designer",
     schemaVersion: 2,
@@ -57,6 +57,8 @@ export function createDesignerV2CustomizationPayload({ clientId, designDocument,
     previewImage: null,
     productId,
     productSnapshot,
+    selectedSurfaceIds: selectedSurfaceIds ?? designDocument?.selectedSurfaceIds,
+    customizationPricing: customizationPricing || null,
   }, productSnapshot);
 }
 

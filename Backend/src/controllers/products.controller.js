@@ -2,6 +2,8 @@
 import { Product } from "../models/Product.js";
 import { env } from "../config/env.js";
 import { FulfillmentProfileError, normalizeFulfillmentProfile } from "../services/fulfillment.service.js";
+import { CustomizationPricingError, getPublicCustomizationPricing, normalizeCustomizationPricing, resolveCustomizationQuote } from "../services/customization-pricing.service.js";
+import { validateRequestedProductVariant } from "../services/order-calculation.service.js";
 
 async function loadAffiliateProductModel() {
   const { AffiliateProduct } = await import("../models/AffiliateProduct.js");
@@ -137,6 +139,7 @@ function mapToCatalogProduct(product, { includeProductTemplateId = false } = {})
     variants: isAliExpress ? product.variants : product.variants,
 
     customizable: !!product.customizable,
+    customizationPricing: getPublicCustomizationPricing(product),
   };
 
   if (includeProductTemplateId) {
@@ -247,11 +250,12 @@ export async function createProduct(req, res) {
   try {
     const payload = { ...req.body };
     if (Object.hasOwn(payload, "fulfillmentProfile")) payload.fulfillmentProfile = normalizeFulfillmentProfile(payload.fulfillmentProfile);
+    if (Object.hasOwn(payload, "customizationPricing")) payload.customizationPricing = normalizeCustomizationPricing(payload.customizationPricing, payload.productTemplateId);
     const product = new Product(payload);
     await product.save();
     res.status(201).json({ ok: true, product });
   } catch (err) {
-    res.status(err instanceof FulfillmentProfileError || err?.name === "ValidationError" ? 400 : 500).json({ ok: false, message: err.message });
+    res.status(err instanceof FulfillmentProfileError || err instanceof CustomizationPricingError || err?.name === "ValidationError" ? 400 : 500).json({ ok: false, message: err.message });
   }
 }
 
@@ -259,6 +263,10 @@ export async function updateProduct(req, res) {
   try {
     const payload = { ...req.body };
     if (Object.hasOwn(payload, "fulfillmentProfile")) payload.fulfillmentProfile = normalizeFulfillmentProfile(payload.fulfillmentProfile);
+    if (Object.hasOwn(payload, "customizationPricing")) {
+      const current = await Product.findById(req.params.id).select("productTemplateId").lean();
+      payload.customizationPricing = normalizeCustomizationPricing(payload.customizationPricing, payload.productTemplateId || current?.productTemplateId);
+    }
     const updated = await Product.findByIdAndUpdate(
       req.params.id,
       payload,
@@ -271,7 +279,20 @@ export async function updateProduct(req, res) {
 
     res.json({ ok: true, product: updated });
   } catch (err) {
-    res.status(err instanceof FulfillmentProfileError || err?.name === "ValidationError" ? 400 : 500).json({ ok: false, message: err.message });
+    res.status(err instanceof FulfillmentProfileError || err instanceof CustomizationPricingError || err?.name === "ValidationError" ? 400 : 500).json({ ok: false, message: err.message });
+  }
+}
+
+export async function quoteCustomization(req, res) {
+  try {
+    const product = await Product.findOne({ _id: req.params.id, active: true });
+    if (!product) return res.status(404).json({ ok: false, message: "Producto no encontrado" });
+    validateRequestedProductVariant(product, req.body?.variant ?? null);
+    const quote = resolveCustomizationQuote(product, req.body?.selectedSurfaceIds);
+    return res.json({ ok: true, quote });
+  } catch (err) {
+    const status = err instanceof CustomizationPricingError || err?.name === "OrderCalculationError" ? err.status || 400 : 500;
+    return res.status(status).json({ ok: false, message: err.message });
   }
 }
 

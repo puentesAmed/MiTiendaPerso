@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Minus, Plus, ShoppingCart, Sparkles } from "lucide-react";
-import { apiGetProductById } from "../../services/products.service";
+import { apiGetProductById, apiQuoteCustomization } from "../../services/products.service";
 import { useCart } from "../../hooks/useCart";
 import { normalizeVariant } from "../../utils/cartLineAdapter";
 import { Badge } from "../../components/ui/badge";
@@ -24,6 +24,7 @@ import { isProductDesignerV2Enabled } from "../../features/product-designer-v2/u
 import { canUseProductDesignerV2 } from "../../features/product-designer-v2/templates/templateCatalog";
 import { buildDesignerV2Location, createDesignerVariantContext } from "../../features/product-designer-v2/domain/variantContext";
 import { animateAddToCart } from "../../utils/cartAnimation";
+import { getCommercialSurfaces, normalizeSelectedSurfaceIds } from "../../features/product-designer-v2/domain/customizationSurfaces";
 
 function DetailSkeleton() {
   return (
@@ -87,6 +88,10 @@ export function ProductDetail() {
   const [selectedAttributes, setSelectedAttributes] = useState({});
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [addedDialogOpen, setAddedDialogOpen] = useState(false);
+  const [selectedSurfaceIds, setSelectedSurfaceIds] = useState([]);
+  const [customizationQuote, setCustomizationQuote] = useState(null);
+  const [quoteError, setQuoteError] = useState("");
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
   const handleBackToProducts = () => {
     if (location.state?.fromProducts) {
@@ -126,6 +131,9 @@ export function ProductDetail() {
         setSelectedColor("");
         setSelectedAttributes({});
         setSelectedVariant(null);
+        setSelectedSurfaceIds(getCommercialSurfaces(data).filter((surface) => surface.required).map((surface) => surface.surfaceId));
+        setCustomizationQuote(null);
+        setQuoteError("");
       } catch {
         if (alive) setError("No se pudo cargar el producto");
       } finally {
@@ -146,8 +154,38 @@ export function ProductDetail() {
   const hasRequiredVariant =
     (availableSizes.length === 0 || Boolean(selectedSize)) &&
     (availableColors.length === 0 || Boolean(selectedColor));
-  const designerVariant = createDesignerVariantContext(product, { size: selectedSize, color: selectedColor });
+  const designerVariant = useMemo(() => createDesignerVariantContext(product, { size: selectedSize, color: selectedColor }), [product, selectedColor, selectedSize]);
   const designerLocation = buildDesignerV2Location(productId, designerVariant);
+  const commercialSurfaces = useMemo(() => getCommercialSurfaces(product), [product]);
+
+  useEffect(() => {
+    let active = true;
+    if (!productId || commercialSurfaces.length === 0 || !hasRequiredVariant || selectedSurfaceIds.length === 0) {
+      setCustomizationQuote(null);
+      setQuoteError("");
+      return () => { active = false; };
+    }
+    let normalized;
+    try {
+      normalized = normalizeSelectedSurfaceIds(commercialSurfaces, selectedSurfaceIds);
+    } catch (error) {
+      setCustomizationQuote(null);
+      setQuoteError(error.message);
+      return () => { active = false; };
+    }
+    setQuoteLoading(true);
+    setQuoteError("");
+    apiQuoteCustomization(productId, { selectedSurfaceIds: normalized, variant: designerVariant })
+      .then((quote) => { if (active) setCustomizationQuote(quote); })
+      .catch((error) => {
+        if (active) {
+          setCustomizationQuote(null);
+          setQuoteError(error.response?.data?.message || "No se pudo calcular la personalización.");
+        }
+      })
+      .finally(() => { if (active) setQuoteLoading(false); });
+    return () => { active = false; };
+  }, [commercialSurfaces, designerVariant, hasRequiredVariant, productId, selectedSurfaceIds]);
 
   const aliAttributes = useMemo(() => {
     if (!isAliExpress || !Array.isArray(product?.variants)) return {};
@@ -201,9 +239,17 @@ export function ProductDetail() {
   const canAddToCart = isAliExpress
     ? Boolean(selectedVariant)
     : stock > 0 && hasRequiredVariant;
-  const displayedPrice = isAliExpress
+  const displayedPrice = customizationQuote?.unitPrice ?? (isAliExpress
     ? selectedVariant?.price?.final ?? product.price?.final
-    : product.price?.final ?? product.price;
+    : product.price?.final ?? product.price);
+  const canPersonalize = canAddToCart && !isAliExpress && commercialSurfaces.length > 0 && Boolean(customizationQuote) && !quoteLoading;
+
+  const toggleSurface = (surface) => {
+    if (surface.required) return;
+    setSelectedSurfaceIds((current) => current.includes(surface.surfaceId)
+      ? current.filter((id) => id !== surface.surfaceId)
+      : [...current, surface.surfaceId]);
+  };
 
   const clampQuantity = (value) => {
     const numericValue = Number(value);
@@ -317,16 +363,33 @@ export function ProductDetail() {
               <p className="text-sm text-muted-foreground">Selecciona las opciones del producto para continuar.</p>
             )}
 
+            {hasDesignerV2Template && isProductDesignerV2Enabled && (
+              <fieldset className="space-y-2 border-t pt-4">
+                <legend className="text-sm font-semibold">¿Dónde quieres personalizar?</legend>
+                {commercialSurfaces.length > 0 ? commercialSurfaces.map((surface) => (
+                  <label key={surface.surfaceId} className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
+                    <span className="flex items-center gap-2">
+                      <input type="checkbox" checked={selectedSurfaceIds.includes(surface.surfaceId)} disabled={surface.required} onChange={() => toggleSurface(surface)} />
+                      <span>{surface.label}{surface.required ? " (obligatoria)" : ""}</span>
+                    </span>
+                    <span className="font-medium">{surface.priceModifier === 0 ? "Incluido" : `+${surface.priceModifier.toFixed(2)} €`}</span>
+                  </label>
+                )) : <p className="text-sm text-muted-foreground">La personalización por superficies todavía no está configurada.</p>}
+                {quoteLoading && <p className="text-xs text-muted-foreground">Calculando precio…</p>}
+                {quoteError && <p className="text-xs text-destructive">{quoteError}</p>}
+              </fieldset>
+            )}
+
             <Button type="button" size="lg" className="w-full" onClick={handleAddToCart} disabled={!canAddToCart}>
               <ShoppingCart aria-hidden="true" /> Añadir al carrito
             </Button>
 
             {hasDesignerV2Template && isProductDesignerV2Enabled && (
-              canAddToCart && !isAliExpress && (!(availableSizes.length || availableColors.length) || designerVariant) ? (
+              canPersonalize && (!(availableSizes.length || availableColors.length) || designerVariant) ? (
                 <Button
                   as={Link}
                   to={designerLocation}
-                  state={{ variant: designerVariant, fromProductDetail: true }}
+                  state={{ variant: designerVariant, selectedSurfaceIds: customizationQuote.selectedSurfaceIds, customizationQuote, fromProductDetail: true }}
                   variant="secondary"
                   className="w-full"
                 >

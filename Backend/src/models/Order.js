@@ -23,6 +23,9 @@ const orderSchema = new mongoose.Schema(
         name: { type: String, required: true },
         quantity: { type: Number, required: true, min: 1 },
         price: { type: Number, required: true, min: 0 },
+        basePrice: { type: Number, default: null, min: 0 },
+        selectedSurfaceIds: [{ type: String }],
+        customizationPricing: { type: mongoose.Schema.Types.Mixed, default: null },
 
         provider: { type: String, enum: ["local", "aliexpress"], default: "local" },
         externalId: { type: String, default: null },     // AliExpress product_id

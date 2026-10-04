@@ -10,6 +10,7 @@ export function CartCustomizationSummary({ item, onEdit }) {
   const texts = Array.isArray(customization.textSummary)
     ? customization.textSummary.filter(Boolean).slice(0, 2)
     : [];
+  const selectedSurfaces = customization.customizationPricing?.selectedSurfaces || [];
 
   return (
     <div className="mt-2 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5">
@@ -30,6 +31,16 @@ export function CartCustomizationSummary({ item, onEdit }) {
         {texts.length > 0 && (
           <p className="mt-1 truncate text-xs text-muted-foreground">
             Texto: {texts.map((text) => `“${text}”`).join(" · ")}
+          </p>
+        )}
+        {selectedSurfaces.length > 0 && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Superficies: {selectedSurfaces.map((surface) => surface.label).join(" · ")}
+          </p>
+        )}
+        {Number(customization.customizationPricing?.customizationAmount) > 0 && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Personalización: +{Number(customization.customizationPricing.customizationAmount).toFixed(2)} €
           </p>
         )}
         <Button

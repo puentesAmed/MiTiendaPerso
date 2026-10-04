@@ -30,6 +30,7 @@ import { renderPreviewArtwork } from "../mockups/ArtworkRenderer.js";
 import { requestMockup } from "../mockups/mockups.service.js";
 import { getProduct3DProfileForTemplate, isThreeDModeAvailable } from "../three/threeModelRegistry.js";
 import { resolveDesignerVariantContext } from "../domain/variantContext.js";
+import { filterTemplateBySelectedSurfaceIds, getCommercialSurfaces, normalizeSelectedSurfaceIds } from "../domain/customizationSurfaces.js";
 import { useCart } from "../../../hooks/useCart.js";
 import { createDesignerV2CustomizationPayload } from "../../../utils/customizationAdapter.js";
 import { prepareProductionHandoff } from "../production/productionHandoff.js";
@@ -40,6 +41,7 @@ const statusCopy = {
   incompatible: ["Producto sin template compatible", "Este producto no tiene un productTemplateId registrado para Designer V2."],
   "invalid-template": ["Template inválido", "El ProductTemplate no supera la validación del contrato v1."],
   "invalid-variant": ["Selecciona una variante", "Abre el diseñador desde la ficha y selecciona primero la talla y el color requeridos."],
+  "invalid-surfaces": ["Selección de superficies inválida", "Vuelve a la ficha del producto y elige superficies disponibles."],
   load: ["No se pudo abrir Designer V2", "No se pudo cargar el producto. Inténtalo de nuevo."],
 };
 
@@ -116,10 +118,29 @@ export function ProductDesignerV2Page() {
           dispatch({ type: "failed", payload: { error: { code: "not-found" } } });
           return;
         }
-        const template = resolveProductTemplate(product);
-        if (!template) {
+        const fullTemplate = resolveProductTemplate(product);
+        if (!fullTemplate) {
           dispatch({ type: "failed", payload: { product, error: { code: "incompatible" } } });
           return;
+        }
+        const requestedSurfaceIds = location.state?.selectedSurfaceIds
+          ?? location.state?.customization?.selectedSurfaceIds
+          ?? location.state?.customization?.designDocument?.selectedSurfaceIds
+          ?? null;
+        let selectedSurfaceIds = null;
+        let template = fullTemplate;
+        if (requestedSurfaceIds === null && getCommercialSurfaces(product).length > 0 && !location.state?.customization) {
+          dispatch({ type: "failed", payload: { product, error: { code: "invalid-surfaces" } } });
+          return;
+        }
+        if (requestedSurfaceIds !== null) {
+          try {
+            selectedSurfaceIds = normalizeSelectedSurfaceIds(getCommercialSurfaces(product), requestedSurfaceIds);
+            template = filterTemplateBySelectedSurfaceIds(fullTemplate, selectedSurfaceIds);
+          } catch (error) {
+            dispatch({ type: "failed", payload: { product, error: { code: "invalid-surfaces", details: [error.message] } } });
+            return;
+          }
         }
         const validation = validateProductTemplate(template);
         if (!validation.valid) {
@@ -136,6 +157,7 @@ export function ProductDesignerV2Page() {
           template,
           productId: product.id || product._id,
           variant,
+          selectedSurfaceIds,
         });
         const cartDocument = location.state?.customization?.schemaVersion === 2
           ? location.state.customization.designDocument
@@ -153,7 +175,7 @@ export function ProductDesignerV2Page() {
           const reference = findDraftReference(localStorage, document);
           if (!reference) return;
           recoveryReferenceKeyRef.current = reference.key;
-          const draft = await draftRepository.loadDraft(reference.draftId, { template, productId: document.productId, variant: document.variant });
+          const draft = await draftRepository.loadDraft(reference.draftId, { template, productId: document.productId, variant: document.variant, selectedSurfaceIds: document.selectedSurfaceIds });
           if (active && draft) setRecoveryDraft(draft);
         } catch (error) {
           if (!active) return;
@@ -172,7 +194,7 @@ export function ProductDesignerV2Page() {
       });
 
     return () => { active = false; };
-  }, [assetRegistry, assetRepository, draftRepository, location.search, location.state?.customization, location.state?.variant, productId]);
+  }, [assetRegistry, assetRepository, draftRepository, location.search, location.state?.customization, location.state?.selectedSurfaceIds, location.state?.variant, productId]);
 
   const handleBack = () => {
     if (location.state?.fromProductDetail) navigate(-1);
@@ -246,7 +268,7 @@ export function ProductDesignerV2Page() {
     try {
       await draftRepository.deleteDraft(recoveryDraft.draftId);
       try { localStorage.removeItem(recoveryReferenceKeyRef.current || createDraftReferenceKey(state.documentState.document)); } catch { /* referencia opcional */ }
-      const document = createDesignDocument({ template: state.asyncState.template, productId: state.asyncState.product.id || state.asyncState.product._id, variant: state.documentState.document.variant });
+      const document = createDesignDocument({ template: state.asyncState.template, productId: state.asyncState.product.id || state.asyncState.product._id, variant: state.documentState.document.variant, selectedSurfaceIds: state.documentState.document.selectedSurfaceIds ?? null });
       activeDraftRef.current = null;
       savedRevisionRef.current = null;
       dispatch({ type: "document-restored", payload: { document } });
@@ -264,7 +286,7 @@ export function ProductDesignerV2Page() {
     const draftId = activeDraftRef.current?.draftId;
     if (!draftId || !state.asyncState.template) return;
     try {
-      const draft = await draftRepository.loadDraft(draftId, { template: state.asyncState.template, productId: state.documentState.document.productId });
+      const draft = await draftRepository.loadDraft(draftId, { template: state.asyncState.template, productId: state.documentState.document.productId, selectedSurfaceIds: state.documentState.document.selectedSurfaceIds });
       await restoreRuntimeAssets(draft.document, assetRepository, assetRegistry);
       activeDraftRef.current = draft;
       savedRevisionRef.current = draft.revision;
@@ -401,6 +423,8 @@ export function ProductDesignerV2Page() {
         uploads,
         productId: product._id || product.id,
         productSnapshot: { _id: product._id || product.id, name: product.name },
+        selectedSurfaceIds: state.documentState.document.selectedSurfaceIds,
+        customizationPricing: location.state?.customizationQuote || location.state?.customization?.customizationPricing || null,
       });
       if (location.state?.lineKey) updateCustomization(location.state.lineKey, customization);
       else addItem({ product, quantity: 1, variant: state.documentState.document.variant, customization });

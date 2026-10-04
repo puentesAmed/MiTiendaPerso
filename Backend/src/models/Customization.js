@@ -56,6 +56,8 @@ const CustomizationSchema = new mongoose.Schema(
       color: { type: String, default: null },
     },
     quantity: { type: Number, min: 1, default: null },
+    selectedSurfaceIds: [{ type: String }],
+    customizationPricing: { type: mongoose.Schema.Types.Mixed, default: null },
     designDocument: { type: mongoose.Schema.Types.Mixed, default: null },
     productionSurfaces: [{
       _id: false,

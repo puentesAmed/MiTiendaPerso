@@ -51,6 +51,10 @@ function assertSameVariant(documentVariant, lineVariant) {
   }
 }
 
+function sameSelection(left, right) {
+  return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((surfaceId, index) => surfaceId === right[index]);
+}
+
 function safeAssetFilename(assetId, mimeType) {
   const extension = mimeType === "image/png" ? "png" : mimeType === "image/jpeg" ? "jpg" : "webp";
   return `${createHash("sha256").update(assetId).digest("hex")}.${extension}`;
@@ -77,8 +81,22 @@ export async function createProductionCustomization({ owner, product, line, payl
   assertNoLocalReferences(document);
   assertSameVariant(document.variant, line.variant);
 
+  const authoritativeSurfaceIds = line.customizationPricing?.selectedSurfaceIds || null;
+  const payloadSurfaceIds = payload?.selectedSurfaceIds;
+  const documentSurfaceIds = document.selectedSurfaceIds;
+  if (authoritativeSurfaceIds) {
+    if (!sameSelection(documentSurfaceIds, authoritativeSurfaceIds) || !sameSelection(payloadSurfaceIds, authoritativeSurfaceIds)) {
+      throw new ProductionCustomizationError("La selección de superficies no coincide con el precio autorizado");
+    }
+  } else if (payloadSurfaceIds != null || documentSurfaceIds != null) {
+    throw new ProductionCustomizationError("La selección de superficies no tiene pricing autorizado");
+  }
+  const selectedSurfaces = authoritativeSurfaceIds
+    ? template.surfaces.filter((surface) => authoritativeSurfaceIds.includes(surface.surfaceId))
+    : template.surfaces;
+
   const actualViews = Object.keys(document.views).sort();
-  const expectedViews = template.surfaces.map((item) => item.viewId).sort();
+  const expectedViews = selectedSurfaces.map((item) => item.viewId).sort();
   if (JSON.stringify(actualViews) !== JSON.stringify(expectedViews)) {
     throw new ProductionCustomizationError("Las superficies del diseño no coinciden con el template");
   }
@@ -110,6 +128,8 @@ export async function createProductionCustomization({ owner, product, line, payl
     },
     variant: line.variant || null,
     quantity: line.quantity,
+    selectedSurfaceIds: authoritativeSurfaceIds || [],
+    customizationPricing: line.customizationPricing || null,
     productionStatus: "pending",
     productionStatusUpdatedAt: new Date(),
   });
@@ -145,7 +165,7 @@ export async function createProductionCustomization({ owner, product, line, payl
     }
 
     const productionSurfaces = [];
-    for (const expected of template.surfaces) {
+    for (const expected of selectedSurfaces) {
       const uploadId = payload?.uploads?.surfaces?.[expected.viewId]?.artworkUploadId;
       const proofUploadId = payload?.uploads?.surfaces?.[expected.viewId]?.proofUploadId;
       const bytes = await readUpload(uploadId);

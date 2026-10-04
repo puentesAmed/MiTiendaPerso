@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { Product } from "../models/Product.js";
+import { resolveCustomizationQuote } from "./customization-pricing.service.js";
 
 export class OrderCalculationError extends Error {
   constructor(message, status = 400) {
@@ -77,6 +78,20 @@ function validateVariant(product, variant) {
   return size || color ? { size, color } : null;
 }
 
+export function validateRequestedProductVariant(product, input) {
+  return validateVariant(product, normalizeRequestedVariant(input));
+}
+
+function resolveSelectedSurfaceIds(customization) {
+  if (!customization || typeof customization !== "object") return null;
+  const direct = customization.selectedSurfaceIds;
+  const documentSelection = customization.designDocument?.selectedSurfaceIds;
+  if (direct != null && documentSelection != null && JSON.stringify(direct) !== JSON.stringify(documentSelection)) {
+    throw new OrderCalculationError("La selección de superficies es contradictoria");
+  }
+  return direct ?? documentSelection ?? null;
+}
+
 function roundCurrency(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -146,7 +161,14 @@ export async function resolveAuthoritativeOrderLines(items) {
   const lines = normalizedItems.map((item) => {
     const product = productsById.get(item.productId);
     const variant = validateVariant(product, resolveRequestedVariant(item));
-    const price = roundCurrency(Number(product.price));
+    const basePrice = roundCurrency(Number(product.price));
+    const selectedSurfaceIds = resolveSelectedSurfaceIds(item.customization);
+    if (item.customization?.schemaVersion === 2 && product.customizationPricing?.enabled && selectedSurfaceIds == null) {
+      throw new OrderCalculationError(`Selecciona las superficies de personalización para: ${product.name}`);
+    }
+    if (selectedSurfaceIds && !product.customizable) throw new OrderCalculationError(`El producto no admite personalización: ${product.name}`);
+    const customizationPricing = selectedSurfaceIds ? resolveCustomizationQuote(product, selectedSurfaceIds) : null;
+    const price = customizationPricing?.unitPrice ?? basePrice;
     subtotal = roundCurrency(subtotal + price * item.quantity);
 
     return {
@@ -154,9 +176,11 @@ export async function resolveAuthoritativeOrderLines(items) {
       productId: product._id,
       name: product.name,
       price,
+      basePrice,
       quantity: item.quantity,
       variant,
       customization: item.customization || null,
+      customizationPricing,
     };
   });
 

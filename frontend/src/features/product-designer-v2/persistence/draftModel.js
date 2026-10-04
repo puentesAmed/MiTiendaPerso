@@ -20,7 +20,7 @@ export function createDraft({
   };
 }
 
-export function validateDraft(draft, { template = null, productId = null, variant = undefined } = {}) {
+export function validateDraft(draft, { template = null, productId = null, variant = undefined, selectedSurfaceIds = undefined } = {}) {
   const errors = [];
   if (!draft || typeof draft !== "object") return { valid: false, errors: ["Draft inválido."] };
   if (!draft.draftId) errors.push("Falta draftId.");
@@ -34,6 +34,10 @@ export function validateDraft(draft, { template = null, productId = null, varian
   if (draft.document?.productId !== draft.productId || draft.document?.templateId !== draft.templateId || draft.document?.templateRevision !== draft.templateRevision) errors.push("Draft y DesignDocument no coinciden.");
   if (productId && String(draft.productId) !== String(productId)) errors.push("El draft pertenece a otro producto.");
   if (variant !== undefined && !sameDesignerVariant(draft.document?.variant, variant)) errors.push("El draft pertenece a otra variante del producto.");
+  if (selectedSurfaceIds !== undefined) {
+    const saved = draft.document?.selectedSurfaceIds;
+    if (!Array.isArray(saved) || saved.length !== selectedSurfaceIds.length || saved.some((id, index) => id !== selectedSurfaceIds[index])) errors.push("El draft pertenece a otra selección de superficies.");
+  }
   return { valid: errors.length === 0, errors };
 }
 

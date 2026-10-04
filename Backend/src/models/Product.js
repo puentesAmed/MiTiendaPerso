@@ -47,6 +47,18 @@ fulfillmentProfileSchema.pre("validate", function validateRange(next) {
   next();
 });
 
+const customizationSurfacePricingSchema = new mongoose.Schema({
+  surfaceId: { type: String, required: true, trim: true },
+  enabled: { type: Boolean, default: false },
+  required: { type: Boolean, default: false },
+  priceModifier: { type: Number, default: null, min: 0 },
+}, { _id: false });
+
+const customizationPricingSchema = new mongoose.Schema({
+  enabled: { type: Boolean, default: false },
+  surfaces: { type: [customizationSurfacePricingSchema], default: [] },
+}, { _id: false });
+
 const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -69,6 +81,7 @@ const productSchema = new mongoose.Schema(
     productTemplateId: { type: String, default: null, trim: true },
     customizationAreas: [customizationAreaSchema],
     customizationType: { type: String, enum: ["tshirt", "hoodie", "mug"], default: "tshirt" },
+    customizationPricing: { type: customizationPricingSchema, default: null },
     shippingProfile: { type: shippingProfileSchema, default: null },
     fulfillmentProfile: { type: fulfillmentProfileSchema, default: null },
   },

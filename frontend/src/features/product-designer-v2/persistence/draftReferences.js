@@ -5,7 +5,10 @@ export function createDraftReferenceKey(document) {
   const variantToken = variant
     ? [variant.variantId, variant.sizeId, variant.colorId].map((value) => value || "-").join("~")
     : "default";
-  return `${DRAFT_REFERENCE_PREFIX}${document.productId}:${document.templateId}:${document.templateRevision}:${variantToken}`;
+  const surfaceToken = Array.isArray(document.selectedSurfaceIds)
+    ? document.selectedSurfaceIds.map(encodeURIComponent).join("~")
+    : "legacy";
+  return `${DRAFT_REFERENCE_PREFIX}${document.productId}:${document.templateId}:${document.templateRevision}:${variantToken}:${surfaceToken}`;
 }
 
 export function findDraftReference(storage, document) {
