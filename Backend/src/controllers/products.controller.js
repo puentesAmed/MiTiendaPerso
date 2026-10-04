@@ -1,6 +1,7 @@
 
 import { Product } from "../models/Product.js";
 import { env } from "../config/env.js";
+import { FulfillmentProfileError, normalizeFulfillmentProfile } from "../services/fulfillment.service.js";
 
 async function loadAffiliateProductModel() {
   const { AffiliateProduct } = await import("../models/AffiliateProduct.js");
@@ -244,19 +245,23 @@ export async function getProduct(req, res) {
 
 export async function createProduct(req, res) {
   try {
-    const product = new Product(req.body);
+    const payload = { ...req.body };
+    if (Object.hasOwn(payload, "fulfillmentProfile")) payload.fulfillmentProfile = normalizeFulfillmentProfile(payload.fulfillmentProfile);
+    const product = new Product(payload);
     await product.save();
     res.status(201).json({ ok: true, product });
   } catch (err) {
-    res.status(500).json({ ok: false, message: err.message });
+    res.status(err instanceof FulfillmentProfileError || err?.name === "ValidationError" ? 400 : 500).json({ ok: false, message: err.message });
   }
 }
 
 export async function updateProduct(req, res) {
   try {
+    const payload = { ...req.body };
+    if (Object.hasOwn(payload, "fulfillmentProfile")) payload.fulfillmentProfile = normalizeFulfillmentProfile(payload.fulfillmentProfile);
     const updated = await Product.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      payload,
       { new: true, runValidators: true }
     );
 
@@ -266,7 +271,7 @@ export async function updateProduct(req, res) {
 
     res.json({ ok: true, product: updated });
   } catch (err) {
-    res.status(500).json({ ok: false, message: err.message });
+    res.status(err instanceof FulfillmentProfileError || err?.name === "ValidationError" ? 400 : 500).json({ ok: false, message: err.message });
   }
 }
 

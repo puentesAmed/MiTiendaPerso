@@ -8,6 +8,13 @@ export function defaultShippingSettings() {
   return {
     key: "default",
     version: 1,
+    pickupFree: {
+      enabled: false,
+      label: "Recogida gratuita",
+      pickupAddress: "",
+      instructions: "",
+      availabilityText: "",
+    },
     localUrgent: {
       enabled: false,
       label: "Envío urgente local",
@@ -37,10 +44,16 @@ const hasNumberInput = (value) => value != null
 const normalizeRequiredNumber = (value) => hasNumberInput(value) ? Number(value) : Number.NaN;
 
 export function normalizeShippingSettings(input, current = defaultShippingSettings()) {
+  const pickupInput = input.pickupFree || {};
   const localInput = input.localUrgent || {};
   const parcelInput = input.parcelStandard || {};
+  const pickup = { ...current.pickupFree, ...pickupInput };
   const local = { ...current.localUrgent, ...localInput };
   const parcel = { ...current.parcelStandard, ...parcelInput };
+  pickup.label = String(pickup.label || "").trim();
+  pickup.pickupAddress = String(pickup.pickupAddress || "").trim();
+  pickup.instructions = String(pickup.instructions || "").trim();
+  pickup.availabilityText = String(pickup.availabilityText || "").trim();
   local.label = String(local.label || "").trim();
   local.originAddress = String(local.originAddress || "").trim();
   local.postalCodes = normalizeList(local.postalCodes);
@@ -63,10 +76,13 @@ export function normalizeShippingSettings(input, current = defaultShippingSettin
   }).sort((left, right) => left.minKm - right.minKm);
   parcel.label = String(parcel.label || "").trim();
   parcel.serviceLevel = String(parcel.serviceLevel || "standard").trim();
-  return { key: "default", version: Number(current.version || 1) + 1, localUrgent: local, parcelStandard: parcel };
+  return { key: "default", version: Number(current.version || 1) + 1, pickupFree: pickup, localUrgent: local, parcelStandard: parcel };
 }
 
 export function validateShippingSettings(settings) {
+  const pickup = settings.pickupFree;
+  if (!pickup.label) throw new Error("PICKUP_FREE requiere una etiqueta");
+  if (pickup.enabled && !pickup.pickupAddress) throw new Error("PICKUP_FREE activo requiere dirección de recogida");
   const local = settings.localUrgent;
   if (!local.label) throw new Error("LOCAL_URGENT requiere una etiqueta");
   if (local.enabled && !local.originAddress) throw new Error("LOCAL_URGENT activo requiere origen");
@@ -92,7 +108,14 @@ export function validateShippingSettings(settings) {
 export async function getShippingSettings() {
   if (cached && Date.now() - cachedAt < CACHE_TTL_MS) return cached;
   const stored = await ShippingSettings.findOne({ key: "default" }).lean();
-  cached = stored || defaultShippingSettings();
+  const defaults = defaultShippingSettings();
+  cached = stored ? {
+    ...defaults,
+    ...stored,
+    pickupFree: { ...defaults.pickupFree, ...stored.pickupFree },
+    localUrgent: { ...defaults.localUrgent, ...stored.localUrgent },
+    parcelStandard: { ...defaults.parcelStandard, ...stored.parcelStandard },
+  } : defaults;
   cachedAt = Date.now();
   return cached;
 }

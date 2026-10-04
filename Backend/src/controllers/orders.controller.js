@@ -24,6 +24,7 @@ import {
 import {
   calculateSelectedShippingQuote,
   calculateShippingQuote,
+  isShippingDestinationComplete,
   ShippingCalculationError,
 } from "../services/shipping.service.js";
 import {
@@ -32,6 +33,7 @@ import {
   ManualPaymentError,
 } from "../services/manual-payments.service.js";
 import { consumeCoupon, CouponError, releaseCoupon, validateCoupon } from "../services/coupon.service.js";
+import { calculateOrderPreparation } from "../services/fulfillment.service.js";
 
 
 /**
@@ -65,7 +67,7 @@ export async function createOrder(req, res) {
       });
     }
 
-    if (!shippingAddress) {
+    if (!shippingAddress && shippingMethodId !== "pickup-free") {
       return res.status(400).json({
         ok: false,
         message: "La dirección de envío es obligatoria",
@@ -76,11 +78,15 @@ export async function createOrder(req, res) {
 
     const { lines, subtotal, stockRequirements } =
       await resolveAuthoritativeOrderLines(items);
+    const orderPreparation = calculateOrderPreparation(lines);
     const coupon = await validateCoupon({ code: couponCode, subtotal, userId, guestEmail });
     const discountedSubtotal = roundCurrency(subtotal - (coupon?.discountAmount || 0));
     const shipping = shippingMethodId
       ? await calculateSelectedShippingQuote({ authoritativeSubtotal: discountedSubtotal, shippingAddress, lines, shippingMethodId })
       : await calculateShippingQuote({ authoritativeSubtotal: discountedSubtotal, shippingAddress });
+    const persistedShippingAddress = shipping.type === "PICKUP_FREE" && !isShippingDestinationComplete(shippingAddress)
+      ? null
+      : shippingAddress;
     const calculatedTotal = roundCurrency(discountedSubtotal + shipping.price);
     const orderId = new mongoose.Types.ObjectId();
 
@@ -199,8 +205,8 @@ export async function createOrder(req, res) {
       discountAmount: coupon?.discountAmount || 0,
       coupon: coupon ? { code: coupon.code, type: coupon.type, value: coupon.value, discountAmount: coupon.discountAmount } : null,
       total: calculatedTotal,
-      shippingAddress,
-      billingAddress: billingAddress || shippingAddress,
+      shippingAddress: persistedShippingAddress,
+      billingAddress: billingAddress || persistedShippingAddress,
       notes: notes || "",
       status: "created",
       payment: {
@@ -222,16 +228,25 @@ export async function createOrder(req, res) {
         type: shipping.type || "LEGACY_ZONE",
         serviceLevel: shipping.serviceLevel || "standard",
         quoteSource: shipping.quoteSource || shipping.source || "zone",
+        currency: shipping.currency || "EUR",
+        pickupAddress: shipping.pickupAddress || null,
+        instructions: shipping.instructions || null,
+        availabilityText: shipping.availabilityText || null,
+        distanceKm: shipping.distanceKm ?? null,
+        band: shipping.band || null,
+        normalizedDestination: shipping.normalizedDestination || null,
         providerId: shipping.providerId || null,
         serviceId: shipping.serviceId || null,
         parcels: shipping.parcels,
         zone: shipping.zone,
         price: shipping.price,
+        amount: shipping.price,
         isFree: shipping.isFree,
         estimatedDays: shipping.estimatedDays,
         estimatedDeliveryDate,
         deliveryStatus: "estimated",
       },
+      orderPreparation,
     });
     orderPersisted = true;
 

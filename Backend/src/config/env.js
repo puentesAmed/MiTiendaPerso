@@ -176,7 +176,8 @@ export const env = {
   SHIPPING_DISTANCE: {
     enabled: SHIPPING_DISTANCE_ENABLED,
     origin: { lat: Number(process.env.SHIPPING_ORIGIN_LAT), lon: Number(process.env.SHIPPING_ORIGIN_LON) },
-    orsApiKey: (process.env.ORS_API_KEY || '').trim(),
+    orsApiKey: (process.env.OPENROUTESERVICE_API_KEY || process.env.ORS_API_KEY || '').trim(),
+    orsBaseUrl: (process.env.OPENROUTESERVICE_BASE_URL || 'https://api.openrouteservice.org').trim().replace(/\/+$/, ''),
     bands: SHIPPING_DISTANCE_BANDS,
     cacheTtlMs: Math.max(60_000, Number(process.env.SHIPPING_DISTANCE_CACHE_TTL_MS) || 3_600_000),
   },

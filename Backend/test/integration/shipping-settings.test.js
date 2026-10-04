@@ -82,3 +82,13 @@ test("estimatedDays es opcional pero, si aparece, debe ser completo y válido", 
     ])), /plazo/);
   }
 });
+
+test("PICKUP_FREE exige dirección únicamente al activarse", () => {
+  const disabled = normalizeShippingSettings({ pickupFree: { enabled: false, label: "Recogida", pickupAddress: "" } });
+  assert.doesNotThrow(() => validateShippingSettings(disabled));
+  const invalid = normalizeShippingSettings({ pickupFree: { enabled: true, label: "Recogida", pickupAddress: "" } });
+  assert.throws(() => validateShippingSettings(invalid), /dirección de recogida/);
+  const enabled = normalizeShippingSettings({ pickupFree: { enabled: true, label: " Recogida ", pickupAddress: " Taller 1 " } });
+  assert.doesNotThrow(() => validateShippingSettings(enabled));
+  assert.equal(enabled.pickupFree.pickupAddress, "Taller 1");
+});

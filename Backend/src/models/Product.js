@@ -24,6 +24,29 @@ const shippingProfileSchema = new mongoose.Schema({
   shippingClass: { type: String, default: null, trim: true },
 }, { _id: false });
 
+const fulfillmentProfileSchema = new mongoose.Schema({
+  preparationRequired: { type: Boolean, required: true },
+  preparationMinDays: {
+    type: Number,
+    default: null,
+    validate: { validator: (value) => value == null || (Number.isInteger(value) && value >= 0), message: "preparationMinDays inválido" },
+  },
+  preparationMaxDays: {
+    type: Number,
+    default: null,
+    validate: { validator: (value) => value == null || (Number.isInteger(value) && value >= 0), message: "preparationMaxDays inválido" },
+  },
+}, { _id: false });
+
+fulfillmentProfileSchema.pre("validate", function validateRange(next) {
+  const hasMin = this.preparationMinDays != null;
+  const hasMax = this.preparationMaxDays != null;
+  if (hasMin !== hasMax || (hasMin && this.preparationMaxDays < this.preparationMinDays)) {
+    this.invalidate("preparationMaxDays", "El plazo de preparación debe incluir un rango válido");
+  }
+  next();
+});
+
 const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -47,6 +70,7 @@ const productSchema = new mongoose.Schema(
     customizationAreas: [customizationAreaSchema],
     customizationType: { type: String, enum: ["tshirt", "hoodie", "mug"], default: "tshirt" },
     shippingProfile: { type: shippingProfileSchema, default: null },
+    fulfillmentProfile: { type: fulfillmentProfileSchema, default: null },
   },
   { timestamps: true }
 );

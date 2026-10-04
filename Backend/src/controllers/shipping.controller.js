@@ -5,18 +5,20 @@ import {
 } from "../services/order-calculation.service.js";
 import {
   calculateShippingQuote,
+  isShippingDestinationComplete,
   quoteShippingMethods,
   ShippingCalculationError,
 } from "../services/shipping.service.js";
 import { CouponError, validateCoupon } from "../services/coupon.service.js";
 import { getShippingSettings, updateShippingSettings } from "../services/shipping-settings.service.js";
+import { calculateOrderPreparation } from "../services/fulfillment.service.js";
 
 
 export async function getShippingQuote(req, res) {
   try {
-    const { items, shippingAddress, couponCode, email } = req.body;
+    const { items, shippingAddress, shippingMethodId, couponCode, email } = req.body;
 
-    if (!items?.length || !shippingAddress) {
+    if (!items?.length) {
       return res.status(400).json({
         ok: false,
         message: "Datos insuficientes para calcular el envío",
@@ -26,11 +28,14 @@ export async function getShippingQuote(req, res) {
     const { lines, subtotal } = await resolveAuthoritativeOrderLines(items);
     const coupon = await validateCoupon({ code: couponCode, subtotal, userId: req.userId || null, guestEmail: email });
     const discountedSubtotal = roundCurrency(subtotal - (coupon?.discountAmount || 0));
-    const quote = await calculateShippingQuote({
-      authoritativeSubtotal: discountedSubtotal,
-      shippingAddress,
-    });
-    const { methods } = await quoteShippingMethods({ authoritativeSubtotal: discountedSubtotal, shippingAddress, lines });
+    const preparation = calculateOrderPreparation(lines);
+    const quote = !shippingMethodId && isShippingDestinationComplete(shippingAddress)
+      ? await calculateShippingQuote({ authoritativeSubtotal: discountedSubtotal, shippingAddress })
+      : null;
+    const { methods } = await quoteShippingMethods(
+      { authoritativeSubtotal: discountedSubtotal, shippingAddress, lines },
+      { requestedMethodId: shippingMethodId || null }
+    );
     const enrichedMethods = methods.map((method) => method.available ? {
       ...method,
       quote: { ...method.quote, total: roundCurrency(discountedSubtotal + method.quote.amount) },
@@ -44,13 +49,14 @@ export async function getShippingQuote(req, res) {
         discountAmount: coupon?.discountAmount || 0,
         coupon: coupon ? { code: coupon.code, type: coupon.type, value: coupon.value } : null,
       },
-      quote: {
+      preparation,
+      quote: quote ? {
         ...quote,
         subtotal,
         discountAmount: coupon?.discountAmount || 0,
         coupon: coupon ? { code: coupon.code, type: coupon.type, value: coupon.value } : null,
         total: roundCurrency(discountedSubtotal + quote.price),
-      },
+      } : null,
     });
 
   } catch (err) {

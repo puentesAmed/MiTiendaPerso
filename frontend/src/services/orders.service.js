@@ -39,6 +39,7 @@ export async function getShippingQuoteRequest(items, shippingAddress, signal, op
       toCheckoutItem(item, { includeCustomization: false })
     ),
     shippingAddress,
+    shippingMethodId: options.shippingMethodId || null,
     couponCode: options.couponCode || "",
     email: options.email || null,
   };

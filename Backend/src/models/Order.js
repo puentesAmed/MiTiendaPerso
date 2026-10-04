@@ -126,13 +126,20 @@ const orderSchema = new mongoose.Schema(
       type: { type: String, default: null },
       serviceLevel: { type: String, default: null },
       quoteSource: { type: String, default: null },
+      currency: { type: String, default: "EUR" },
+      pickupAddress: { type: String, default: null },
+      instructions: { type: String, default: null },
+      availabilityText: { type: String, default: null },
+      distanceKm: { type: Number, default: null },
+      band: { type: mongoose.Schema.Types.Mixed, default: null },
+      normalizedDestination: { type: mongoose.Schema.Types.Mixed, default: null },
       providerId: { type: String, default: null },
       serviceId: { type: String, default: null },
       parcels: { type: [mongoose.Schema.Types.Mixed], default: undefined },
       zone: {
         type: String,
-        enum: ["local", "peninsula", "islands", "international"],
-        required: true,
+        enum: ["local", "peninsula", "islands", "international", null],
+        default: null,
       },
 
       price: {
@@ -140,6 +147,7 @@ const orderSchema = new mongoose.Schema(
         required: true,
         min: 0,
       },
+      amount: { type: Number, default: null, min: 0 },
 
       isFree: {
         type: Boolean,
@@ -171,13 +179,21 @@ const orderSchema = new mongoose.Schema(
       },
     },
 
+    orderPreparation: {
+      preparationRequired: { type: Boolean, default: false },
+      status: { type: String, enum: ["not_required", "configured", "pending_confirmation"], default: "not_required" },
+      minDays: { type: Number, default: null, min: 0 },
+      maxDays: { type: Number, default: null, min: 0 },
+      itemRefs: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    },
+
     dropshipping: {
       sent: { type: Boolean, default: false },
       sentAt: { type: Date, default: null },
     },
 
 
-    shippingAddress: { type: addressSchema, required: true },
+    shippingAddress: { type: addressSchema, required: false, default: null },
     billingAddress: { type: addressSchema, required: false },
 
     notes: { type: String },

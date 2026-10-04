@@ -14,6 +14,7 @@ await PaymentSettings.updateOne({ key: "default" }, { $setOnInsert: {
 await ShippingSettings.updateOne({ key: "default" }, { $setOnInsert: {
   key: "default",
   version: 1,
+  pickupFree: { enabled: false, label: "Recogida gratuita", pickupAddress: "", instructions: "", availabilityText: "" },
   localUrgent: { enabled: false, label: "Envío urgente local", originAddress: "", maxDistanceKm: null, postalCodes: [], provinces: [], municipalities: [], bands: [], freeFrom: null },
   parcelStandard: { enabled: false, configured: false, label: "Envío por paquetería", serviceLevel: "standard" },
 } }, { upsert: true });

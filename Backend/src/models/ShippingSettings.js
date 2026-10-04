@@ -15,6 +15,13 @@ const bandSchema = new mongoose.Schema({
 const shippingSettingsSchema = new mongoose.Schema({
   key: { type: String, unique: true, default: "default", immutable: true },
   version: { type: Number, default: 1, min: 1 },
+  pickupFree: {
+    enabled: { type: Boolean, default: false },
+    label: { type: String, default: "Recogida gratuita", trim: true },
+    pickupAddress: { type: String, default: "", trim: true },
+    instructions: { type: String, default: "", trim: true },
+    availabilityText: { type: String, default: "", trim: true },
+  },
   localUrgent: {
     enabled: { type: Boolean, default: false },
     label: { type: String, default: "Envío urgente local", trim: true },

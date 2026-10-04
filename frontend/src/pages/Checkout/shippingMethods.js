@@ -6,11 +6,56 @@ export const SHIPPING_REASON_LABELS = Object.freeze({
   provider_unavailable: "Agencia temporalmente no disponible",
   routing_unavailable: "No se pudo calcular la ruta",
   invalid_address: "No se pudo validar la dirección",
+  quote_required: "Completa la dirección para cotizar",
 });
 
+export function isShippingMethodSelectable(method) {
+  return Boolean(method?.available || (method?.enabled && ["invalid_address", "quote_required"].includes(method.reason)));
+}
+
 export function selectShippingMethodId(methods, current = "") {
-  const available = (methods || []).filter((method) => method.available);
-  return available.some((method) => method.methodId === current) ? current : (available[0]?.methodId || "");
+  const selectable = (methods || []).filter(isShippingMethodSelectable);
+  return selectable.some((method) => method.methodId === current) ? current : (selectable[0]?.methodId || "");
+}
+
+const normalizePart = (value) => String(value || "").trim().replace(/\s+/g, " ");
+
+export function normalizeDeliveryAddress(address = {}) {
+  const source = address || {};
+  return {
+    fullName: normalizePart(source.fullName),
+    street: normalizePart(source.street),
+    city: normalizePart(source.city),
+    state: normalizePart(source.state),
+    postalCode: normalizePart(source.postalCode).toUpperCase(),
+    country: normalizePart(source.country),
+  };
+}
+
+export function isDeliveryAddressReady(address) {
+  const normalized = normalizeDeliveryAddress(address);
+  return normalized.street.length >= 5
+    && /^[A-Z0-9][A-Z0-9 -]{2,9}$/.test(normalized.postalCode)
+    && normalized.city.length >= 2
+    && normalized.state.length >= 2
+    && normalized.country.length >= 2;
+}
+
+export function buildShippingQuoteRequestKey({ items, address, methodId, couponCode, email }) {
+  const normalizedAddress = normalizeDeliveryAddress(address);
+  return JSON.stringify({
+    items: (items || []).map((item) => ({ productId: item.productId, quantity: item.quantity, variant: item.variant || null })),
+    address: methodId && methodId !== "pickup-free" ? {
+      street: normalizedAddress.street,
+      city: normalizedAddress.city,
+      state: normalizedAddress.state,
+      postalCode: normalizedAddress.postalCode,
+      country: normalizedAddress.country,
+    } : null,
+    methodId: methodId || "pickup-free",
+    couponCode: normalizePart(couponCode).toUpperCase(),
+    email: normalizePart(email).toLowerCase(),
+  });
 }
 
 export function buildSelectedShippingQuote(methods, pricing, methodId) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -18,7 +18,7 @@ import {
 } from "../../services/orders.service";
 import { getGuestId, loadGuestSession, saveGuestSession } from "../../services/guestSession.service";
 import { checkEmailExists } from "../../services/auth.service";
-import { buildSelectedShippingQuote, selectShippingMethodId, SHIPPING_REASON_LABELS } from "./shippingMethods";
+import { buildSelectedShippingQuote, buildShippingQuoteRequestKey, isDeliveryAddressReady, isShippingMethodSelectable, normalizeDeliveryAddress, selectShippingMethodId, SHIPPING_REASON_LABELS } from "./shippingMethods";
 import { CustomizationInlineSummary } from "../../components/checkout/CustomizationInlineSummary";
 import { Alert } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
@@ -178,13 +178,23 @@ function PaymentMethods({ methods, value, onChange, loading, error }) {
   );
 }
 
-function ShippingMethods({ methods, value, onChange, loading }) {
-  if (loading) return <p className="text-sm text-muted-foreground">Calculando métodos disponibles…</p>;
-  if (!methods.length) return <p className="text-sm text-muted-foreground">Completa la dirección para consultar el envío.</p>;
-  return <fieldset className="space-y-2"><legend className="sr-only">Método de envío</legend>{methods.map((method) => <label key={method.methodId} className={`flex gap-3 rounded-lg border p-3 ${method.available ? "cursor-pointer" : "cursor-not-allowed opacity-65"}`}><input type="radio" name="shipping-method" value={method.methodId} checked={value === method.methodId} disabled={!method.available} onChange={() => onChange(method.methodId)} className="mt-1 size-4 accent-primary" /><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-3"><strong className="text-sm">{method.label}</strong>{method.available && <span className="text-sm font-semibold">{method.quote.isFree ? "Gratis" : formatMoney(method.quote.amount)}</span>}</span><span className="mt-0.5 block text-xs text-muted-foreground">{method.available ? (method.serviceLevel === "urgent" ? "Entrega local rápida" : "Envío por paquetería") : (SHIPPING_REASON_LABELS[method.reason] || "No disponible")}</span></span></label>)}</fieldset>;
+function shippingMethodDescription(method) {
+  if (!method.available) return SHIPPING_REASON_LABELS[method.reason] || "No disponible";
+  if (method.methodId === "pickup-free") return method.quote.availabilityText || "Disponible cuando tu pedido esté preparado";
+  if (method.quote.quoteSource === "zone_fallback") return "Tarifa zonal de respaldo; distancia no disponible";
+  return method.serviceLevel === "urgent" ? "Entrega una vez preparado el pedido" : "Envío por paquetería una vez preparado";
 }
 
-function OrderSummary({ items, totalAmount, shippingQuote, shippingLoading, shippingError, onUpdate, onRemove, onEdit }) {
+function ShippingMethods({ methods, value, onChange, loading }) {
+  if (loading) return <p className="text-sm text-muted-foreground">Calculando métodos disponibles…</p>;
+  if (!methods.length) return <p className="text-sm text-muted-foreground">No hay métodos disponibles en este momento.</p>;
+  return <fieldset className="space-y-2"><legend className="sr-only">Método de entrega</legend>{methods.map((method) => {
+    const selectable = isShippingMethodSelectable(method);
+    return <label key={method.methodId} className={`flex gap-3 rounded-lg border p-3 ${selectable ? "cursor-pointer" : "cursor-not-allowed opacity-65"}`}><input type="radio" name="shipping-method" value={method.methodId} checked={value === method.methodId} disabled={!selectable} onChange={() => onChange(method.methodId)} className="mt-1 size-4 accent-primary" /><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-3"><strong className="text-sm">{method.label}</strong>{method.available && <span className="text-sm font-semibold">{method.methodId === "pickup-free" ? formatMoney(method.quote.amount) : method.quote.isFree ? "Gratis" : formatMoney(method.quote.amount)}</span>}</span><span className="mt-0.5 block text-xs text-muted-foreground">{shippingMethodDescription(method)}</span>{method.available && method.methodId === "pickup-free" && method.quote.pickupAddress && <span className="mt-1 block text-xs">Recogida: {method.quote.pickupAddress}</span>}{method.available && method.quote.quoteSource === "routing" && method.quote.distanceKm != null && <span className="mt-1 block text-xs">Distancia: {new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(method.quote.distanceKm)} km{method.quote.band ? ` · Tarifa ${method.quote.band.minKm}–${method.quote.band.maxKm} km` : ""}</span>}</span></label>;
+  })}</fieldset>;
+}
+
+function OrderSummary({ items, totalAmount, shippingQuote, shippingMethodId, preparation, shippingLoading, shippingError, onUpdate, onRemove, onEdit }) {
   const totalItems = items.reduce((total, item) => total + item.quantity, 0);
   const subtotal = shippingQuote?.subtotal ?? totalAmount;
 
@@ -261,12 +271,12 @@ function OrderSummary({ items, totalAmount, shippingQuote, shippingLoading, ship
               {shippingLoading ? "Calculando…" : shippingQuote ? (shippingQuote.isFree ? "Gratis" : formatMoney(shippingQuote.price)) : "Pendiente de dirección"}
             </dd>
           </div>
-          {shippingQuote?.estimatedDays && (
-            <div className="flex justify-between gap-3 text-xs">
-              <dt className="text-muted-foreground">Plazo estimado</dt>
-              <dd>{shippingQuote.estimatedDays.min}–{shippingQuote.estimatedDays.max} días laborables</dd>
-            </div>
-          )}
+          {shippingQuote?.quoteSource === "routing" && shippingQuote.distanceKm != null && <div className="flex justify-between gap-3 text-xs"><dt className="text-muted-foreground">Distancia</dt><dd>{new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(shippingQuote.distanceKm)} km{shippingQuote.band ? ` · Tarifa ${shippingQuote.band.minKm}–${shippingQuote.band.maxKm} km` : ""}</dd></div>}
+          <div className="flex justify-between gap-3 text-xs">
+            <dt className="text-muted-foreground">Preparación del pedido</dt>
+            <dd className="max-w-52 text-right">{preparation?.status === "pending_confirmation" ? "Preparación necesaria; plazo pendiente de confirmar" : preparation?.status === "configured" ? `${preparation.minDays}–${preparation.maxDays} días laborables` : "No requiere preparación"}</dd>
+          </div>
+          {shippingQuote && <div className="flex justify-between gap-3 text-xs"><dt className="text-muted-foreground">Entrega</dt><dd className="max-w-52 text-right">{shippingMethodId === "pickup-free" ? "Recogida disponible cuando el pedido esté preparado" : shippingMethodId === "local-urgent" ? "Entrega urgente una vez preparado" : shippingQuote.estimatedDays ? `${shippingQuote.estimatedDays.min}–${shippingQuote.estimatedDays.max} días laborables una vez preparado` : "Según disponibilidad del método"}</dd></div>}
         </dl>
         {shippingError && <p className="mt-2 text-xs text-destructive" role="alert">{shippingError}</p>}
         <div className="my-3 border-t" />
@@ -287,6 +297,8 @@ export function Checkout() {
   const { items, totalAmount, clearCart, updateQuantity, removeItem } = useCart();
   const navigate = useNavigate();
   const submitLock = useRef(false);
+  const lastShippingQuoteKeyRef = useRef("");
+  const shippingQuoteSequenceRef = useRef(0);
 
   const [guestEmail, setGuestEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -302,6 +314,7 @@ export function Checkout() {
   const [shippingQuote, setShippingQuote] = useState(null);
   const [shippingMethods, setShippingMethods] = useState([]);
   const [shippingPricing, setShippingPricing] = useState(null);
+  const [orderPreparation, setOrderPreparation] = useState(null);
   const [shippingMethodId, setShippingMethodId] = useState("");
   const [shippingLoading, setShippingLoading] = useState(false);
   const [shippingError, setShippingError] = useState("");
@@ -398,38 +411,67 @@ export function Checkout() {
     && shippingAddress.postalCode.trim()
   ), [shippingAddress]);
 
+  const normalizedShippingAddress = useMemo(() => normalizeDeliveryAddress(shippingAddress), [shippingAddress]);
+  const deliveryAddressReady = useMemo(() => isDeliveryAddressReady(normalizedShippingAddress), [normalizedShippingAddress]);
+  const requiresDeliveryAddress = Boolean(shippingMethodId && shippingMethodId !== "pickup-free");
+  const quoteAddressKey = requiresDeliveryAddress ? JSON.stringify(normalizedShippingAddress) : "";
+  const quoteRequestKey = useMemo(() => buildShippingQuoteRequestKey({
+    items,
+    address: requiresDeliveryAddress ? normalizedShippingAddress : null,
+    methodId: shippingMethodId,
+    couponCode: appliedCouponCode,
+    email: user ? "" : guestEmail,
+  }), [items, normalizedShippingAddress, requiresDeliveryAddress, shippingMethodId, appliedCouponCode, guestEmail, user]);
+
   useEffect(() => {
-    if (!isShippingAddressValid() || !items.length || loading) {
+    if (!items.length) {
       setShippingQuote(null);
       setShippingMethods([]);
       setShippingPricing(null);
+      setOrderPreparation(null);
       return undefined;
     }
+    if (loading) return undefined;
+    shippingQuoteSequenceRef.current += 1;
+    if (requiresDeliveryAddress && !deliveryAddressReady) {
+      setShippingQuote(null);
+      setShippingLoading(false);
+      setShippingError("");
+      setShippingMethods((current) => current.map((method) => method.methodId === shippingMethodId
+        ? { ...method, available: false, reason: "invalid_address", quote: undefined }
+        : method));
+      return undefined;
+    }
+    if (lastShippingQuoteKeyRef.current === quoteRequestKey) return undefined;
+
+    const sequence = shippingQuoteSequenceRef.current;
     const controller = new AbortController();
     const fetchQuote = async () => {
       try {
         setShippingLoading(true);
         setShippingError("");
-        const data = await getShippingQuoteRequest(items, shippingAddress, controller.signal, { couponCode: appliedCouponCode, email: user ? null : guestEmail });
+        const data = await getShippingQuoteRequest(items, requiresDeliveryAddress ? normalizedShippingAddress : null, controller.signal, { shippingMethodId: shippingMethodId || null, couponCode: appliedCouponCode, email: user ? null : guestEmail });
+        if (sequence !== shippingQuoteSequenceRef.current) return;
         if (!data.ok) throw new Error(data.message || "Error de envío");
         const methods = Array.isArray(data.methods) ? data.methods : [];
-        const available = methods.filter((method) => method.available);
+        lastShippingQuoteKeyRef.current = quoteRequestKey;
         setShippingMethods(methods);
         setShippingPricing(data.pricing || null);
+        setOrderPreparation(data.preparation || null);
         setShippingMethodId((current) => selectShippingMethodId(methods, current));
-        if (!available.length) setShippingError("No hay ningún método de envío disponible para esta dirección.");
+        if (!methods.some(isShippingMethodSelectable)) setShippingError("No hay ningún método de envío disponible para esta dirección.");
       } catch (quoteError) {
-        if (quoteError.name !== "CanceledError" && quoteError.code !== "ERR_CANCELED") {
+        if (sequence === shippingQuoteSequenceRef.current && quoteError.name !== "CanceledError" && quoteError.code !== "ERR_CANCELED") {
           setShippingError(quoteError.response?.data?.message || "No se pudo calcular el envío.");
           setShippingQuote(null);
         }
       } finally {
-        if (!controller.signal.aborted) setShippingLoading(false);
+        if (!controller.signal.aborted && sequence === shippingQuoteSequenceRef.current) setShippingLoading(false);
       }
     };
-    fetchQuote();
-    return () => controller.abort();
-  }, [shippingAddress, items, isShippingAddressValid, loading, appliedCouponCode, guestEmail, user]);
+    const timeoutId = window.setTimeout(fetchQuote, requiresDeliveryAddress ? 800 : 0);
+    return () => { window.clearTimeout(timeoutId); controller.abort(); };
+  }, [quoteRequestKey, quoteAddressKey, deliveryAddressReady, requiresDeliveryAddress, shippingMethodId, items, normalizedShippingAddress, loading, appliedCouponCode, guestEmail, user]);
 
   useEffect(() => {
     setShippingQuote(buildSelectedShippingQuote(shippingMethods, shippingPricing, shippingMethodId));
@@ -465,8 +507,8 @@ export function Checkout() {
         paymentMethod,
         guestId: user ? null : getGuestId(),
         email: user ? null : guestEmail,
-        shippingAddress,
-        billingAddress: useSameBilling ? shippingAddress : billingAddress,
+        shippingAddress: isShippingAddressValid() ? shippingAddress : null,
+        billingAddress: useSameBilling ? (isShippingAddressValid() ? shippingAddress : null) : billingAddress,
         notes,
         couponCode: appliedCouponCode,
         shippingMethodId,
@@ -502,7 +544,7 @@ export function Checkout() {
     setAttemptedSubmit(true);
     if (!items.length) return setError("El carrito está vacío.");
     if (!user && !EMAIL_REGEX.test(guestEmail)) return setError("Revisa el email antes de continuar.");
-    if (!isShippingAddressValid()) return setError("Completa los campos obligatorios de la dirección de envío.");
+    if (shippingMethodId !== "pickup-free" && !isShippingAddressValid()) return setError("Completa los campos obligatorios de la dirección de envío.");
     if (!paymentMethod) return setError("No hay ningún método de pago disponible.");
     if (!acceptedTerms) return setError("Debes aceptar los Términos y Condiciones para continuar.");
     const notCustomized = items.find(productNeedsCustomization);
@@ -520,6 +562,8 @@ export function Checkout() {
     items,
     totalAmount,
     shippingQuote,
+    shippingMethodId,
+    preparation: orderPreparation,
     shippingLoading,
     shippingError,
     onUpdate: updateQuantity,
@@ -569,16 +613,13 @@ export function Checkout() {
           <Card className="p-4 shadow-none">
             <div className="flex items-center gap-2">
               <Truck className="size-5 text-primary" aria-hidden="true" />
-              <h2 className="font-semibold">Dirección de entrega</h2>
+              <h2 className="font-semibold">Método de entrega</h2>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">La utilizaremos para calcular el envío en el servidor.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Elige cómo quieres recibir el pedido.</p>
             <div className="mt-4">
-              <AddressFields prefix="shipping" value={shippingAddress} onChange={setShippingAddress} showErrors={attemptedSubmit} required />
-            </div>
-            <div className="mt-4 border-t pt-4">
-              <h3 className="mb-2 text-sm font-semibold">Método de envío</h3>
               <ShippingMethods methods={shippingMethods} value={shippingMethodId} onChange={setShippingMethodId} loading={shippingLoading} />
             </div>
+            {shippingMethodId && shippingMethodId !== "pickup-free" && <div className="mt-4 border-t pt-4"><h3 className="mb-1 text-sm font-semibold">Dirección de entrega</h3><p className="mb-3 text-xs text-muted-foreground">Cotizaremos cuando la dirección esté completa.</p><AddressFields prefix="shipping" value={shippingAddress} onChange={setShippingAddress} showErrors={attemptedSubmit} required /></div>}
             <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" checked={useSameBilling} onChange={(event) => setUseSameBilling(event.target.checked)} className="size-4 rounded accent-primary" />
               Usar la misma dirección para facturación
