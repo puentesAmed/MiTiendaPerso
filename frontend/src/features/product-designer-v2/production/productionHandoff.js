@@ -2,6 +2,7 @@ import { http } from "../../../services/http.js";
 import { assertNoRejectedImageAssets } from "../assets/imageQuality.js";
 import { renderPreviewArtwork } from "../mockups/ArtworkRenderer.js";
 import { renderPlacementProof } from "./PlacementProofRenderer.js";
+import { ensureDocumentFonts } from "../fonts/fontLoader.js";
 
 async function uploadBlob(blob, filename) {
   const form = new FormData();
@@ -13,6 +14,7 @@ async function uploadBlob(blob, filename) {
 
 export async function prepareProductionHandoff({ document, template, assetRegistry }) {
   assertNoRejectedImageAssets(document);
+  await ensureDocumentFonts(document);
   const surfaceEntries = await Promise.all(template.views.map(async (view) => {
     const [artwork, proof] = await Promise.all([
       renderPreviewArtwork({ document, template, sourceViewId: view.id, assetRegistry }),

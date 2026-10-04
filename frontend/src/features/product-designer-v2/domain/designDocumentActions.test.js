@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createDesignDocument } from "../contracts/designDocument.js";
 import { GENERIC_FLAT_DEMO_TEMPLATE } from "../templates/genericFlatDemo.js";
-import { addImage, addText, calculateInitialImageBounds, deleteElement, deleteElements, duplicateElement, isElementOutOfBounds, moveElementLayer, updateElement, updateElements } from "./designDocumentActions.js";
+import { addImage, addShape, addText, calculateInitialImageBounds, deleteElement, deleteElements, duplicateElement, isElementOutOfBounds, moveElementLayer, updateElement, updateElements } from "./designDocumentActions.js";
 
 const now = () => "2026-09-28T12:00:00.000Z";
 const makeDocument = () => createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1", idFactory: () => "document-1", now });
@@ -23,6 +23,23 @@ test("addImage guarda metadata por assetId sin Object URL", () => {
   assert.equal((result.element.width * 1.2) / result.element.height, 2);
   assert.deepEqual(result.document.assets["asset-1"], asset);
   assert.equal("objectUrl" in result.document.assets["asset-1"], false);
+});
+
+test("las seis shapes nacen como dominio editable y no contienen runtime Fabric", () => {
+  for (const shapeType of ["rectangle", "circle", "triangle", "star", "heart", "line"]) {
+    const result = addShape(makeDocument(), { viewId: "primary", printAreaId: "primary-area", shapeType, idFactory: () => `shape-${shapeType}`, now });
+    assert.equal(result.element.shapeType, shapeType);
+    assert.equal(result.element.type, "shape");
+    assert.equal(JSON.stringify(result.element).includes("fabric"), false);
+    const styled = updateElement(result.document, { viewId: "primary", elementId: result.element.id, patch: { opacity: 0.5, strokeWidth: 0 }, now });
+    const duplicate = duplicateElement(styled.document, { viewId: "primary", elementId: result.element.id, idFactory: () => `copy-${shapeType}`, now });
+    assert.equal(duplicate.element.shapeType, shapeType);
+    assert.equal(duplicate.element.opacity, 0.5);
+  }
+});
+
+test("addShape rechaza geometría fuera del catálogo", () => {
+  assert.throws(() => addShape(makeDocument(), { viewId: "primary", printAreaId: "primary-area", shapeType: "arbitrary-svg" }), /no soportada/i);
 });
 
 test("image fit contiene landscape, portrait y square, los centra y preserva ratio", () => {

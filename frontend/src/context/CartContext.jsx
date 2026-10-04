@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useState,
 } from "react";
 import { useAuth } from "../hooks/useAuth";
@@ -17,6 +18,7 @@ import {
   updateCartLineQuantity,
 } from "../utils/cartLineAdapter";
 import { getGuestId, loadGuestSession, saveGuestSession } from "../services/guestSession.service";
+import { calculateCartTotals, cartFeedbackReducer, INITIAL_CART_FEEDBACK, scheduleCartPulseExpiry } from "./cartFeedback";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const CartContext = createContext(null);
@@ -37,9 +39,11 @@ export function CartProvider({ children }) {
   const userId = user?.id;
   const [items, setItems] = useState([]);
   const [hydratedIdentity, setHydratedIdentity] = useState(null);
+  const [cartFeedback, dispatchCartFeedback] = useReducer(cartFeedbackReducer, INITIAL_CART_FEEDBACK);
   const identity = userId ? `user:${userId}` : "guest";
 
   useEffect(() => {
+    dispatchCartFeedback({ type: "cart-empty" });
     let result = { items: [], omittedCount: 0, warnings: [] };
 
     if (userId) {
@@ -92,6 +96,14 @@ export function CartProvider({ children }) {
   }, [identity, userId]);
 
   useEffect(() => {
+    if (!cartFeedback.active) return undefined;
+    const timerId = scheduleCartPulseExpiry(cartFeedback.generation, (generation) => {
+      dispatchCartFeedback({ type: "pulse-expired", generation });
+    });
+    return () => clearTimeout(timerId);
+  }, [cartFeedback.active, cartFeedback.generation]);
+
+  useEffect(() => {
     if (hydratedIdentity !== identity) return;
 
     if (userId) {
@@ -107,6 +119,7 @@ export function CartProvider({ children }) {
   const addItem = useCallback((command) => {
     const line = createCartLine(command);
     setItems((current) => addOrMergeCartLine(current, line));
+    dispatchCartFeedback({ type: "item-added" });
   }, []);
 
   const removeItem = useCallback((lineKey) => {
@@ -127,17 +140,15 @@ export function CartProvider({ children }) {
 
   const clearCart = useCallback(() => {
     setItems([]);
+    dispatchCartFeedback({ type: "cart-empty" });
     if (userId) localStorage.removeItem(getCartStorageKey(userId));
   }, [userId]);
 
-  const totals = useMemo(() => {
-    const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-    const totalAmount = items.reduce(
-      (sum, item) => sum + item.quantity * item.presentation.displayPrice,
-      0
-    );
-    return { totalItems, totalAmount };
-  }, [items]);
+  const totals = useMemo(() => calculateCartTotals(items), [items]);
+
+  useEffect(() => {
+    if (totals.totalItems === 0) dispatchCartFeedback({ type: "cart-empty" });
+  }, [totals.totalItems]);
 
   const value = useMemo(
     () => ({
@@ -147,6 +158,8 @@ export function CartProvider({ children }) {
       updateQuantity,
       updateCustomization,
       clearCart,
+      cartPulse: cartFeedback.active && totals.totalItems > 0,
+      cartPulseKey: cartFeedback.generation,
       ...totals,
     }),
     [
@@ -156,6 +169,7 @@ export function CartProvider({ children }) {
       updateQuantity,
       updateCustomization,
       clearCart,
+      cartFeedback,
       totals,
     ]
   );

@@ -1,4 +1,6 @@
 import { validateDesignElement } from "../contracts/elementModel.js";
+import { DEFAULT_DESIGNER_FONT_ID } from "../../../../../shared/designer-v2/fontRegistry.js";
+import { isDesignerShape } from "../../../../../shared/designer-v2/shapeRegistry.js";
 
 const DEFAULT_NOW = () => new Date().toISOString();
 const DEFAULT_ID = () => globalThis.crypto.randomUUID();
@@ -69,10 +71,38 @@ export function addText(document, { viewId, printAreaId, idFactory = DEFAULT_ID,
     locked: false,
     hidden: false,
     content: "Tu texto",
+    fontId: DEFAULT_DESIGNER_FONT_ID,
     fontSize: 0.09,
     color: "#18181b",
     textAlign: "center",
     fontWeight: 500,
+  };
+  assertElement(element);
+  return { document: commitView(document, viewId, [...elements, element], now), element };
+}
+
+export function addShape(document, { viewId, printAreaId, shapeType, idFactory = DEFAULT_ID, now = DEFAULT_NOW } = {}) {
+  if (!isDesignerShape(shapeType)) throw new Error("Forma no soportada.");
+  const elements = getView(document, viewId).elements;
+  const isLine = shapeType === "line";
+  const element = {
+    id: idFactory(),
+    type: "shape",
+    shapeType,
+    printAreaId,
+    x: 0.35,
+    y: isLine ? 0.48 : 0.35,
+    width: 0.3,
+    height: isLine ? 0.04 : 0.3,
+    scale: { x: 1, y: 1 },
+    rotation: 0,
+    opacity: 1,
+    zIndex: nextZIndex(elements),
+    locked: false,
+    hidden: false,
+    fill: isLine ? "none" : "#6d5dfc",
+    stroke: "#18181b",
+    strokeWidth: isLine ? 0.012 : 0.003,
   };
   assertElement(element);
   return { document: commitView(document, viewId, [...elements, element], now), element };

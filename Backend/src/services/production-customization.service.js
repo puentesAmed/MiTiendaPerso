@@ -4,6 +4,7 @@ import { Customization } from "../models/Customization.js";
 import { getProductionTemplate } from "../production/template-catalog.js";
 import { readPngDimensions } from "../production/png.js";
 import { buildPlacementMetadata } from "../production/placement-contract.js";
+import { validateProductionDesignElement } from "../production/design-element-contract.js";
 import { storageProvider } from "../storage/index.js";
 import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
 import { validateAssetQuality } from "./image-quality.service.js";
@@ -103,9 +104,8 @@ export async function createProductionCustomization({ owner, product, line, payl
   for (const viewId of expectedViews) {
     if (!Array.isArray(document.views[viewId]?.elements)) throw new ProductionCustomizationError(`Vista inválida: ${viewId}`);
     for (const element of document.views[viewId].elements) {
-      if (!["x", "y", "width", "height", "rotation", "opacity", "zIndex"].every((field) => Number.isFinite(element?.[field]))) {
-        throw new ProductionCustomizationError(`La vista ${viewId} contiene coordenadas de dominio inválidas`);
-      }
+      const elementErrors = validateProductionDesignElement(element);
+      if (elementErrors.length) throw new ProductionCustomizationError(`La vista ${viewId} contiene un elemento inválido: ${elementErrors.join(", ")}`);
       if (element?.type === "image" && (!element.assetId || !document.assets[element.assetId])) {
         throw new ProductionCustomizationError(`La vista ${viewId} referencia un asset inexistente`);
       }

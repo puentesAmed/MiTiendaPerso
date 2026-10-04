@@ -1,4 +1,4 @@
-import { createElement, lazy, Suspense } from "react";
+import { createElement, lazy, Suspense, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Box, Boxes, CheckCircle2, Copy, Ellipsis, Eye, EyeOff, Image, Layers3, Lock, Minus, MousePointer2, PanelRight, Plus, Redo2, Save, Shapes, ShoppingCart, Trash2, Type, Undo2, Unlock, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,17 +9,24 @@ import { EditableDesignStage } from "./EditableDesignStage.jsx";
 import { MockupPanel } from "./MockupPanel.jsx";
 import { calculateInitialImageBounds, isElementOutOfBounds } from "../domain/designDocumentActions.js";
 import { getViewAspectRatio, getViewPrintAreas, getViewPrintSurface } from "../contracts/printSurface.js";
+import { DESIGNER_FONT_CATEGORIES, DESIGNER_FONTS, getDesignerFont, resolveDesignerFontFamily } from "../../../../../shared/designer-v2/fontRegistry.js";
+import { DESIGNER_SHAPES } from "../../../../../shared/designer-v2/shapeRegistry.js";
 
 const ThreeProductPreview = lazy(() => import("./ThreeProductPreview.jsx").then((module) => ({ default: module.ThreeProductPreview })));
 
-function ToolButtons({ mobile = false, onAddText, onChooseImage }) {
+function ShapePicker({ onAddShape }) {
+  return <div className="grid grid-cols-2 gap-2" aria-label="Formas disponibles">{DESIGNER_SHAPES.map((shape) => (
+    <Button key={shape.id} type="button" variant="outline" size="sm" onClick={() => onAddShape(shape.id)}>{shape.label}</Button>
+  ))}</div>;
+}
+
+function ToolButtons({ mobile = false, onAddText, onChooseImage, onAddShape }) {
   const tools = [
     { label: "Texto", icon: Type, onClick: onAddText },
     { label: "Imagen", icon: Image, upload: true },
-    { label: "Formas", icon: Shapes, disabled: true },
   ];
   return (
-    <div className={mobile ? "grid grid-cols-3 gap-2" : "space-y-2"} aria-label="Herramientas de edición">
+    <div className={mobile ? "grid grid-cols-2 gap-2" : "space-y-2"} aria-label="Herramientas de edición">
       {tools.map(({ label, icon, onClick, upload, disabled }) => upload ? (
         <Button key={label} as="label" variant="outline" size="sm" className={`${mobile ? "w-full" : "w-full justify-start"} cursor-pointer`}>
           {createElement(icon, { "aria-hidden": true })} {label}
@@ -30,6 +37,7 @@ function ToolButtons({ mobile = false, onAddText, onChooseImage }) {
           {createElement(icon, { "aria-hidden": true })} {label}
         </Button>
       ))}
+      <div className={mobile ? "col-span-2" : "pt-1"}><p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><Shapes className="size-4" aria-hidden="true" /> Formas</p><ShapePicker onAddShape={onAddShape} /></div>
     </div>
   );
 }
@@ -39,7 +47,30 @@ function Field({ label, children }) {
 }
 
 function elementLabel(element) {
-  return element.type === "text" ? element.content || "Texto vacío" : `Imagen · ${element.id.slice(0, 6)}`;
+  if (element.type === "text") return element.content || "Texto vacío";
+  if (element.type === "shape") return DESIGNER_SHAPES.find((shape) => shape.id === element.shapeType)?.label || "Forma";
+  return `Imagen · ${element.id.slice(0, 6)}`;
+}
+
+function FontSelector({ element, onUpdateElement }) {
+  const [query, setQuery] = useState("");
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase("es");
+    return normalized ? DESIGNER_FONTS.filter((font) => `${font.label} ${font.category}`.toLocaleLowerCase("es").includes(normalized)) : DESIGNER_FONTS;
+  }, [query]);
+  const categories = DESIGNER_FONT_CATEGORIES.filter((category) => filtered.some((font) => font.category === category));
+  const activeFont = getDesignerFont(element.fontId) || DESIGNER_FONTS[0];
+  const changeFont = (fontId) => {
+    const font = getDesignerFont(fontId);
+    if (!font) return;
+    onUpdateElement({ fontId, fontWeight: font.weights.includes(element.fontWeight) ? element.fontWeight : font.weights[0] });
+  };
+  return <div className="space-y-2 rounded-lg border p-2">
+    <Field label="Buscar fuente"><Input type="search" value={query} placeholder="Moderna, elegante, manuscrita…" onChange={(event) => setQuery(event.target.value)} /></Field>
+    <Field label="Fuente"><Select value={activeFont.id} onChange={(event) => changeFont(event.target.value)} style={{ fontFamily: resolveDesignerFontFamily(activeFont.id) }}>
+      {categories.map((category) => <optgroup key={category} label={category}>{filtered.filter((font) => font.category === category).map((font) => <option key={font.id} value={font.id}>{font.label}</option>)}</optgroup>)}
+    </Select></Field>
+  </div>;
 }
 
 function LayersPanel({ elements, selectedElementIds, onSelectElement, onLayerAction }) {
@@ -99,14 +130,27 @@ function PropertiesPanel({ selectedElements, view, printAreas, activePrintAreaId
           {selectedElement.type === "text" ? (
             <>
               <Field label="Contenido"><Input value={selectedElement.content} onChange={(event) => onUpdateElement({ content: event.target.value }, { groupKey: `property:${selectedElement.id}:content` })} /></Field>
+              <FontSelector element={selectedElement} onUpdateElement={onUpdateElement} />
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Tamaño"><Input type="number" min="0.02" max="0.3" step="0.01" value={selectedElement.fontSize} onChange={(event) => onUpdateElement({ fontSize: Number(event.target.value) }, { groupKey: `property:${selectedElement.id}:fontSize` })} /></Field>
                 <Field label="Color"><Input type="color" className="p-1" value={selectedElement.color} onChange={(event) => onUpdateElement({ color: event.target.value }, { groupKey: `property:${selectedElement.id}:color` })} /></Field>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Alineación"><Select value={selectedElement.textAlign} onChange={(event) => onUpdateElement({ textAlign: event.target.value })}><option value="left">Izquierda</option><option value="center">Centro</option><option value="right">Derecha</option></Select></Field>
-                <Field label="Peso"><Select value={selectedElement.fontWeight} onChange={(event) => onUpdateElement({ fontWeight: Number(event.target.value) })}><option value="400">Regular</option><option value="500">Medio</option><option value="600">Semibold</option><option value="700">Bold</option></Select></Field>
+                <Field label="Peso"><Select value={selectedElement.fontWeight} onChange={(event) => onUpdateElement({ fontWeight: Number(event.target.value) })}>{(getDesignerFont(selectedElement.fontId) || DESIGNER_FONTS[0]).weights.map((weight) => <option key={weight} value={weight}>{weight}</option>)}</Select></Field>
               </div>
+            </>
+          ) : selectedElement.type === "shape" ? (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Relleno"><Input type="color" className="p-1" disabled={selectedElement.shapeType === "line"} value={selectedElement.fill === "none" ? "#000000" : selectedElement.fill} onChange={(event) => onUpdateElement({ fill: event.target.value }, { groupKey: `property:${selectedElement.id}:fill` })} /></Field>
+                <Field label="Contorno"><Input type="color" className="p-1" value={selectedElement.stroke} onChange={(event) => onUpdateElement({ stroke: event.target.value }, { groupKey: `property:${selectedElement.id}:stroke` })} /></Field>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Grosor"><Input type="number" min="0" max="0.05" step="0.001" value={selectedElement.strokeWidth} onChange={(event) => onUpdateElement({ strokeWidth: Number(event.target.value) }, { groupKey: `property:${selectedElement.id}:strokeWidth` })} /></Field>
+                <Field label="Opacidad"><Input type="number" min="0" max="1" step="0.05" value={selectedElement.opacity} onChange={(event) => onUpdateElement({ opacity: Number(event.target.value) }, { groupKey: `property:${selectedElement.id}:opacity` })} /></Field>
+              </div>
+              <dl className="grid grid-cols-2 gap-2 rounded-lg border p-2 text-xs"><div><dt className="text-muted-foreground">Ancho</dt><dd>{Math.round(selectedElement.width * 100)}%</dd></div><div><dt className="text-muted-foreground">Alto</dt><dd>{Math.round(selectedElement.height * 100)}%</dd></div></dl>
             </>
           ) : (
             <><dl className="grid grid-cols-2 gap-2 rounded-lg border p-2 text-xs">
@@ -133,18 +177,19 @@ function saveStatusLabel(status) {
   return "Cambios pendientes";
 }
 
-function MobileToolbar({ elements, layers, properties, saveStatus, onAddText, onChooseImage, onSaveNow }) {
+function MobileToolbar({ elements, layers, properties, saveStatus, onAddText, onChooseImage, onAddShape, onSaveNow }) {
   return (
-    <section className="relative z-20 mt-3 grid grid-cols-4 gap-1 rounded-xl border bg-card p-2 shadow-sm lg:hidden" aria-label="Herramientas móviles" data-mobile-toolbar="outside-canvas">
+    <section className="relative z-20 mt-3 grid grid-cols-5 gap-1 rounded-xl border bg-card p-2 shadow-sm lg:hidden" aria-label="Herramientas móviles" data-mobile-toolbar="outside-canvas">
       <Button type="button" variant="ghost" size="sm" className="h-12 flex-col gap-0.5 text-[11px]" onClick={onAddText}><Type aria-hidden="true" /> Texto</Button>
       <Button as="label" variant="ghost" size="sm" className="h-12 cursor-pointer flex-col gap-0.5 text-[11px]"><Image aria-hidden="true" /> Imagen<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) onChooseImage(file); event.target.value = ""; }} /></Button>
+      <Sheet><SheetTrigger render={<Button type="button" variant="ghost" size="sm" className="h-12 flex-col gap-0.5 text-[11px]" />}><Shapes aria-hidden="true" /> Formas</SheetTrigger><SheetContent side="left"><SheetHeader><SheetTitle>Añadir forma</SheetTitle></SheetHeader><ShapePicker onAddShape={onAddShape} /></SheetContent></Sheet>
       <Sheet><SheetTrigger render={<Button type="button" variant="ghost" size="sm" className="h-12 flex-col gap-0.5 text-[11px]" />}><Layers3 aria-hidden="true" /> Capas ({elements.length})</SheetTrigger><SheetContent side="left"><SheetHeader><SheetTitle>Capas</SheetTitle></SheetHeader><LayersPanel {...layers} /></SheetContent></Sheet>
       <Sheet><SheetTrigger render={<Button type="button" variant="ghost" size="sm" className="h-12 flex-col gap-0.5 text-[11px]" />}><Ellipsis aria-hidden="true" /> Más</SheetTrigger><SheetContent><SheetHeader><SheetTitle>Más acciones</SheetTitle></SheetHeader><p className="mb-3 text-xs text-muted-foreground" role="status">{saveStatusLabel(saveStatus)}</p><Button type="button" className="mb-5 w-full" onClick={onSaveNow} disabled={saveStatus === "saving"}><Save aria-hidden="true" /> Guardar en este dispositivo</Button><PropertiesPanel {...properties} /></SheetContent></Sheet>
     </section>
   );
 }
 
-export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, mode, mockupAvailable, mockupStatus, mockupResult, mockupError, threeDAvailable, product3DProfile, dirty, saveStatus, saveError, saveConflict, lastSavedAt, canUndo, canRedo, assetRegistry, editorError, imageQualityFeedback, onSelectView, onSelectMode, onGenerateMockup, onSelectElement, onAddText, onChooseImage, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onSaveNow, onReloadStored, onOverwriteStored, onZoomChange, onViewportChange, onEditorError, onBack, onAddToCart, handoffBusy, qualityBlocked }) {
+export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, mode, mockupAvailable, mockupStatus, mockupResult, mockupError, threeDAvailable, product3DProfile, dirty, saveStatus, saveError, saveConflict, lastSavedAt, canUndo, canRedo, assetRegistry, editorError, imageQualityFeedback, onSelectView, onSelectMode, onGenerateMockup, onSelectElement, onAddText, onChooseImage, onAddShape, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onSaveNow, onReloadStored, onOverwriteStored, onZoomChange, onViewportChange, onEditorError, onBack, onAddToCart, handoffBusy, qualityBlocked }) {
   const view = template.views.find((candidate) => candidate.id === activeViewId) || template.views[0];
   const printAreas = getViewPrintAreas(template, view);
   const elements = document.views[view.id]?.elements || [];
@@ -187,7 +232,7 @@ export function DesignerV2Shell({ product, template, document, activeViewId, act
         {saveError ? <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert"><span className="flex-1">{saveError}</span>{saveConflict ? <><Button type="button" variant="outline" size="sm" onClick={onReloadStored}>Recargar copia guardada</Button><Button type="button" variant="destructive" size="sm" onClick={onOverwriteStored}>Sobrescribir</Button></> : <Button type="button" variant="outline" size="sm" onClick={onSaveNow}>Reintentar</Button>}</div> : null}
 
         {mode === "design" ? <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-[13rem_minmax(0,1fr)_16rem]">
-          <aside className="hidden space-y-5 rounded-xl border bg-card p-3 lg:block" aria-label="Herramientas y capas"><div><p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Herramientas</p><ToolButtons onAddText={onAddText} onChooseImage={onChooseImage} /></div><LayersPanel {...layers} /></aside>
+          <aside className="hidden space-y-5 rounded-xl border bg-card p-3 lg:block" aria-label="Herramientas y capas"><div><p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Herramientas</p><ToolButtons onAddText={onAddText} onChooseImage={onChooseImage} onAddShape={onAddShape} /></div><LayersPanel {...layers} /></aside>
           <section className="min-w-0 rounded-xl border bg-card p-3 sm:p-4" aria-labelledby="canvas-title">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div className="min-w-0"><h2 id="canvas-title" className="text-sm font-semibold">Lienzo</h2><p className="truncate text-xs text-muted-foreground">{template.label}{zoom > 1 ? " · Espacio + arrastre para desplazar" : ""}</p></div><ZoomControls zoom={zoom} onZoomChange={onZoomChange} /></div>
             <EditableDesignStage template={template} document={document} activeViewId={activeViewId} selectedElementIds={selectedElementIds} zoom={zoom} pan={pan} assetRegistry={assetRegistry} outOfBounds={outOfBounds} onSelectionChange={onSelectElement} onElementChange={onUpdateElement} onElementsChange={onUpdateElements} onViewportChange={onViewportChange} onError={onEditorError} />
@@ -195,7 +240,7 @@ export function DesignerV2Shell({ product, template, document, activeViewId, act
           <aside className="hidden rounded-xl border bg-card p-3 lg:block" aria-label="Propiedades"><PropertiesPanel {...properties} /></aside>
         </div> : mode === "mockup" ? <div className="mt-3"><MockupPanel status={mockupStatus} result={mockupResult} error={mockupError} onGenerate={onGenerateMockup} /></div> : <div className="mt-3"><Suspense fallback={<div className="flex min-h-[22rem] items-center justify-center rounded-xl border bg-card text-sm" role="status">Cargando motor 3D…</div>}><ThreeProductPreview profile={product3DProfile} document={document} template={template} assetRegistry={assetRegistry} onBackToDesign={() => onSelectMode("design")} onShowMockup={mockupAvailable ? () => onSelectMode("mockup") : null} /></Suspense></div>}
 
-        {mode === "design" ? <MobileToolbar elements={elements} layers={layers} properties={properties} saveStatus={saveStatus} onAddText={onAddText} onChooseImage={onChooseImage} onSaveNow={onSaveNow} /> : null}
+        {mode === "design" ? <MobileToolbar elements={elements} layers={layers} properties={properties} saveStatus={saveStatus} onAddText={onAddText} onChooseImage={onChooseImage} onAddShape={onAddShape} onSaveNow={onSaveNow} /> : null}
 
         <footer className="mt-3 grid min-w-0 gap-3 rounded-xl border bg-card p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <div className="min-w-0"><p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Vistas</p><div className="flex min-w-0 gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Vistas del producto">{template.views.map((candidate) => { const count = document.views[candidate.id]?.elements.length || 0; return <button key={candidate.id} type="button" role="tab" aria-selected={activeViewId === candidate.id} onClick={() => onSelectView(candidate.id)} className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeViewId === candidate.id ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}>{candidate.label} <span aria-label={`${count} elementos`}>({count})</span></button>; })}</div></div>

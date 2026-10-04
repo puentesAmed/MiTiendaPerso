@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { DEFAULT_DESIGNER_FONT_ID } from "../../../shared/designer-v2/fontRegistry.js";
 
 export const PLACEMENT_SCHEMA_VERSION = 1;
 
@@ -37,10 +38,22 @@ function placementElement(element) {
       text: {
         contentSha256: createHash("sha256").update(element.content || "").digest("hex"),
         length: String(element.content || "").length,
+        fontId: element.fontId || DEFAULT_DESIGNER_FONT_ID,
         fontSize: element.fontSize,
         color: element.color,
         textAlign: element.textAlign,
         fontWeight: element.fontWeight,
+      },
+    };
+  }
+  if (element.type === "shape") {
+    return {
+      ...base,
+      shape: {
+        shapeType: element.shapeType,
+        fill: element.fill,
+        stroke: element.stroke,
+        strokeWidth: element.strokeWidth,
       },
     };
   }

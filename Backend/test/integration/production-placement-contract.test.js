@@ -10,14 +10,17 @@ test("placement metadata conserva rotation, z-order y assetId sin runtime Fabric
   const surface = template.surfaces[0];
   const document = { views: { front: { elements: [
     { id: "top", type: "image", printAreaId: "front-main", assetId: "asset-persistente", x: 0.3, y: 0.2, width: 0.4, height: 0.3, rotation: 31, opacity: 1, zIndex: 2, hidden: false },
-    { id: "bottom", type: "text", printAreaId: "front-main", content: "Texto privado", x: 0.1, y: 0.7, width: 0.5, height: 0.1, rotation: 0, opacity: 1, zIndex: 0, hidden: false, fontSize: 0.08, color: "#000", textAlign: "left", fontWeight: 500 },
+    { id: "bottom", type: "text", printAreaId: "front-main", content: "Texto privado", fontId: "montserrat", x: 0.1, y: 0.7, width: 0.5, height: 0.1, rotation: 0, opacity: 1, zIndex: 0, hidden: false, fontSize: 0.08, color: "#000", textAlign: "left", fontWeight: 500 },
+    { id: "middle", type: "shape", printAreaId: "front-main", shapeType: "star", fill: "#6d5dfc", stroke: "#18181b", strokeWidth: 0.003, x: 0.2, y: 0.3, width: 0.2, height: 0.2, rotation: 8, opacity: 0.8, zIndex: 1, hidden: false },
   ] } } };
   const metadata = buildPlacementMetadata({ document, template, surface });
-  assert.deepEqual(metadata.elements.map((element) => element.id), ["bottom", "top"]);
-  assert.equal(metadata.elements[1].rotation, 31);
-  assert.equal(metadata.elements[1].assetId, "asset-persistente");
-  assert.equal(metadata.elements[1].printAreaId, "front-main");
+  assert.deepEqual(metadata.elements.map((element) => element.id), ["bottom", "middle", "top"]);
+  assert.equal(metadata.elements[2].rotation, 31);
+  assert.equal(metadata.elements[2].assetId, "asset-persistente");
+  assert.equal(metadata.elements[2].printAreaId, "front-main");
   assert.equal(metadata.elements[0].text.length, 13);
+  assert.equal(metadata.elements[0].text.fontId, "montserrat");
+  assert.deepEqual(metadata.elements[1].shape, { shapeType: "star", fill: "#6d5dfc", stroke: "#18181b", strokeWidth: 0.003 });
   assert.notEqual(metadata.elements[0].text.contentSha256, "Texto privado");
   assert.doesNotMatch(JSON.stringify(metadata), /scaleX|scaleY|matrix|viewport|blob:|data:image|storageKey|Texto privado/);
 });

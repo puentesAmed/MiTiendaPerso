@@ -1,6 +1,8 @@
-import { ActiveSelection, Canvas, FabricImage, Rect, Textbox } from "fabric";
+import { ActiveSelection, Canvas, Circle, FabricImage, Line, Path, Polygon, Rect, Textbox, Triangle } from "fabric";
 import { domainElementToFabricRect, fabricTransformToDomain, keepElementReachable } from "../domain/transforms.js";
 import { getViewPrintAreas } from "../contracts/printSurface.js";
+import { loadDesignerFont } from "../fonts/fontLoader.js";
+import { DEFAULT_DESIGNER_FONT_ID, resolveDesignerFontFamily } from "../../../../../shared/designer-v2/fontRegistry.js";
 
 const commonObjectOptions = {
   originX: "center",
@@ -45,6 +47,25 @@ function createClipPath(viewport) {
     selectable: false,
     evented: false,
   });
+}
+
+function starPoints() {
+  return Array.from({ length: 10 }, (_, index) => {
+    const angle = -Math.PI / 2 + index * Math.PI / 5;
+    const radius = index % 2 === 0 ? 50 : 22;
+    return { x: 50 + Math.cos(angle) * radius, y: 50 + Math.sin(angle) * radius };
+  });
+}
+
+export function createFabricShape(shapeType) {
+  const options = { ...commonObjectOptions, strokeUniform: true };
+  if (shapeType === "rectangle") return new Rect({ ...options, width: 100, height: 100 });
+  if (shapeType === "circle") return new Circle({ ...options, radius: 50 });
+  if (shapeType === "triangle") return new Triangle({ ...options, width: 100, height: 100 });
+  if (shapeType === "star") return new Polygon(starPoints(), options);
+  if (shapeType === "heart") return new Path("M 50 90 C 15 65 0 45 5 25 C 10 5 35 0 50 20 C 65 0 90 5 95 25 C 100 45 85 65 50 90 Z", options);
+  if (shapeType === "line") return new Line([0, 0, 100, 1], { ...options, fill: "transparent" });
+  return null;
 }
 
 export class FabricAdapter {
@@ -109,6 +130,15 @@ export class FabricAdapter {
 
     for (const element of elements) {
       if (version !== this.reconcileVersion) return;
+      if (element.type === "text") {
+        try {
+          await loadDesignerFont(element.fontId || DEFAULT_DESIGNER_FONT_ID, element.fontWeight);
+        } catch (error) {
+          this.callbacks.onError?.(error.message);
+          this.reconciling = false;
+          return;
+        }
+      }
       let object = this.objects.get(element.id);
       if (!object) {
         object = await this.createObject(element);
@@ -146,6 +176,7 @@ export class FabricAdapter {
         return null;
       }
     }
+    if (element.type === "shape") return createFabricShape(element.shapeType);
     return null;
   }
 
@@ -153,7 +184,11 @@ export class FabricAdapter {
     const viewport = getPrintAreaViewport(this.template, this.view, element.printAreaId, this.size);
     if (!viewport) return;
     const rect = domainElementToFabricRect(element, viewport);
-    const intrinsic = element.type === "image" ? object.getOriginalSize() : null;
+    const intrinsic = element.type === "image"
+      ? object.getOriginalSize()
+      : element.type === "shape"
+        ? { width: Math.max(object.width, 1), height: Math.max(object.height, 1) }
+        : null;
     const runtimeDimensions = intrinsic ? (() => {
       if (!intrinsic.width || !intrinsic.height) throw new Error("La imagen no contiene dimensiones intrínsecas válidas.");
       return {
@@ -187,7 +222,15 @@ export class FabricAdapter {
         fill: element.color,
         textAlign: element.textAlign,
         fontWeight: element.fontWeight,
-        fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        fontFamily: resolveDesignerFontFamily(element.fontId || DEFAULT_DESIGNER_FONT_ID),
+      });
+    }
+    if (element.type === "shape") {
+      object.set({
+        fill: element.fill === "none" ? "transparent" : element.fill,
+        stroke: element.stroke,
+        strokeWidth: element.strokeWidth * viewport.height,
+        strokeUniform: true,
       });
     }
     object.setCoords();

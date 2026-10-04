@@ -265,3 +265,26 @@ test("backend rechaza template o surface set V2 incompatibles sin truncar", asyn
   assert.equal(surfaceResponse.status, 400);
   assert.equal(await Customization.countDocuments(), 0);
 });
+
+test("handoff productivo valida fuente y conserva texto/shape en placement", async () => {
+  const product = await Product.create({ name: "Taza con tipografía y forma", price: 20, stock: 10, active: true, customizable: true, productTemplateId: "mug-ceramic-standard-v1" });
+  const uploadId = await uploadArtwork(1008, 480);
+  const payload = v2Customization(product, "mug-ceramic-standard-v1", 1, ["wrap"], { wrap: uploadId });
+  const base = { printAreaId: "wrap-main", x: 0.2, y: 0.2, width: 0.3, height: 0.2, scale: { x: 1, y: 1 }, rotation: 0, opacity: 1, locked: false, hidden: false };
+  payload.designDocument.views.wrap.elements = [
+    { ...base, id: "text-1", type: "text", zIndex: 0, content: "Hola", fontId: "remote-font", fontSize: 0.09, color: "#18181b", textAlign: "center", fontWeight: 500 },
+    { ...base, id: "shape-1", type: "shape", zIndex: 1, shapeType: "heart", fill: "#6d5dfc", stroke: "#18181b", strokeWidth: 0.003 },
+  ];
+
+  const rejected = await request(app).post("/api/orders").send(orderPayload(product, payload));
+  assert.equal(rejected.status, 400);
+  assert.match(rejected.body.message, /fontId no soportado/);
+
+  payload.designDocument.views.wrap.elements[0].fontId = "poppins";
+  const accepted = await request(app).post("/api/orders").send(orderPayload(product, payload));
+  assert.equal(accepted.status, 201, JSON.stringify(accepted.body));
+  const customization = await Customization.findById(accepted.body.order.items[0].customizationId).lean();
+  const placement = JSON.parse((await storageProvider.read(customization.productionSurfaces[0].placementMetadata.storageKey)).toString("utf8"));
+  assert.equal(placement.elements[0].text.fontId, "poppins");
+  assert.equal(placement.elements[1].shape.shapeType, "heart");
+});

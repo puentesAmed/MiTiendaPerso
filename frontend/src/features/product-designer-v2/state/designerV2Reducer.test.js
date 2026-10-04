@@ -46,6 +46,17 @@ test("selección y viewport son sesión; editar y undo/redo son historial", () =
   assert.equal(state.documentState.document.views.primary.elements.length, 1);
 });
 
+test("shape-added participa en undo/redo documental", () => {
+  const document = createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1", idFactory: () => "document-shape", now: () => "2026-09-28T00:00:00.000Z" });
+  let state = designerV2Reducer(initialDesignerV2State, { type: "ready", payload: { product: {}, template: GENERIC_FLAT_DEMO_TEMPLATE, document } });
+  state = designerV2Reducer(state, { type: "shape-added", payload: { viewId: "primary", printAreaId: "primary-area", shapeType: "heart", idFactory: () => "heart-1" } });
+  assert.equal(state.documentState.document.views.primary.elements[0].shapeType, "heart");
+  state = designerV2Reducer(state, { type: "undo" });
+  assert.equal(state.documentState.document.views.primary.elements.length, 0);
+  state = designerV2Reducer(state, { type: "redo" });
+  assert.equal(state.documentState.document.views.primary.elements[0].id, "heart-1");
+});
+
 test("undo documental cruza vistas sin cambiar la vista activa", () => {
   const document = createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1", idFactory: () => "document-1", now: () => "2026-09-28T00:00:00.000Z" });
   let state = designerV2Reducer(initialDesignerV2State, { type: "ready", payload: { product: {}, template: GENERIC_FLAT_DEMO_TEMPLATE, document } });

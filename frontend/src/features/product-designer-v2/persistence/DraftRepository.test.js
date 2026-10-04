@@ -5,7 +5,7 @@ import { GENERIC_FLAT_DEMO_TEMPLATE } from "../templates/genericFlatDemo.js";
 import { MUG_CERAMIC_STANDARD_V1_TEMPLATE } from "../templates/mugCeramicStandardV1.js";
 import { TSHIRT_BASIC_V1_TEMPLATE } from "../templates/tshirtBasicV1.js";
 import { createDraft } from "./draftModel.js";
-import { addImage, addText } from "../domain/designDocumentActions.js";
+import { addImage, addShape, addText, updateElement } from "../domain/designDocumentActions.js";
 import { createDraftRepository, DraftConflictError, IncompatibleDraftError } from "./DraftRepository.js";
 import { createTestMemoryStorage } from "./testMemoryStorage.js";
 import { filterTemplateBySelectedSurfaceIds } from "../domain/customizationSurfaces.js";
@@ -63,6 +63,18 @@ test("draft conserva qualityStatus del asset sin recalcularlo", async () => {
   assert.equal(loaded.document.assets[asset.assetId].qualityStatus, "warning");
 });
 
+test("draft conserva fontId y shape sin persistir objetos Fabric", async () => {
+  const repository = createDraftRepository(createTestMemoryStorage(), { now });
+  const text = addText(makeDocument(), { viewId: "primary", printAreaId: "primary-area", idFactory: () => "text-font", now });
+  const withFont = updateElement(text.document, { viewId: "primary", elementId: "text-font", patch: { fontId: "playfair-display", fontWeight: 700 }, now });
+  const withShape = addShape(withFont.document, { viewId: "primary", printAreaId: "primary-area", shapeType: "star", idFactory: () => "shape-star", now });
+  await repository.saveDraft(createDraft({ draftId: "draft-font-shape", document: withShape.document, now }));
+  const loaded = await repository.loadDraft("draft-font-shape", { template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1" });
+  assert.equal(loaded.document.views.primary.elements[0].fontId, "playfair-display");
+  assert.equal(loaded.document.views.primary.elements[1].shapeType, "star");
+  assert.doesNotMatch(JSON.stringify(loaded), /fabricJson|canvas|viewport/);
+});
+
 test("no restaura silenciosamente un draft de otra variante", async () => {
   const repository = createDraftRepository(createTestMemoryStorage(), { now });
   const white = createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "shirt-1", variant: { variantId: "white", colorId: "white", color: "Blanco", size: "M", sizeId: "m" }, idFactory: () => "white-document", now });
@@ -87,10 +99,12 @@ test("no restaura un draft de otra selección de superficies", async () => {
 test("migra draft camiseta revision 1 preservando FRONT/BACK y crea mangas vacías", async () => {
   const repository = createDraftRepository(createTestMemoryStorage(), { now });
   const current = createDesignDocument({ template: TSHIRT_BASIC_V1_TEMPLATE, productId: "shirt-1", idFactory: () => "shirt-document", now });
+  const withFront = addText(current, { viewId: "front", printAreaId: "front-main", idFactory: () => "front-existing", now });
+  const withBack = addText(withFront.document, { viewId: "back", printAreaId: "back-main", idFactory: () => "back-existing", now });
   const legacyDocument = {
-    ...current,
+    ...withBack.document,
     templateRevision: 1,
-    views: { front: { elements: [{ id: "front-existing" }] }, back: { elements: [{ id: "back-existing" }] } },
+    views: { front: withBack.document.views.front, back: withBack.document.views.back },
   };
   await repository.saveDraft(createDraft({ draftId: "shirt-v1", document: legacyDocument, now }));
   const migrated = await repository.loadDraft("shirt-v1", { template: TSHIRT_BASIC_V1_TEMPLATE, productId: "shirt-1" });

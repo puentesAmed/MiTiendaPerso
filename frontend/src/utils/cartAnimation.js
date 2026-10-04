@@ -7,7 +7,6 @@ export function prefersReducedMotion() {
 export function animateAddToCart({ sourceElement, imageUrl } = {}) {
   if (typeof document === "undefined" || typeof window === "undefined") return;
   const target = document.querySelector("[data-cart-target]");
-  window.dispatchEvent(new CustomEvent("cart:item-added"));
   if (!target || !sourceElement || prefersReducedMotion()) return;
 
   const source = sourceElement.getBoundingClientRect();

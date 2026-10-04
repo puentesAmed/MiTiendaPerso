@@ -1,4 +1,4 @@
-import { addImage, addText, deleteElements, duplicateElement, moveElementLayer, updateElement, updateElements } from "../domain/designDocumentActions.js";
+import { addImage, addShape, addText, deleteElements, duplicateElement, moveElementLayer, updateElement, updateElements } from "../domain/designDocumentActions.js";
 import { createDocumentHistory, pushDocument, redoDocument, undoDocument } from "./documentHistory.js";
 import { getViewPrintAreas } from "../contracts/printSurface.js";
 
@@ -82,6 +82,10 @@ export function designerV2Reducer(state, action) {
     }
     case "image-added": {
       const result = addImage(state.documentState.document, action.payload);
+      return commitDocument(state, result.document, { selectedElementIds: [result.element.id] });
+    }
+    case "shape-added": {
+      const result = addShape(state.documentState.document, action.payload);
       return commitDocument(state, result.document, { selectedElementIds: [result.element.id] });
     }
     case "element-updated": {

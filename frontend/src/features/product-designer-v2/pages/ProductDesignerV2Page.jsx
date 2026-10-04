@@ -307,6 +307,18 @@ export function ProductDesignerV2Page() {
     });
   }, [state.sessionState.activePrintAreaId, state.sessionState.activeViewId]);
 
+  const handleAddShape = useCallback((shapeType) => {
+    setEditorError("");
+    dispatch({
+      type: "shape-added",
+      payload: {
+        viewId: state.sessionState.activeViewId,
+        printAreaId: state.sessionState.activePrintAreaId,
+        shapeType,
+      },
+    });
+  }, [state.sessionState.activePrintAreaId, state.sessionState.activeViewId]);
+
   const handleChooseImage = useCallback(async (file) => {
     setEditorError("");
     try {
@@ -527,6 +539,7 @@ export function ProductDesignerV2Page() {
       onSelectElement={(elementId) => dispatch({ type: "selection-changed", payload: elementId })}
       onAddText={handleAddText}
       onChooseImage={handleChooseImage}
+      onAddShape={handleAddShape}
       onUpdateElement={handleUpdateElement}
       onUpdateElements={handleUpdateElements}
       onDuplicate={handleDuplicate}

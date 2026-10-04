@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FabricImage } from "fabric";
-import { FabricAdapter } from "./FabricAdapter.js";
+import { createFabricShape, FabricAdapter } from "./FabricAdapter.js";
 import { GENERIC_FLAT_DEMO_TEMPLATE } from "../templates/genericFlatDemo.js";
 import { calculateInitialImageBounds } from "../domain/designDocumentActions.js";
 
@@ -111,4 +111,28 @@ test("round-trip de imagen rotada conserva tamaño visual sin convertir bounding
   assert.equal(image.width, 4000);
   assert.equal(image.height, 2000);
   assert.equal(image.hasCrop(), false);
+});
+
+test("FabricAdapter crea y dimensiona las seis shapes declarativas", () => {
+  const { adapter, area, viewport } = createAdapterHarness();
+  adapter.template = GENERIC_FLAT_DEMO_TEMPLATE;
+  adapter.view = GENERIC_FLAT_DEMO_TEMPLATE.views[0];
+  for (const shapeType of ["rectangle", "circle", "triangle", "star", "heart", "line"]) {
+    const object = createFabricShape(shapeType);
+    assert.ok(object, shapeType);
+    const element = { id: `shape-${shapeType}`, type: "shape", shapeType, printAreaId: area.id, x: 0.2, y: 0.3, width: 0.4, height: shapeType === "line" ? 0.04 : 0.25, scale: { x: 1, y: 1 }, rotation: 12, opacity: 0.75, zIndex: 0, locked: false, hidden: false, fill: shapeType === "line" ? "none" : "#6d5dfc", stroke: "#18181b", strokeWidth: 0.005 };
+    adapter.applyElement(object, element);
+    closeTo(object.width * object.scaleX, element.width * viewport.width, 1e-6);
+    closeTo(object.height * object.scaleY, element.height * viewport.height, 1e-6);
+    assert.equal(object.strokeUniform, true);
+    assert.equal(object.data.type, "shape");
+  }
+});
+
+test("texto usa la familia resuelta por fontId, no un string recibido del cliente", () => {
+  const { adapter, area } = createAdapterHarness();
+  const object = { width: 1, height: 1, set(values) { Object.assign(this, values); }, setCoords() {} };
+  adapter.applyElement(object, { id: "text-1", type: "text", printAreaId: area.id, x: 0.2, y: 0.3, width: 0.4, height: 0.2, scale: { x: 1, y: 1 }, rotation: 0, opacity: 1, zIndex: 0, locked: false, hidden: false, content: "Hola", fontId: "montserrat", fontSize: 0.08, color: "#18181b", textAlign: "center", fontWeight: 700, fontFamily: "Injected" });
+  assert.match(object.fontFamily, /MiTienda Montserrat/);
+  assert.doesNotMatch(object.fontFamily, /Injected/);
 });
