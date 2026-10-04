@@ -1,3 +1,5 @@
+import { evaluateImageQuality } from "./imageQuality.js";
+
 export const IMAGE_MIME_TYPES = Object.freeze(["image/jpeg", "image/png", "image/webp"]);
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
@@ -59,11 +61,11 @@ function sanitizeOriginalName(name) {
   return sanitized.slice(0, 120) || "imagen";
 }
 
-export async function prepareImageAsset(file, { idFactory = () => globalThis.crypto.randomUUID(), now = () => new Date().toISOString() } = {}) {
+export async function prepareImageAsset(file, { idFactory = () => globalThis.crypto.randomUUID(), now = () => new Date().toISOString(), decode = decodeImage, urlApi = URL } = {}) {
   validateImageFile(file);
-  const objectUrl = URL.createObjectURL(file);
+  const objectUrl = urlApi.createObjectURL(file);
   try {
-    const dimensions = await decodeImage(objectUrl);
+    const dimensions = await decode(objectUrl);
     if (!dimensions.widthPx || !dimensions.heightPx) throw new Error("La imagen no tiene dimensiones válidas.");
     const assetId = idFactory();
     return {
@@ -74,13 +76,14 @@ export async function prepareImageAsset(file, { idFactory = () => globalThis.cry
         mimeType: file.type,
         widthPx: dimensions.widthPx,
         heightPx: dimensions.heightPx,
+        qualityStatus: evaluateImageQuality(dimensions),
         sizeBytes: file.size,
         createdAt: now(),
         originalName: sanitizeOriginalName(file.name),
       },
     };
   } finally {
-    URL.revokeObjectURL(objectUrl);
+    urlApi.revokeObjectURL(objectUrl);
   }
 }
 

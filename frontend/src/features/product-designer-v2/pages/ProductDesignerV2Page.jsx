@@ -16,6 +16,7 @@ import { designerV2Reducer, initialDesignerV2State } from "../state/designerV2Re
 import { resolveProductTemplate } from "../templates/templateRepository.js";
 import { isProductDesignerV2Enabled } from "../utils/featureFlag.js";
 import { createRuntimeAssetRegistry, prepareImageAsset, restoreRuntimeAssets } from "../assets/runtimeAssetRegistry.js";
+import { assertNoRejectedImageAssets, getReferencedImageAssets, IMAGE_QUALITY_COPY } from "../assets/imageQuality.js";
 import { createIndexedDbStorage, isQuotaError } from "../persistence/indexedDbStorage.js";
 import { createDraftRepository, DraftConflictError, IncompatibleDraftError } from "../persistence/DraftRepository.js";
 import { createAssetRepository } from "../persistence/AssetRepository.js";
@@ -49,6 +50,7 @@ export function ProductDesignerV2Page() {
   const { addItem, updateCustomization } = useCart();
   const [state, dispatch] = useReducer(designerV2Reducer, initialDesignerV2State);
   const [editorError, setEditorError] = useState("");
+  const [imageQualityFeedback, setImageQualityFeedback] = useState(null);
   const [recoveryDraft, setRecoveryDraft] = useState(null);
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryError, setRecoveryError] = useState("");
@@ -81,6 +83,7 @@ export function ProductDesignerV2Page() {
     return createMockupFingerprintInput({ document: state.documentState.document, template: state.asyncState.template, definition: mockupDefinition });
   }, [mockupDefinition, state.asyncState.template, state.documentState.document]);
   const mockupStatus = deriveMockupStatus({ ...mockupState, currentFingerprintInput: mockupFingerprintInput });
+  const qualityBlocked = useMemo(() => getReferencedImageAssets(state.documentState.document).some((asset) => asset.qualityStatus === "rejected"), [state.documentState.document]);
 
   useEffect(() => {
     historyRef.current = state.historyState;
@@ -89,6 +92,7 @@ export function ProductDesignerV2Page() {
   useEffect(() => {
     mockupAbortRef.current?.abort();
     setMockupState({ loading: false, result: null, error: "" });
+    setImageQualityFeedback(null);
   }, [productId]);
 
   useEffect(() => {
@@ -285,6 +289,8 @@ export function ProductDesignerV2Page() {
     setEditorError("");
     try {
       const { asset, blob } = await prepareImageAsset(file);
+      setImageQualityFeedback({ qualityStatus: asset.qualityStatus, ...IMAGE_QUALITY_COPY[asset.qualityStatus] });
+      if (asset.qualityStatus === "rejected") return;
       try {
         await assetRepository.saveAsset({ ...asset, blob });
       } catch (error) {
@@ -309,6 +315,7 @@ export function ProductDesignerV2Page() {
         },
       });
     } catch (error) {
+      setImageQualityFeedback({ qualityStatus: "rejected", ...IMAGE_QUALITY_COPY.rejected });
       setEditorError(error.message || "No se pudo añadir la imagen.");
     }
   }, [assetRegistry, assetRepository, state.asyncState.template, state.sessionState.activePrintAreaId, state.sessionState.activeViewId]);
@@ -385,6 +392,7 @@ export function ProductDesignerV2Page() {
     setEditorError("");
     setHandoffBusy(true);
     try {
+      assertNoRejectedImageAssets(state.documentState.document);
       const uploads = await prepareProductionHandoff({ document: state.documentState.document, template: state.asyncState.template, assetRegistry });
       const product = state.asyncState.product;
       const customization = createDesignerV2CustomizationPayload({
@@ -488,6 +496,7 @@ export function ProductDesignerV2Page() {
       canRedo={state.historyState.future.length > 0}
       assetRegistry={assetRegistry}
       editorError={editorError}
+      imageQualityFeedback={imageQualityFeedback || (qualityBlocked ? { qualityStatus: "rejected", ...IMAGE_QUALITY_COPY.rejected } : null)}
       onSelectView={(viewId) => dispatch({ type: "view-selected", payload: viewId })}
       onSelectMode={(mode) => dispatch({ type: "mode-changed", payload: mode })}
       onGenerateMockup={handleGenerateMockup}
@@ -510,6 +519,7 @@ export function ProductDesignerV2Page() {
       onBack={handleBack}
       onAddToCart={handleAddToCart}
       handoffBusy={handoffBusy}
+      qualityBlocked={qualityBlocked}
       />
       <DraftRecoveryDialog
         draft={recoveryDraft}

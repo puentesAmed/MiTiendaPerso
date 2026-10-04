@@ -5,7 +5,7 @@ import { GENERIC_FLAT_DEMO_TEMPLATE } from "../templates/genericFlatDemo.js";
 import { MUG_CERAMIC_STANDARD_V1_TEMPLATE } from "../templates/mugCeramicStandardV1.js";
 import { TSHIRT_BASIC_V1_TEMPLATE } from "../templates/tshirtBasicV1.js";
 import { createDraft } from "./draftModel.js";
-import { addText } from "../domain/designDocumentActions.js";
+import { addImage, addText } from "../domain/designDocumentActions.js";
 import { createDraftRepository, DraftConflictError, IncompatibleDraftError } from "./DraftRepository.js";
 import { createTestMemoryStorage } from "./testMemoryStorage.js";
 
@@ -51,6 +51,15 @@ test("save/load conserva un documento de 20 elementos", async () => {
   await repository.saveDraft(createDraft({ draftId: "draft-stress", document, now }));
   const loaded = await repository.loadDraft("draft-stress", { template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1" });
   assert.equal(loaded.document.views.primary.elements.length, 20);
+});
+
+test("draft conserva qualityStatus del asset sin recalcularlo", async () => {
+  const repository = createDraftRepository(createTestMemoryStorage(), { now });
+  const asset = { assetId: "image-warning", kind: "image", mimeType: "image/png", widthPx: 1008, heightPx: 480, qualityStatus: "warning", sizeBytes: 24, createdAt: now() };
+  const document = addImage(makeDocument(), { viewId: "primary", printAreaId: "primary-area", asset, idFactory: () => "image-element", now }).document;
+  await repository.saveDraft(createDraft({ draftId: "draft-quality", document, now }));
+  const loaded = await repository.loadDraft("draft-quality", { template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1" });
+  assert.equal(loaded.document.assets[asset.assetId].qualityStatus, "warning");
 });
 
 test("no restaura silenciosamente un draft de otra variante", async () => {

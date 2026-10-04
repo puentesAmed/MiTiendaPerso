@@ -6,6 +6,7 @@ import { readPngDimensions } from "../production/png.js";
 import { buildPlacementMetadata } from "../production/placement-contract.js";
 import { storageProvider } from "../storage/index.js";
 import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
+import { validateAssetQuality } from "./image-quality.service.js";
 
 const UPLOAD_ID = /^[0-9a-f-]{36}$/i;
 const ALLOWED_ASSET_MIME = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -119,13 +120,23 @@ export async function createProductionCustomization({ owner, product, line, payl
 
   try {
     for (const [assetId, metadata] of Object.entries(frozenDocument.assets)) {
+      const quality = validateAssetQuality(metadata);
+      if (!quality.valid) throw new ProductionCustomizationError(`Calidad de imagen no válida: ${assetId}`);
       const uploadId = payload?.uploads?.assets?.[assetId];
       if (!uploadId || !ALLOWED_ASSET_MIME.has(metadata?.mimeType)) {
         throw new ProductionCustomizationError(`Asset no persistido o MIME inválido: ${assetId}`);
       }
       const bytes = await readUpload(uploadId);
       consumedUploads.add(uploadId);
-      if (detectImageMime(bytes) !== metadata.mimeType) throw new ProductionCustomizationError(`El contenido del asset no coincide con su MIME: ${assetId}`);
+      const detectedMime = detectImageMime(bytes);
+      if (detectedMime !== metadata.mimeType) throw new ProductionCustomizationError(`El contenido del asset no coincide con su MIME: ${assetId}`);
+      if (Number.isFinite(metadata.sizeBytes) && metadata.sizeBytes !== bytes.length) throw new ProductionCustomizationError(`El tamaño del asset no coincide: ${assetId}`);
+      if (detectedMime === "image/png") {
+        const dimensions = readPngDimensions(bytes);
+        if (dimensions.width !== metadata.widthPx || dimensions.height !== metadata.heightPx) {
+          throw new ProductionCustomizationError(`Las dimensiones del asset no coinciden: ${assetId}`);
+        }
+      }
       const filename = safeAssetFilename(assetId, metadata.mimeType);
       const storageKey = `customizations/${id}/assets/${filename}`;
       await storageProvider.save(storageKey, bytes);

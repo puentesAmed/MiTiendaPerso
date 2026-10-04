@@ -1,7 +1,8 @@
 import { ASSET_STORE } from "./indexedDbStorage.js";
 
 export function validateAssetRecord(record) {
-  const valid = Boolean(record?.assetId && record.kind === "image" && record.blob instanceof Blob && record.mimeType === record.blob.type && Number.isFinite(record.widthPx) && Number.isFinite(record.heightPx) && record.sizeBytes === record.blob.size && record.createdAt);
+  const validQuality = record?.qualityStatus == null || ["good", "warning", "rejected"].includes(record.qualityStatus);
+  const valid = Boolean(record?.assetId && record.kind === "image" && record.blob instanceof Blob && record.mimeType === record.blob.type && Number.isFinite(record.widthPx) && Number.isFinite(record.heightPx) && validQuality && record.sizeBytes === record.blob.size && record.createdAt);
   if (!valid) throw new Error("Asset persistente inválido.");
   return true;
 }

@@ -10,10 +10,12 @@ function asset(index) {
 
 test("AssetRepository persiste Blob y elimina asset", async () => {
   const repository = createAssetRepository(createTestMemoryStorage());
-  const record = asset(1);
+  const record = { ...asset(1), qualityStatus: "warning" };
   await repository.saveAsset(record);
   assert.equal(await repository.hasAsset(record.assetId), true);
-  assert.equal((await repository.loadAsset(record.assetId)).blob.size, record.blob.size);
+  const restored = await repository.loadAsset(record.assetId);
+  assert.equal(restored.blob.size, record.blob.size);
+  assert.equal(restored.qualityStatus, "warning");
   await repository.deleteAsset(record.assetId);
   assert.equal(await repository.hasAsset(record.assetId), false);
 });

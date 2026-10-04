@@ -143,6 +143,51 @@ test("pedido V2 de taza congela wrap, enlaza order item y protege descargas", as
   assert.equal(invalid.status, 409);
 });
 
+test("quality gate acepta good, warning e histórico sin status", async () => {
+  const product = await Product.create({ name: "Taza quality gate", price: 20, stock: 10, active: true, customizable: true, productTemplateId: "mug-ceramic-standard-v1" });
+  for (const fixture of [
+    { label: "good", widthPx: 2000, heightPx: 1000, qualityStatus: "good" },
+    { label: "warning", widthPx: 1008, heightPx: 480, qualityStatus: "warning" },
+    { label: "legacy", widthPx: 10, heightPx: 10, qualityStatus: undefined },
+  ]) {
+    const payload = v2Customization(product, "mug-ceramic-standard-v1", 1, ["wrap"], { wrap: await uploadArtwork(1008, 480) });
+    const uploadId = await uploadArtwork(fixture.widthPx, fixture.heightPx);
+    payload.designDocument.assets[fixture.label] = {
+      assetId: fixture.label,
+      kind: "image",
+      mimeType: "image/png",
+      widthPx: fixture.widthPx,
+      heightPx: fixture.heightPx,
+      sizeBytes: 24,
+      createdAt: "2026-10-04T08:00:00.000Z",
+      ...(fixture.qualityStatus ? { qualityStatus: fixture.qualityStatus } : {}),
+    };
+    payload.designDocument.views.wrap.elements.push({ id: `image-${fixture.label}`, type: "image", printAreaId: "wrap-main", assetId: fixture.label, x: 0.1, y: 0.1, width: 0.4, height: 0.4, rotation: 0, opacity: 1, zIndex: 0, hidden: false });
+    payload.uploads.assets[fixture.label] = uploadId;
+    const response = await request(app).post("/api/orders").send(orderPayload(product, payload));
+    assert.equal(response.status, 201, `${fixture.label}: ${JSON.stringify(response.body)}`);
+  }
+});
+
+test("quality gate rechaza rejected y payload manipulado", async () => {
+  const product = await Product.create({ name: "Taza quality gate inválida", price: 20, stock: 10, active: true, customizable: true, productTemplateId: "mug-ceramic-standard-v1" });
+  for (const fixture of [
+    { qualityStatus: "rejected", widthPx: 300, heightPx: 1000 },
+    { qualityStatus: "good", widthPx: 300, heightPx: 1000 },
+    { qualityStatus: "good", widthPx: 2000, heightPx: 1000 },
+  ]) {
+    const payload = v2Customization(product, "mug-ceramic-standard-v1", 1, ["wrap"], { wrap: await uploadArtwork(1008, 480) });
+    const uploadId = await uploadArtwork(300, 1000);
+    payload.designDocument.assets.image = { assetId: "image", kind: "image", mimeType: "image/png", widthPx: fixture.widthPx, heightPx: fixture.heightPx, qualityStatus: fixture.qualityStatus, sizeBytes: 24, createdAt: "2026-10-04T08:00:00.000Z" };
+    payload.designDocument.views.wrap.elements.push({ id: "image-element", type: "image", printAreaId: "wrap-main", assetId: "image", x: 0.1, y: 0.1, width: 0.4, height: 0.4, rotation: 0, opacity: 1, zIndex: 0, hidden: false });
+    payload.uploads.assets.image = uploadId;
+    const response = await request(app).post("/api/orders").send(orderPayload(product, payload));
+    assert.equal(response.status, 400, JSON.stringify(response.body));
+    assert.match(response.body.message, /Calidad de imagen no válida|dimensiones del asset no coinciden/);
+  }
+  assert.equal(await Customization.countDocuments(), 0);
+});
+
 test("pedido V2 de camiseta conserva cuatro superficies independientes en ZIP", async () => {
   const product = await Product.create({ name: "Camiseta básica personalizada", price: 25, stock: 10, active: true, customizable: true, productTemplateId: "tshirt-basic-v1", variants: { sizes: ["L"], colors: ["Blanco"] } });
   const dimensions = { front: [754, 1024], back: [747, 1024], "sleeve-left": [1024, 525], "sleeve-right": [1024, 525] };
