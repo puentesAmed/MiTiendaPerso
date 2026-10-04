@@ -18,6 +18,7 @@ import {
 } from "../../services/orders.service";
 import { getGuestId, loadGuestSession, saveGuestSession } from "../../services/guestSession.service";
 import { checkEmailExists } from "../../services/auth.service";
+import { buildSelectedShippingQuote, selectShippingMethodId, SHIPPING_REASON_LABELS } from "./shippingMethods";
 import { CustomizationInlineSummary } from "../../components/checkout/CustomizationInlineSummary";
 import { Alert } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
@@ -177,6 +178,12 @@ function PaymentMethods({ methods, value, onChange, loading, error }) {
   );
 }
 
+function ShippingMethods({ methods, value, onChange, loading }) {
+  if (loading) return <p className="text-sm text-muted-foreground">Calculando métodos disponibles…</p>;
+  if (!methods.length) return <p className="text-sm text-muted-foreground">Completa la dirección para consultar el envío.</p>;
+  return <fieldset className="space-y-2"><legend className="sr-only">Método de envío</legend>{methods.map((method) => <label key={method.methodId} className={`flex gap-3 rounded-lg border p-3 ${method.available ? "cursor-pointer" : "cursor-not-allowed opacity-65"}`}><input type="radio" name="shipping-method" value={method.methodId} checked={value === method.methodId} disabled={!method.available} onChange={() => onChange(method.methodId)} className="mt-1 size-4 accent-primary" /><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-3"><strong className="text-sm">{method.label}</strong>{method.available && <span className="text-sm font-semibold">{method.quote.isFree ? "Gratis" : formatMoney(method.quote.amount)}</span>}</span><span className="mt-0.5 block text-xs text-muted-foreground">{method.available ? (method.serviceLevel === "urgent" ? "Entrega local rápida" : "Envío por paquetería") : (SHIPPING_REASON_LABELS[method.reason] || "No disponible")}</span></span></label>)}</fieldset>;
+}
+
 function OrderSummary({ items, totalAmount, shippingQuote, shippingLoading, shippingError, onUpdate, onRemove, onEdit }) {
   const totalItems = items.reduce((total, item) => total + item.quantity, 0);
   const subtotal = shippingQuote?.subtotal ?? totalAmount;
@@ -293,6 +300,9 @@ export function Checkout() {
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [emailHasAccount, setEmailHasAccount] = useState(false);
   const [shippingQuote, setShippingQuote] = useState(null);
+  const [shippingMethods, setShippingMethods] = useState([]);
+  const [shippingPricing, setShippingPricing] = useState(null);
+  const [shippingMethodId, setShippingMethodId] = useState("");
   const [shippingLoading, setShippingLoading] = useState(false);
   const [shippingError, setShippingError] = useState("");
   const [couponCode, setCouponCode] = useState("");
@@ -367,6 +377,7 @@ export function Checkout() {
       if (draft.billingAddress) setBillingAddress(draft.billingAddress);
       if (typeof draft.useSameBilling === "boolean") setUseSameBilling(draft.useSameBilling);
       if (draft.notes) setNotes(draft.notes);
+      if (draft.shippingMethodId) setShippingMethodId(draft.shippingMethodId);
       if (["bizum", "bank_transfer"].includes(draft.paymentMethod)) setPaymentMethod(draft.paymentMethod);
     }
     setCheckoutHydrated(true);
@@ -375,9 +386,9 @@ export function Checkout() {
   useEffect(() => {
     if (!checkoutHydrated) return;
     saveGuestSession({
-      checkoutDraft: { guestEmail, shippingAddress, billingAddress, useSameBilling, notes, paymentMethod },
+      checkoutDraft: { guestEmail, shippingAddress, billingAddress, useSameBilling, notes, paymentMethod, shippingMethodId },
     });
-  }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes, paymentMethod, checkoutHydrated]);
+  }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes, paymentMethod, shippingMethodId, checkoutHydrated]);
 
   const isShippingAddressValid = useCallback(() => Boolean(
     shippingAddress.fullName.trim()
@@ -390,6 +401,8 @@ export function Checkout() {
   useEffect(() => {
     if (!isShippingAddressValid() || !items.length || loading) {
       setShippingQuote(null);
+      setShippingMethods([]);
+      setShippingPricing(null);
       return undefined;
     }
     const controller = new AbortController();
@@ -399,7 +412,12 @@ export function Checkout() {
         setShippingError("");
         const data = await getShippingQuoteRequest(items, shippingAddress, controller.signal, { couponCode: appliedCouponCode, email: user ? null : guestEmail });
         if (!data.ok) throw new Error(data.message || "Error de envío");
-        setShippingQuote(data.quote);
+        const methods = Array.isArray(data.methods) ? data.methods : [];
+        const available = methods.filter((method) => method.available);
+        setShippingMethods(methods);
+        setShippingPricing(data.pricing || null);
+        setShippingMethodId((current) => selectShippingMethodId(methods, current));
+        if (!available.length) setShippingError("No hay ningún método de envío disponible para esta dirección.");
       } catch (quoteError) {
         if (quoteError.name !== "CanceledError" && quoteError.code !== "ERR_CANCELED") {
           setShippingError(quoteError.response?.data?.message || "No se pudo calcular el envío.");
@@ -412,6 +430,10 @@ export function Checkout() {
     fetchQuote();
     return () => controller.abort();
   }, [shippingAddress, items, isShippingAddressValid, loading, appliedCouponCode, guestEmail, user]);
+
+  useEffect(() => {
+    setShippingQuote(buildSelectedShippingQuote(shippingMethods, shippingPricing, shippingMethodId));
+  }, [shippingMethodId, shippingMethods, shippingPricing]);
 
   const productNeedsCustomization = (item) => {
     if (!item.customizationRequired) return false;
@@ -447,6 +469,7 @@ export function Checkout() {
         billingAddress: useSameBilling ? shippingAddress : billingAddress,
         notes,
         couponCode: appliedCouponCode,
+        shippingMethodId,
       });
       if (!data.ok) {
         setError(data.message || "No se pudo crear el pedido.");
@@ -551,6 +574,10 @@ export function Checkout() {
             <p className="mt-1 text-sm text-muted-foreground">La utilizaremos para calcular el envío en el servidor.</p>
             <div className="mt-4">
               <AddressFields prefix="shipping" value={shippingAddress} onChange={setShippingAddress} showErrors={attemptedSubmit} required />
+            </div>
+            <div className="mt-4 border-t pt-4">
+              <h3 className="mb-2 text-sm font-semibold">Método de envío</h3>
+              <ShippingMethods methods={shippingMethods} value={shippingMethodId} onChange={setShippingMethodId} loading={shippingLoading} />
             </div>
             <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" checked={useSameBilling} onChange={(event) => setUseSameBilling(event.target.checked)} className="size-4 rounded accent-primary" />

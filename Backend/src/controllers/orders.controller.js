@@ -22,6 +22,7 @@ import {
   roundCurrency,
 } from "../services/order-calculation.service.js";
 import {
+  calculateSelectedShippingQuote,
   calculateShippingQuote,
   ShippingCalculationError,
 } from "../services/shipping.service.js";
@@ -54,6 +55,7 @@ export async function createOrder(req, res) {
       billingAddress,
       notes,
       couponCode,
+      shippingMethodId,
     } = req.body;
 
     if (!userId && (!guestId || !guestEmail)) {
@@ -76,10 +78,9 @@ export async function createOrder(req, res) {
       await resolveAuthoritativeOrderLines(items);
     const coupon = await validateCoupon({ code: couponCode, subtotal, userId, guestEmail });
     const discountedSubtotal = roundCurrency(subtotal - (coupon?.discountAmount || 0));
-    const shipping = await calculateShippingQuote({
-      authoritativeSubtotal: discountedSubtotal,
-      shippingAddress,
-    });
+    const shipping = shippingMethodId
+      ? await calculateSelectedShippingQuote({ authoritativeSubtotal: discountedSubtotal, shippingAddress, lines, shippingMethodId })
+      : await calculateShippingQuote({ authoritativeSubtotal: discountedSubtotal, shippingAddress });
     const calculatedTotal = roundCurrency(discountedSubtotal + shipping.price);
     const orderId = new mongoose.Types.ObjectId();
 
@@ -164,10 +165,9 @@ export async function createOrder(req, res) {
       });
     }
 
-    const estimatedDeliveryDate = calculateEstimatedDelivery({
-      minDays: shipping.estimatedDays.min,
-      maxDays: shipping.estimatedDays.max,
-    });
+    const estimatedDeliveryDate = shipping.estimatedDays
+      ? calculateEstimatedDelivery({ minDays: shipping.estimatedDays.min, maxDays: shipping.estimatedDays.max })
+      : null;
 
     for (const requirement of stockRequirements) {
       const stockResult = await Product.updateOne(
@@ -217,6 +217,14 @@ export async function createOrder(req, res) {
       paymentStatus: "pending",
       paymentConfirmedAt: null,
       shipping: {
+        methodId: shipping.methodId || "legacy-zone",
+        label: shipping.label || "Envío estándar",
+        type: shipping.type || "LEGACY_ZONE",
+        serviceLevel: shipping.serviceLevel || "standard",
+        quoteSource: shipping.quoteSource || shipping.source || "zone",
+        providerId: shipping.providerId || null,
+        serviceId: shipping.serviceId || null,
+        parcels: shipping.parcels,
         zone: shipping.zone,
         price: shipping.price,
         isFree: shipping.isFree,

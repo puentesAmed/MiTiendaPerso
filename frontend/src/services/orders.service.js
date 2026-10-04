@@ -18,6 +18,7 @@ export async function createOrderRequest(items, data = {}) {
     billingAddress: data.billingAddress ?? null,
     notes: data.notes ?? "",
     couponCode: data.couponCode ?? "",
+    shippingMethodId: data.shippingMethodId ?? null,
   };
 
   if (import.meta.env.DEV) {

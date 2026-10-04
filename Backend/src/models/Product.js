@@ -12,6 +12,18 @@ const customizationAreaSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const shippingProfileSchema = new mongoose.Schema({
+  weightGrams: { type: Number, default: null, min: 0 },
+  package: {
+    lengthCm: { type: Number, default: null, min: 0 },
+    widthCm: { type: Number, default: null, min: 0 },
+    heightCm: { type: Number, default: null, min: 0 },
+  },
+  fragile: { type: Boolean, default: null },
+  stackable: { type: Boolean, default: null },
+  shippingClass: { type: String, default: null, trim: true },
+}, { _id: false });
+
 const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -34,6 +46,7 @@ const productSchema = new mongoose.Schema(
     productTemplateId: { type: String, default: null, trim: true },
     customizationAreas: [customizationAreaSchema],
     customizationType: { type: String, enum: ["tshirt", "hoodie", "mug"], default: "tshirt" },
+    shippingProfile: { type: shippingProfileSchema, default: null },
   },
   { timestamps: true }
 );

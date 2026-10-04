@@ -121,9 +121,17 @@ const orderSchema = new mongoose.Schema(
 
     // Información logística y de entrega
     shipping: {
+      methodId: { type: String, default: null },
+      label: { type: String, default: null },
+      type: { type: String, default: null },
+      serviceLevel: { type: String, default: null },
+      quoteSource: { type: String, default: null },
+      providerId: { type: String, default: null },
+      serviceId: { type: String, default: null },
+      parcels: { type: [mongoose.Schema.Types.Mixed], default: undefined },
       zone: {
         type: String,
-        enum: ["peninsula", "islands", "international"],
+        enum: ["local", "peninsula", "islands", "international"],
         required: true,
       },
 
@@ -139,14 +147,14 @@ const orderSchema = new mongoose.Schema(
       },
 
       estimatedDays: {
-        min: { type: Number, required: true },
-        max: { type: Number, required: true },
+        min: { type: Number, default: null },
+        max: { type: Number, default: null },
       },
 
       // 🆕 Fecha estimada calculada automáticamente
       estimatedDeliveryDate: {
         type: Date,
-        required: true,
+        default: null,
       },
 
       // 🆕 Fecha confirmada manualmente por admin
