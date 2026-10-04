@@ -38,6 +38,33 @@ const pickupSettings = {
 };
 const shippingMethod = (result, methodId) => result.methods.find((method) => method.methodId === methodId);
 
+function mugDesignerV2(product) {
+  const productId = product._id.toString();
+  return {
+    type: "designer",
+    schemaVersion: 2,
+    designVersion: 2,
+    clientId: "client-mug-checkout",
+    productId,
+    productSnapshot: { _id: productId, name: product.name },
+    selectedSurfaceIds: ["wrap-main"],
+    customizationPricing: { basePrice: 12.5, customizationAmount: 0, unitPrice: 999, currency: "EUR", selectedSurfaceIds: ["wrap-main"] },
+    designDocument: {
+      schemaVersion: 1,
+      documentId: "document-mug-checkout",
+      productId,
+      templateId: "mug-ceramic-standard-v1",
+      templateRevision: 1,
+      selectedSurfaceIds: ["wrap-main"],
+      variant: null,
+      assets: {},
+      views: { wrap: { elements: [] } },
+      metadata: { createdAt: "2026-10-04T08:00:00.000Z", updatedAt: "2026-10-04T08:00:00.000Z" },
+    },
+    uploads: { assets: {}, surfaces: { wrap: { artworkUploadId: "artwork-wrap", proofUploadId: "proof-wrap" } } },
+  };
+}
+
 before(setupTestDB);
 beforeEach(async () => { await clearTestDB(); clearShippingSettingsCache(); clearShippingDistanceCache(); });
 after(async () => { emailMock.mock.restore(); await teardownTestDB(); });
@@ -284,17 +311,45 @@ test("quote API devuelve pickup sin dirección y rechaza métodos manipulados", 
   assert.equal(manipulated.reason, "invalid_method");
 });
 
+test("quote API acepta la CartLineV2 real de taza y devuelve métodos", async () => {
+  await updateShippingSettings(pickupSettings);
+  const product = await Product.create({
+    _id: "693070095d96fe47cd3f2055",
+    name: "Taza cerámica personalizada",
+    price: 12.5,
+    stock: 3,
+    active: true,
+    customizable: true,
+    productTemplateId: "mug-ceramic-standard-v1",
+    customizationPricing: { enabled: true, surfaces: [{ surfaceId: "wrap-main", enabled: true, required: true, priceModifier: 0 }] },
+    fulfillmentProfile: { preparationRequired: true, preparationMinDays: 1, preparationMaxDays: 2 },
+  });
+
+  const response = await request(app).post("/api/shipping/quote").send({
+    items: [{ productId: product._id, quantity: 1, variant: null, customization: mugDesignerV2(product) }],
+    shippingAddress: address,
+  });
+
+  assert.equal(response.status, 200, JSON.stringify(response.body));
+  assert.equal(response.body.pricing.subtotal, 12.5);
+  assert.equal(response.body.preparation.status, "configured");
+  assert.equal(shippingMethod(response.body, "pickup-free").available, true);
+  assert.equal(shippingMethod(response.body, "local-urgent").available, true);
+});
+
 test("pedido pickup congela configuración y máximo de preparación", async () => {
   await updateShippingSettings(pickupSettings);
   const first = await Product.create({ name: "Preparación corta", price: 10, stock: 3, active: true, fulfillmentProfile: { preparationRequired: true, preparationMinDays: 1, preparationMaxDays: 2 } });
   const second = await Product.create({ name: "Preparación larga", price: 15, stock: 3, active: true, fulfillmentProfile: { preparationRequired: true, preparationMinDays: 3, preparationMaxDays: 5 } });
-  const response = await request(app).post("/api/orders").send({ guestId: "guest-pickup", email: "pickup@test.com", paymentMethod: "bizum", items: [{ productId: first._id, quantity: 1 }, { productId: second._id, quantity: 1 }], shippingMethodId: "pickup-free" });
+  const response = await request(app).post("/api/orders").send({ guestId: "guest-pickup", email: "pickup@test.com", customer: { fullName: "Cliente Pickup", email: "pickup@test.com", phone: "+34 600 123 123" }, termsAccepted: true, paymentMethod: "bizum", items: [{ productId: first._id, quantity: 1 }, { productId: second._id, quantity: 1 }], shippingMethodId: "pickup-free" });
   assert.equal(response.status, 201, JSON.stringify(response.body));
   assert.equal(response.body.order.shipping.price, 0);
   assert.equal(response.body.order.shipping.amount, 0);
   assert.equal(response.body.order.shipping.quoteSource, "pickup");
   assert.equal(response.body.order.shipping.pickupAddress, "Calle Taller 1");
   assert.equal(response.body.order.shippingAddress, null);
+  assert.deepEqual(response.body.order.customer, { fullName: "Cliente Pickup", email: "pickup@test.com", phone: "+34 600 123 123" });
+  assert.equal(response.body.order.termsAccepted, true);
   assert.equal(response.body.order.orderPreparation.status, "configured");
   assert.equal(response.body.order.orderPreparation.minDays, 3);
   assert.equal(response.body.order.orderPreparation.maxDays, 5);
@@ -311,7 +366,7 @@ test("pedido pickup congela configuración y máximo de preparación", async () 
 test("preparación requerida sin plazo queda pendiente sin inventar días", async () => {
   await updateShippingSettings(pickupSettings);
   const product = await Product.create({ name: "Preparación pendiente", price: 12, stock: 2, active: true, fulfillmentProfile: { preparationRequired: true, preparationMinDays: null, preparationMaxDays: null } });
-  const response = await request(app).post("/api/orders").send({ guestId: "guest-pending", email: "pending@test.com", paymentMethod: "bizum", items: [{ productId: product._id, quantity: 1 }], shippingMethodId: "pickup-free" });
+  const response = await request(app).post("/api/orders").send({ guestId: "guest-pending", email: "pending@test.com", customer: { fullName: "Cliente Pending", email: "pending@test.com", phone: "+34 600 123 123" }, termsAccepted: true, paymentMethod: "bizum", items: [{ productId: product._id, quantity: 1 }], shippingMethodId: "pickup-free" });
   assert.equal(response.status, 201, JSON.stringify(response.body));
   assert.equal(response.body.order.orderPreparation.status, "pending_confirmation");
   assert.equal(response.body.order.orderPreparation.minDays, null);
@@ -367,7 +422,7 @@ test("quote devuelve métodos múltiples y mantiene adapter legacy", async () =>
 test("pedido ignora amount cliente, recalcula método y congela snapshot", async () => {
   await updateShippingSettings(localSettings);
   const product = await Product.create({ name: "Producto", price: 20, stock: 3, active: true });
-  const response = await request(app).post("/api/orders").send({ guestId: "guest-shipping", email: "shipping@test.com", paymentMethod: "bizum", items: [{ productId: product._id, quantity: 1 }], shippingAddress: address, shippingMethodId: "local-urgent", shipping: { price: 0 } });
+  const response = await request(app).post("/api/orders").send({ guestId: "guest-shipping", email: "shipping@test.com", customer: { fullName: "Cliente Shipping", email: "shipping@test.com", phone: "+34 600 123 123" }, termsAccepted: true, paymentMethod: "bizum", items: [{ productId: product._id, quantity: 1 }], shippingAddress: address, shippingMethodId: "local-urgent", shipping: { price: 0 } });
   assert.equal(response.status, 201, JSON.stringify(response.body));
   assert.equal(response.body.order.shipping.price, 5.99);
   assert.equal(response.body.order.shipping.methodId, "local-urgent");

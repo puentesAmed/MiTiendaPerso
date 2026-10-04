@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { Product } from "../models/Product.js";
-import { resolveCustomizationQuote } from "./customization-pricing.service.js";
+import { validateDesignerCustomization } from "../utils/customizationAdapter.js";
+import { CustomizationPricingError, resolveCustomizationQuote } from "./customization-pricing.service.js";
 
 export class OrderCalculationError extends Error {
   constructor(message, status = 400) {
@@ -162,12 +163,24 @@ export async function resolveAuthoritativeOrderLines(items) {
     const product = productsById.get(item.productId);
     const variant = validateVariant(product, resolveRequestedVariant(item));
     const basePrice = roundCurrency(Number(product.price));
+    if (product.customizable) {
+      const validation = validateDesignerCustomization(item.customization, product);
+      if (!validation.valid) {
+        throw new OrderCalculationError(`El producto requiere una personalización válida: ${product.name}. ${validation.reason}`);
+      }
+    }
     const selectedSurfaceIds = resolveSelectedSurfaceIds(item.customization);
     if (item.customization?.schemaVersion === 2 && product.customizationPricing?.enabled && selectedSurfaceIds == null) {
       throw new OrderCalculationError(`Selecciona las superficies de personalización para: ${product.name}`);
     }
     if (selectedSurfaceIds && !product.customizable) throw new OrderCalculationError(`El producto no admite personalización: ${product.name}`);
-    const customizationPricing = selectedSurfaceIds ? resolveCustomizationQuote(product, selectedSurfaceIds) : null;
+    let customizationPricing = null;
+    try {
+      customizationPricing = selectedSurfaceIds ? resolveCustomizationQuote(product, selectedSurfaceIds) : null;
+    } catch (error) {
+      if (error instanceof CustomizationPricingError) throw new OrderCalculationError(error.message, error.status);
+      throw error;
+    }
     const price = customizationPricing?.unitPrice ?? basePrice;
     subtotal = roundCurrency(subtotal + price * item.quantity);
 

@@ -20,6 +20,8 @@ function payload(productId, overrides = {}) {
   return {
     guestId: "guest-spec003",
     email: "guest@test.com",
+    customer: { fullName: "Cliente Test", email: "guest@test.com", phone: "+34 600 123 123" },
+    termsAccepted: true,
     paymentMethod: "bizum",
     items: [{ productId, quantity: 1 }],
     shippingAddress: address(),

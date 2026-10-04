@@ -9,7 +9,7 @@ Permitir que un producto personalizable declare superficies comerciales, selecci
 - `Product.price` es el precio base local. Talla/color son listas simples en `Product.variants`; no existe precio por variante local.
 - `resolveAuthoritativeOrderLines` valida talla/color, relee `Product.price`, calcula subtotal y congela ese importe en `Order.items[].price`.
 - Mongo contiene camiseta a 19,90 €, taza a 12,50 € y sudadera a 34,90 €. Ningún producto contiene configuración comercial ni modificadores de superficies verificados.
-- La camiseta usa `tshirt-basic-v1` con superficies declarativas `tshirt-front`, `tshirt-back`, `tshirt-left-sleeve`, `tshirt-right-sleeve` y vistas `front`, `back`, `sleeve-left`, `sleeve-right`.
+- La camiseta usa `tshirt-basic-v1` con superficies declarativas `tshirt-front`, `tshirt-back`, `tshirt-sleeve-left`, `tshirt-sleeve-right` y vistas `front`, `back`, `sleeve-left`, `sleeve-right`.
 - ProductDetail selecciona talla/color y transporta la variante mediante route state. No selecciona superficies ni cotiza personalización.
 - Designer V2 resuelve el template completo, inicializa todas sus vistas y el dominio opera contra la vista activa.
 - `DesignDocument` contiene template, variante, assets y vistas; drafts validan producto/template/revisión/variante.
@@ -25,7 +25,7 @@ No existen precios verificados en Mongo. No se asigna ningún modificador ni se 
 
 - Productos con `customizationPricing` configurado: solo son comercialmente seleccionables superficies `enabled` cuyo `priceModifier` sea un número finito no negativo. `0` significa “Incluido” porque fue configurado explícitamente.
 - Producto actual sin configuración: no expone nueva selección comercial ni habilita el CTA nuevo hasta que Admin lo configure.
-- Payloads/drafts/pedidos V2 históricos sin `selectedSurfaceIds` mantienen el comportamiento legacy: todas las superficies del template y precio base histórico, sin inventar snapshot de modifiers.
+- Drafts y pedidos V2 históricos sin `selectedSurfaceIds` siguen siendo legibles. El handoff legacy conserva todas las superficies solo mientras el producto no tenga pricing comercial configurado; una nueva compra V2 de un producto ya configurado debe declarar selección para impedir eludir modifiers.
 - No se modifica la sudadera ni se crea template productivo para ella.
 
 ## Modelo comercial
@@ -81,7 +81,7 @@ Backend congela por item:
 - `price` como unitPrice autoritativo final;
 - variante y `customizationId` existentes.
 
-Productos no personalizables y líneas históricas sin selección conservan el cálculo actual.
+Productos no personalizables y líneas sin selección de productos aún no configurados conservan el cálculo actual.
 
 ## Producción y Admin
 
@@ -105,3 +105,13 @@ Fuentes, formas, productos nuevos, sudadera productiva, pagos, shipping, redise�
 - Compatibilidad histórica explícita sin inventar precios.
 - Admin configura superficies con campos normales.
 - Tests específicos, lint/build/check y `git diff --check` pasan.
+
+## Checklist manual
+
+- En Admin, elegir un template muestra sus superficies como campos normales y permite guardar `0` como incluido.
+- En ficha de producto, talla/color se eligen antes de superficies y cada cambio actualiza el quote mostrado.
+- El CTA de personalización permanece bloqueado sin selección válida o sin pricing configurado.
+- Designer V2 muestra únicamente las vistas contratadas y al volver desde carrito conserva la selección.
+- Dos diseños del mismo producto/variante con superficies distintas permanecen como líneas diferentes.
+- Checkout conserva el unitario mostrado y backend recalcula el mismo importe al crear el pedido.
+- Admin/producción solo lista y exporta artifacts de las superficies contratadas.

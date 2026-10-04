@@ -30,6 +30,27 @@ test("normaliza y deduplica dirección antes de cotizar", () => {
   assert.equal(buildShippingQuoteRequestKey({ ...input, methodId: "pickup-free" }), buildShippingQuoteRequestKey({ ...input, methodId: "pickup-free", address: null }));
 });
 
+test("requote cambia cuando cambia la personalización V2", () => {
+  const base = {
+    items: [{
+      productId: "mug-1",
+      quantity: 1,
+      customization: {
+        schemaVersion: 2,
+        clientId: "customization-1",
+        productId: "mug-1",
+        selectedSurfaceIds: ["wrap-main"],
+        designDocument: { documentId: "document-1", metadata: { updatedAt: "2026-10-04T08:00:00.000Z" } },
+      },
+    }],
+    methodId: "pickup-free",
+  };
+  const changed = structuredClone(base);
+  changed.items[0].customization.designDocument.metadata.updatedAt = "2026-10-04T08:01:00.000Z";
+
+  assert.notEqual(buildShippingQuoteRequestKey(base), buildShippingQuoteRequestKey(changed));
+});
+
 test("adapta método seleccionado al resumen sin confiar en amount del cliente", () => {
   assert.deepEqual(buildSelectedShippingQuote(methods, { subtotal: 45, discountAmount: 5, coupon: { code: "TEST" } }, "local-urgent"), {
     amount: 8.5, price: 8.5, total: 48.5, estimatedDays: { min: 1, max: 1 }, subtotal: 45, discountAmount: 5, coupon: { code: "TEST" },
@@ -43,6 +64,7 @@ test("adapta método seleccionado al resumen sin confiar en amount del cliente",
 test("Checkout envía solo el método seleccionado y renderiza indisponibilidad", () => {
   const checkout = readFileSync(new URL("./Checkout.jsx", import.meta.url), "utf8");
   const ordersService = readFileSync(new URL("../../services/orders.service.js", import.meta.url), "utf8");
+  const customizationSummary = readFileSync(new URL("../../components/checkout/CustomizationInlineSummary.jsx", import.meta.url), "utf8");
   assert.match(checkout, /ShippingMethods/);
   assert.match(checkout, /No hay ningún método de envío disponible/);
   assert.match(checkout, /Preparación del pedido/);
@@ -55,5 +77,8 @@ test("Checkout envía solo el método seleccionado y renderiza indisponibilidad"
   assert.match(checkout, /shippingMethodId && shippingMethodId !== "pickup-free"/);
   assert.doesNotMatch(checkout, />Plazo estimado</);
   assert.match(ordersService, /shippingMethodId: data\.shippingMethodId/);
+  assert.match(ordersService, /customer: data\.customer/);
+  assert.match(ordersService, /termsAccepted: data\.termsAccepted === true/);
   assert.doesNotMatch(ordersService, /shippingAmount|shippingPrice/);
+  assert.match(customizationSummary, /Personalizado/);
 });

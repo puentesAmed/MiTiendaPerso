@@ -19,6 +19,7 @@ import {
 import { getGuestId, loadGuestSession, saveGuestSession } from "../../services/guestSession.service";
 import { checkEmailExists } from "../../services/auth.service";
 import { buildSelectedShippingQuote, buildShippingQuoteRequestKey, isDeliveryAddressReady, isShippingMethodSelectable, normalizeDeliveryAddress, selectShippingMethodId, SHIPPING_REASON_LABELS } from "./shippingMethods";
+import { canSubmitOrder, isCustomerDataValid, normalizeCouponCode, validateCustomerData } from "./checkoutState";
 import { CustomizationInlineSummary } from "../../components/checkout/CustomizationInlineSummary";
 import { Alert } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
@@ -36,8 +37,6 @@ import { PageContainer } from "../../components/ui/PageContainer";
 import { Price } from "../../components/ui/Price";
 import { ProductImage } from "../../components/ui/ProductImage";
 import { Textarea } from "../../components/ui/textarea";
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function formatMoney(value) {
   const amount = Number(value);
@@ -57,6 +56,7 @@ function Field({ id, label, error, required = false, className = "", ...props })
       </label>
       <Input
         id={id}
+        required={required}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
         className={error ? "border-destructive" : undefined}
@@ -67,13 +67,13 @@ function Field({ id, label, error, required = false, className = "", ...props })
   );
 }
 
-function AddressFields({ prefix, value, onChange, showErrors = false, required = false }) {
+function AddressFields({ prefix, value, onChange, showErrors = false, required = false, includeFullName = true }) {
   const update = (field) => (event) => onChange({ ...value, [field]: event.target.value });
   const fieldError = (field, label) => showErrors && required && !value[field]?.trim() ? `${label} es obligatorio.` : "";
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Field
+      {includeFullName && <Field
         id={`${prefix}-fullName`}
         label="Nombre completo"
         required={required}
@@ -82,7 +82,7 @@ function AddressFields({ prefix, value, onChange, showErrors = false, required =
         error={fieldError("fullName", "El nombre")}
         autoComplete={prefix === "shipping" ? "shipping name" : "billing name"}
         className="sm:col-span-2"
-      />
+      />}
       <Field
         id={`${prefix}-street`}
         label="Dirección"
@@ -180,7 +180,7 @@ function PaymentMethods({ methods, value, onChange, loading, error }) {
 
 function shippingMethodDescription(method) {
   if (!method.available) return SHIPPING_REASON_LABELS[method.reason] || "No disponible";
-  if (method.methodId === "pickup-free") return method.quote.availabilityText || "Disponible cuando tu pedido esté preparado";
+  if (method.methodId === "pickup-free") return method.quote.availabilityText || "Disponible cuando tu pedido esté preparado.";
   if (method.quote.quoteSource === "zone_fallback") return "Tarifa zonal de respaldo; distancia no disponible";
   return method.serviceLevel === "urgent" ? "Entrega una vez preparado el pedido" : "Envío por paquetería una vez preparado";
 }
@@ -190,7 +190,7 @@ function ShippingMethods({ methods, value, onChange, loading }) {
   if (!methods.length) return <p className="text-sm text-muted-foreground">No hay métodos disponibles en este momento.</p>;
   return <fieldset className="space-y-2"><legend className="sr-only">Método de entrega</legend>{methods.map((method) => {
     const selectable = isShippingMethodSelectable(method);
-    return <label key={method.methodId} className={`flex gap-3 rounded-lg border p-3 ${selectable ? "cursor-pointer" : "cursor-not-allowed opacity-65"}`}><input type="radio" name="shipping-method" value={method.methodId} checked={value === method.methodId} disabled={!selectable} onChange={() => onChange(method.methodId)} className="mt-1 size-4 accent-primary" /><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-3"><strong className="text-sm">{method.label}</strong>{method.available && <span className="text-sm font-semibold">{method.methodId === "pickup-free" ? formatMoney(method.quote.amount) : method.quote.isFree ? "Gratis" : formatMoney(method.quote.amount)}</span>}</span><span className="mt-0.5 block text-xs text-muted-foreground">{shippingMethodDescription(method)}</span>{method.available && method.methodId === "pickup-free" && method.quote.pickupAddress && <span className="mt-1 block text-xs">Recogida: {method.quote.pickupAddress}</span>}{method.available && method.quote.quoteSource === "routing" && method.quote.distanceKm != null && <span className="mt-1 block text-xs">Distancia: {new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(method.quote.distanceKm)} km{method.quote.band ? ` · Tarifa ${method.quote.band.minKm}–${method.quote.band.maxKm} km` : ""}</span>}</span></label>;
+    return <label key={method.methodId} className={`flex gap-3 rounded-lg border p-3 ${selectable ? "cursor-pointer" : "cursor-not-allowed opacity-65"}`}><input type="radio" name="shipping-method" value={method.methodId} checked={value === method.methodId} disabled={!selectable} onChange={() => onChange(method.methodId)} className="mt-1 size-4 accent-primary" /><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-3"><strong className="text-sm">{method.label}</strong>{method.available && <span className="text-sm font-semibold">{method.methodId === "pickup-free" ? formatMoney(method.quote.amount) : method.quote.isFree ? "Gratis" : formatMoney(method.quote.amount)}</span>}</span><span className="mt-0.5 block text-xs text-muted-foreground">{shippingMethodDescription(method)}</span>{method.available && method.methodId === "pickup-free" && method.quote.pickupAddress && <span className="mt-1 block text-xs"><strong>Punto de recogida:</strong> {method.quote.pickupAddress}</span>}{method.available && method.quote.quoteSource === "routing" && method.quote.distanceKm != null && <span className="mt-1 block text-xs">Distancia: {new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(method.quote.distanceKm)} km{method.quote.band ? ` · Tarifa ${method.quote.band.minKm}–${method.quote.band.maxKm} km` : ""}</span>}</span></label>;
   })}</fieldset>;
 }
 
@@ -300,7 +300,11 @@ export function Checkout() {
   const lastShippingQuoteKeyRef = useRef("");
   const shippingQuoteSequenceRef = useRef(0);
 
-  const [guestEmail, setGuestEmail] = useState("");
+  const [customer, setCustomer] = useState({
+    fullName: user?.name || "",
+    email: user?.email || "",
+    phone: "",
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -320,6 +324,7 @@ export function Checkout() {
   const [shippingError, setShippingError] = useState("");
   const [couponCode, setCouponCode] = useState("");
   const [appliedCouponCode, setAppliedCouponCode] = useState("");
+  const [couponExpanded, setCouponExpanded] = useState(false);
   const [shippingAddress, setShippingAddress] = useState({
     fullName: "",
     street: "",
@@ -368,24 +373,31 @@ export function Checkout() {
   }, [paymentMethod, paymentMethods, paymentMethodsLoading]);
 
   useEffect(() => {
-    if (!guestEmail) {
+    if (user || !customer.email) {
       setEmailHasAccount(false);
       return undefined;
     }
     const timer = setTimeout(async () => {
       try {
-        setEmailHasAccount(await checkEmailExists(guestEmail));
+        setEmailHasAccount(await checkEmailExists(customer.email));
       } catch {
         setEmailHasAccount(false);
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [guestEmail]);
+  }, [customer.email, user]);
 
   useEffect(() => {
     const draft = loadGuestSession()?.checkoutDraft;
     if (draft) {
-      if (draft.guestEmail) setGuestEmail(draft.guestEmail);
+      if (draft.customer) setCustomer(draft.customer);
+      else if (draft.guestEmail || draft.shippingAddress?.fullName) {
+        setCustomer((current) => ({
+          ...current,
+          fullName: draft.shippingAddress?.fullName || current.fullName,
+          email: draft.guestEmail || current.email,
+        }));
+      }
       if (draft.shippingAddress) setShippingAddress(draft.shippingAddress);
       if (draft.billingAddress) setBillingAddress(draft.billingAddress);
       if (typeof draft.useSameBilling === "boolean") setUseSameBilling(draft.useSameBilling);
@@ -399,19 +411,19 @@ export function Checkout() {
   useEffect(() => {
     if (!checkoutHydrated) return;
     saveGuestSession({
-      checkoutDraft: { guestEmail, shippingAddress, billingAddress, useSameBilling, notes, paymentMethod, shippingMethodId },
+      checkoutDraft: { customer, shippingAddress, billingAddress, useSameBilling, notes, paymentMethod, shippingMethodId },
     });
-  }, [guestEmail, shippingAddress, billingAddress, useSameBilling, notes, paymentMethod, shippingMethodId, checkoutHydrated]);
+  }, [customer, shippingAddress, billingAddress, useSameBilling, notes, paymentMethod, shippingMethodId, checkoutHydrated]);
 
   const isShippingAddressValid = useCallback(() => Boolean(
-    shippingAddress.fullName.trim()
+    customer.fullName.trim()
     && shippingAddress.street.trim()
     && shippingAddress.city.trim()
     && shippingAddress.state.trim()
     && shippingAddress.postalCode.trim()
-  ), [shippingAddress]);
+  ), [customer.fullName, shippingAddress]);
 
-  const normalizedShippingAddress = useMemo(() => normalizeDeliveryAddress(shippingAddress), [shippingAddress]);
+  const normalizedShippingAddress = useMemo(() => normalizeDeliveryAddress({ ...shippingAddress, fullName: customer.fullName }), [customer.fullName, shippingAddress]);
   const deliveryAddressReady = useMemo(() => isDeliveryAddressReady(normalizedShippingAddress), [normalizedShippingAddress]);
   const requiresDeliveryAddress = Boolean(shippingMethodId && shippingMethodId !== "pickup-free");
   const quoteAddressKey = requiresDeliveryAddress ? JSON.stringify(normalizedShippingAddress) : "";
@@ -420,8 +432,8 @@ export function Checkout() {
     address: requiresDeliveryAddress ? normalizedShippingAddress : null,
     methodId: shippingMethodId,
     couponCode: appliedCouponCode,
-    email: user ? "" : guestEmail,
-  }), [items, normalizedShippingAddress, requiresDeliveryAddress, shippingMethodId, appliedCouponCode, guestEmail, user]);
+    email: user ? "" : customer.email,
+  }), [items, normalizedShippingAddress, requiresDeliveryAddress, shippingMethodId, appliedCouponCode, customer.email, user]);
 
   useEffect(() => {
     if (!items.length) {
@@ -450,7 +462,7 @@ export function Checkout() {
       try {
         setShippingLoading(true);
         setShippingError("");
-        const data = await getShippingQuoteRequest(items, requiresDeliveryAddress ? normalizedShippingAddress : null, controller.signal, { shippingMethodId: shippingMethodId || null, couponCode: appliedCouponCode, email: user ? null : guestEmail });
+        const data = await getShippingQuoteRequest(items, requiresDeliveryAddress ? normalizedShippingAddress : null, controller.signal, { shippingMethodId: shippingMethodId || null, couponCode: appliedCouponCode, email: user ? null : customer.email });
         if (sequence !== shippingQuoteSequenceRef.current) return;
         if (!data.ok) throw new Error(data.message || "Error de envío");
         const methods = Array.isArray(data.methods) ? data.methods : [];
@@ -471,7 +483,7 @@ export function Checkout() {
     };
     const timeoutId = window.setTimeout(fetchQuote, requiresDeliveryAddress ? 800 : 0);
     return () => { window.clearTimeout(timeoutId); controller.abort(); };
-  }, [quoteRequestKey, quoteAddressKey, deliveryAddressReady, requiresDeliveryAddress, shippingMethodId, items, normalizedShippingAddress, loading, appliedCouponCode, guestEmail, user]);
+  }, [quoteRequestKey, quoteAddressKey, deliveryAddressReady, requiresDeliveryAddress, shippingMethodId, items, normalizedShippingAddress, loading, appliedCouponCode, customer.email, user]);
 
   useEffect(() => {
     setShippingQuote(buildSelectedShippingQuote(shippingMethods, shippingPricing, shippingMethodId));
@@ -486,6 +498,24 @@ export function Checkout() {
     const sides = item.customization.design?.elementsBySide || {};
     return !(Array.isArray(sides.front) && sides.front.length) && !(Array.isArray(sides.back) && sides.back.length);
   };
+
+  const customerErrors = validateCustomerData(customer);
+  const customerValid = isCustomerDataValid(customer);
+  const linesValid = !items.some(productNeedsCustomization);
+  const shippingMethodValid = shippingMethods.some((method) => method.methodId === shippingMethodId && method.available);
+  const paymentMethodValid = paymentMethods.some((method) => method.id === paymentMethod);
+  const quoteReady = Boolean(shippingQuote && Number.isFinite(Number(shippingQuote.total)));
+  const canSubmit = canSubmitOrder({
+    items,
+    linesValid,
+    customerValid,
+    shippingMethodValid,
+    deliveryAddressValid: !requiresDeliveryAddress || isShippingAddressValid(),
+    paymentMethodValid,
+    termsAccepted: acceptedTerms,
+    quoteReady,
+    busy: loading || shippingLoading || paymentMethodsLoading,
+  });
 
   const editCustomization = (item) => {
     navigate(`/personalizar-v2/${item.productId}`, {
@@ -506,9 +536,11 @@ export function Checkout() {
       const data = await createOrderRequest(items, {
         paymentMethod,
         guestId: user ? null : getGuestId(),
-        email: user ? null : guestEmail,
-        shippingAddress: isShippingAddressValid() ? shippingAddress : null,
-        billingAddress: useSameBilling ? (isShippingAddressValid() ? shippingAddress : null) : billingAddress,
+        email: user ? null : customer.email,
+        customer,
+        termsAccepted: acceptedTerms,
+        shippingAddress: requiresDeliveryAddress && isShippingAddressValid() ? normalizedShippingAddress : null,
+        billingAddress: useSameBilling ? (requiresDeliveryAddress && isShippingAddressValid() ? normalizedShippingAddress : null) : billingAddress,
         notes,
         couponCode: appliedCouponCode,
         shippingMethodId,
@@ -523,7 +555,7 @@ export function Checkout() {
           order: data.order,
           orderId: data.orderId,
           isGuest: !user,
-          email: !user ? guestEmail : null,
+          email: !user ? customer.email : null,
           emailHasAccount,
           paymentInstructions: data.paymentInstructions,
         },
@@ -543,7 +575,7 @@ export function Checkout() {
     setError("");
     setAttemptedSubmit(true);
     if (!items.length) return setError("El carrito está vacío.");
-    if (!user && !EMAIL_REGEX.test(guestEmail)) return setError("Revisa el email antes de continuar.");
+    if (!customerValid) return setError("Completa correctamente tus datos de contacto.");
     if (shippingMethodId !== "pickup-free" && !isShippingAddressValid()) return setError("Completa los campos obligatorios de la dirección de envío.");
     if (!paymentMethod) return setError("No hay ningún método de pago disponible.");
     if (!acceptedTerms) return setError("Debes aceptar los Términos y Condiciones para continuar.");
@@ -557,7 +589,6 @@ export function Checkout() {
     await processOrder();
   };
 
-  const emailInvalid = !user && attemptedSubmit && !EMAIL_REGEX.test(guestEmail);
   const summaryProps = {
     items,
     totalAmount,
@@ -581,34 +612,52 @@ export function Checkout() {
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-7">
         <main className="min-w-0 space-y-4">
-          {!user && (
-            <Card className="p-4 shadow-none">
-              <div className="flex items-center gap-2">
-                <PackageCheck className="size-5 text-primary" aria-hidden="true" />
-                <h2 className="font-semibold">Tus datos</h2>
-              </div>
-              <div className="mt-3">
-                <Field
-                  id="guest-email"
-                  label="Email del pedido"
-                  required
-                  type="email"
-                  value={guestEmail}
-                  onChange={(event) => setGuestEmail(event.target.value.toLowerCase())}
-                  error={emailInvalid ? "Introduce un email válido, por ejemplo nombre@correo.com." : ""}
-                  autoComplete="email"
-                />
-                {emailHasAccount && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Este email ya tiene una cuenta. <Button as={Link} to="/login" state={{ email: guestEmail }} variant="link" size="sm" className="h-auto p-0 text-xs">Iniciar sesión</Button>
-                  </p>
-                )}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Guardamos temporalmente estos datos en tu dispositivo para completar el pedido.
-                </p>
-              </div>
-            </Card>
-          )}
+          <Card className="p-4 shadow-none">
+            <div className="flex items-center gap-2">
+              <PackageCheck className="size-5 text-primary" aria-hidden="true" />
+              <h2 className="font-semibold">Datos de contacto</h2>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field
+                id="customer-full-name"
+                label="Nombre y apellidos"
+                required
+                value={customer.fullName}
+                onChange={(event) => setCustomer((current) => ({ ...current, fullName: event.target.value }))}
+                error={attemptedSubmit ? customerErrors.fullName : ""}
+                autoComplete="name"
+                className="sm:col-span-2"
+              />
+              <Field
+                id="customer-email"
+                label="Email"
+                required
+                type="email"
+                value={customer.email}
+                onChange={(event) => setCustomer((current) => ({ ...current, email: event.target.value.toLowerCase() }))}
+                error={attemptedSubmit ? customerErrors.email : ""}
+                autoComplete="email"
+              />
+              <Field
+                id="customer-phone"
+                label="Teléfono"
+                required
+                type="tel"
+                value={customer.phone}
+                onChange={(event) => setCustomer((current) => ({ ...current, phone: event.target.value }))}
+                error={attemptedSubmit ? customerErrors.phone : ""}
+                autoComplete="tel"
+              />
+            </div>
+            {!user && emailHasAccount && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Este email ya tiene una cuenta. <Button as={Link} to="/login" state={{ email: customer.email }} variant="link" size="sm" className="h-auto p-0 text-xs">Iniciar sesión</Button>
+              </p>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">
+              Guardamos temporalmente estos datos en tu dispositivo para completar el pedido.
+            </p>
+          </Card>
 
           <Card className="p-4 shadow-none">
             <div className="flex items-center gap-2">
@@ -619,7 +668,7 @@ export function Checkout() {
             <div className="mt-4">
               <ShippingMethods methods={shippingMethods} value={shippingMethodId} onChange={setShippingMethodId} loading={shippingLoading} />
             </div>
-            {shippingMethodId && shippingMethodId !== "pickup-free" && <div className="mt-4 border-t pt-4"><h3 className="mb-1 text-sm font-semibold">Dirección de entrega</h3><p className="mb-3 text-xs text-muted-foreground">Cotizaremos cuando la dirección esté completa.</p><AddressFields prefix="shipping" value={shippingAddress} onChange={setShippingAddress} showErrors={attemptedSubmit} required /></div>}
+            {shippingMethodId && shippingMethodId !== "pickup-free" && <div className="mt-4 border-t pt-4"><h3 className="mb-1 text-sm font-semibold">Dirección de entrega</h3><p className="mb-3 text-xs text-muted-foreground">Cotizaremos cuando la dirección esté completa.</p><AddressFields prefix="shipping" value={shippingAddress} onChange={setShippingAddress} showErrors={attemptedSubmit} required includeFullName={false} /></div>}
             <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" checked={useSameBilling} onChange={(event) => setUseSameBilling(event.target.checked)} className="size-4 rounded accent-primary" />
               Usar la misma dirección para facturación
@@ -637,13 +686,17 @@ export function Checkout() {
           </Card>
 
           <Card className="p-4 shadow-none">
-            <h2 className="font-semibold">Cupón</h2>
-            <p className="mt-1 text-sm text-muted-foreground">La validez y el descuento se calculan en el servidor.</p>
-            <div className="mt-3 flex gap-2">
-              <Input value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Código" aria-label="Código de cupón" />
-              <Button type="button" variant="outline" onClick={() => setAppliedCouponCode(couponCode.trim())}>{appliedCouponCode ? "Actualizar" : "Aplicar"}</Button>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold">¿Tienes un cupón?</h2>
+              <Button type="button" variant="ghost" size="sm" aria-expanded={couponExpanded} onClick={() => setCouponExpanded((current) => !current)}>
+                {couponExpanded ? "Ocultar" : "Añadir código"}
+              </Button>
             </div>
-            {!shippingLoading && shippingQuote?.coupon?.code === appliedCouponCode && <p className="mt-2 text-xs text-success">Cupón {appliedCouponCode} aplicado.</p>}
+            {couponExpanded && <div className="mt-3 flex gap-2">
+              <Input value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Código de descuento" aria-label="Código de cupón" />
+              <Button type="button" variant="outline" disabled={!normalizeCouponCode(couponCode)} onClick={() => setAppliedCouponCode(normalizeCouponCode(couponCode))}>{appliedCouponCode ? "Actualizar" : "Aplicar"}</Button>
+            </div>}
+            {!shippingLoading && shippingQuote?.coupon?.code === appliedCouponCode && <div className="mt-2 flex items-center justify-between gap-3"><p className="text-xs text-success">Cupón {appliedCouponCode} aplicado.</p><Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => { setCouponCode(""); setAppliedCouponCode(""); }}>Quitar</Button></div>}
           </Card>
 
           <Card className="p-4 shadow-none">
@@ -674,14 +727,15 @@ export function Checkout() {
               <input type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded accent-primary" />
               <span>He leído y acepto los <Link to="/terminos-condiciones" className="font-medium text-primary underline-offset-4 hover:underline">Términos y Condiciones de Venta</Link>.</span>
             </label>
-            {attemptedSubmit && !acceptedTerms && <p className="text-xs text-destructive">Debes aceptar los términos para continuar.</p>}
+            {!acceptedTerms && <p id="terms-required" className="text-xs text-muted-foreground">Debes aceptar los términos y condiciones para confirmar el pedido.</p>}
             <Button
               type="button"
               size="lg"
               className="w-full"
               onClick={handleConfirmOrder}
-              disabled={loading || paymentMethodsLoading || !paymentMethod || paymentMethods.length === 0}
+              disabled={!canSubmit}
               aria-busy={loading}
+              aria-describedby={!acceptedTerms ? "terms-required" : undefined}
             >
               {loading ? "Creando pedido…" : "Confirmar pedido"}
             </Button>

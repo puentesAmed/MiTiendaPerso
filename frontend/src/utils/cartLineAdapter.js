@@ -110,6 +110,9 @@ export function createCartLine({
   if (product?.provider === "aliexpress") {
     throw new Error("Producto externo no disponible");
   }
+  if (product?.customizable === true && customization?.type !== "designer") {
+    throw new Error("El producto requiere una personalización válida");
+  }
 
   const normalizedVariant = normalizeVariant(product, variant);
   const normalizedCustomization = normalizeCartCustomization(
@@ -312,4 +315,14 @@ export function toCheckoutItem(line, { includeCustomization = true } = {}) {
   };
   if (includeCustomization) item.customization = line.customization;
   return item;
+}
+
+export function buildShippingQuotePayload(items, shippingAddress, options = {}) {
+  return {
+    items: (items || []).map((item) => toCheckoutItem(item)),
+    shippingAddress,
+    shippingMethodId: options.shippingMethodId || null,
+    couponCode: options.couponCode || "",
+    email: options.email || null,
+  };
 }

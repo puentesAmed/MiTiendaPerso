@@ -7,6 +7,21 @@ export function getCommercialSurfaces(product) {
   return pricing.surfaces.filter((surface) => surface?.enabled && Number.isFinite(surface.priceModifier));
 }
 
+export function getProductCustomizationState(product) {
+  const surfaces = getCommercialSurfaces(product);
+  const selectedSurfaceIds = surfaces.filter((surface) => surface.required).map((surface) => surface.surfaceId);
+  return {
+    surfaces,
+    personalizationConfigured: surfaces.length > 0,
+    selectedSurfaceIds,
+    singleRequiredSurface: surfaces.length === 1 && surfaces[0].required,
+  };
+}
+
+export function canPersonalizeProduct({ customizationState, canAddToCart, isAliExpress, customizationQuote, quoteLoading }) {
+  return Boolean(canAddToCart && !isAliExpress && customizationState.personalizationConfigured && customizationQuote && !quoteLoading);
+}
+
 export function normalizeSelectedSurfaceIds(surfaces, selectedSurfaceIds) {
   if (!Array.isArray(selectedSurfaceIds) || selectedSurfaceIds.length === 0) {
     throw new Error("Selecciona al menos una superficie.");

@@ -44,7 +44,19 @@ export function isDeliveryAddressReady(address) {
 export function buildShippingQuoteRequestKey({ items, address, methodId, couponCode, email }) {
   const normalizedAddress = normalizeDeliveryAddress(address);
   return JSON.stringify({
-    items: (items || []).map((item) => ({ productId: item.productId, quantity: item.quantity, variant: item.variant || null })),
+    items: (items || []).map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      variant: item.variant || null,
+      customization: item.customization ? {
+        clientId: item.customization.clientId || null,
+        schemaVersion: item.customization.schemaVersion || null,
+        productId: item.customization.productId || null,
+        selectedSurfaceIds: item.customization.selectedSurfaceIds || item.customization.designDocument?.selectedSurfaceIds || null,
+        documentId: item.customization.designDocument?.documentId || null,
+        updatedAt: item.customization.designDocument?.metadata?.updatedAt || null,
+      } : null,
+    })),
     address: methodId && methodId !== "pickup-free" ? {
       street: normalizedAddress.street,
       city: normalizedAddress.city,

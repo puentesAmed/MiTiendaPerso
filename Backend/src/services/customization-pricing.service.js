@@ -19,6 +19,7 @@ function templateSurfaceMap(productTemplateId) {
 export function normalizeCustomizationPricing(input, productTemplateId) {
   if (input == null) return null;
   if (typeof input !== "object" || Array.isArray(input)) throw new CustomizationPricingError("Configuración de personalización inválida");
+  if (typeof input.enabled !== "boolean") throw new CustomizationPricingError("enabled debe ser booleano");
   const available = templateSurfaceMap(productTemplateId);
   if (!Array.isArray(input.surfaces)) throw new CustomizationPricingError("Las superficies de personalización deben ser un array");
   const seen = new Set();
@@ -27,16 +28,17 @@ export function normalizeCustomizationPricing(input, productTemplateId) {
     if (!available.has(surfaceId)) throw new CustomizationPricingError(`Superficie no válida: ${surfaceId || "sin id"}`);
     if (seen.has(surfaceId)) throw new CustomizationPricingError(`Superficie duplicada: ${surfaceId}`);
     seen.add(surfaceId);
+    if (typeof surface.enabled !== "boolean" || typeof surface.required !== "boolean") throw new CustomizationPricingError(`enabled/required inválidos para: ${surfaceId}`);
     const priceModifier = surface.priceModifier == null ? null : surface.priceModifier;
     if (priceModifier != null && (typeof priceModifier !== "number" || !Number.isFinite(priceModifier) || priceModifier < 0)) {
       throw new CustomizationPricingError(`Modificador inválido para: ${surfaceId}`);
     }
-    const enabled = Boolean(surface.enabled);
-    const required = Boolean(surface.required);
+    const enabled = surface.enabled;
+    const required = surface.required;
     if (required && (!enabled || priceModifier == null)) throw new CustomizationPricingError(`La superficie obligatoria debe estar disponible y tener precio: ${surfaceId}`);
     return { surfaceId, enabled, required, priceModifier };
   });
-  return { enabled: Boolean(input.enabled), surfaces };
+  return { enabled: input.enabled, surfaces };
 }
 
 export function getPublicCustomizationPricing(product) {
@@ -44,7 +46,7 @@ export function getPublicCustomizationPricing(product) {
   const available = templateSurfaceMap(product.productTemplateId);
   const surfaces = (product.customizationPricing.surfaces || [])
     .filter((surface) => surface.enabled && Number.isFinite(surface.priceModifier) && available.has(surface.surfaceId))
-    .map((surface) => ({ surfaceId: surface.surfaceId, label: available.get(surface.surfaceId).label, required: Boolean(surface.required), priceModifier: surface.priceModifier }));
+    .map((surface) => ({ surfaceId: surface.surfaceId, label: available.get(surface.surfaceId).label, enabled: true, required: Boolean(surface.required), priceModifier: surface.priceModifier }));
   return surfaces.length ? { enabled: true, surfaces } : null;
 }
 
@@ -70,6 +72,6 @@ export function resolveCustomizationQuote(product, selectedSurfaceIds) {
     unitPrice: roundCurrency(basePrice + customizationAmount),
     currency: "EUR",
     selectedSurfaceIds: selectedSurfaces.map((surface) => surface.surfaceId),
-    selectedSurfaces: selectedSurfaces.map((surface) => ({ ...surface })),
+    selectedSurfaces: selectedSurfaces.map(({ surfaceId, label, required, priceModifier }) => ({ surfaceId, label, required, priceModifier })),
   };
 }

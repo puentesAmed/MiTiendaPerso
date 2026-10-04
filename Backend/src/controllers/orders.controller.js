@@ -34,6 +34,7 @@ import {
 } from "../services/manual-payments.service.js";
 import { consumeCoupon, CouponError, releaseCoupon, validateCoupon } from "../services/coupon.service.js";
 import { calculateOrderPreparation } from "../services/fulfillment.service.js";
+import { assertTermsAccepted, normalizeOrderCustomer, OrderCheckoutContractError } from "../services/order-checkout-contract.service.js";
 
 
 /**
@@ -52,7 +53,8 @@ export async function createOrder(req, res) {
       items,
       paymentMethod,
       guestId,
-      email: guestEmail,
+      customer,
+      termsAccepted,
       shippingAddress,
       billingAddress,
       notes,
@@ -60,10 +62,14 @@ export async function createOrder(req, res) {
       shippingMethodId,
     } = req.body;
 
-    if (!userId && (!guestId || !guestEmail)) {
+    const customerSnapshot = normalizeOrderCustomer(customer);
+    assertTermsAccepted(termsAccepted);
+    const guestEmail = customerSnapshot.email;
+
+    if (!userId && !guestId) {
       return res.status(400).json({
         ok: false,
-        message: "Pedido de invitado requiere email",
+        message: "Pedido de invitado requiere identidad de sesión",
       });
     }
 
@@ -203,6 +209,9 @@ export async function createOrder(req, res) {
       userId: userId || null,
       guestId: userId ? null : guestId,
       guestEmail: userId ? null : guestEmail,
+      customer: customerSnapshot,
+      termsAccepted: true,
+      termsAcceptedAt: new Date(),
       items: orderItems,
       subtotal,
       discountAmount: coupon?.discountAmount || 0,
@@ -266,7 +275,7 @@ export async function createOrder(req, res) {
 
     try {
       await sendEmail({
-        to: order.guestEmail || req.user?.email,
+        to: order.customer?.email || order.guestEmail || req.user?.email,
         subject: "Confirmación de pedido",
         html: orderClientEmail(order),
       });
@@ -317,7 +326,8 @@ export async function createOrder(req, res) {
       err instanceof ShippingCalculationError ||
       err instanceof ManualPaymentError ||
       err instanceof CouponError ||
-      err instanceof ProductionCustomizationError
+      err instanceof ProductionCustomizationError ||
+      err instanceof OrderCheckoutContractError
     ) {
       return res.status(err.status || 400).json({
         ok: false,

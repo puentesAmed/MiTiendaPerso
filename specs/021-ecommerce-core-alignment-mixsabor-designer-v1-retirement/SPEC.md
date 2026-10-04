@@ -33,6 +33,7 @@ Restaurar el ecommerce invitado completo, retirar Designer V1 del runtime, conso
 5. Pago usa documento persistente con bootstrap manual/idempotente desde ENV. La API pública nunca expone detalles sensibles; la creación congela instrucciones.
 6. Cupones soportan exclusivamente `percent`, incluyendo el caso `PRIMER10` first-order. Se admiten enabled, fechas, mínimo y límite solicitados; no existe tipo fixed en esta SPEC.
 7. Orden de cálculo único: subtotal autoritativo de items → descuento autoritativo de cupón → shipping calculado sobre subtotal descontado → total. El cliente no puede declarar descuentos, shipping ni total.
+8. Todo pedido nuevo congela `customer.fullName`, `customer.email` y `customer.phone`, y exige `termsAccepted === true`; los pedidos históricos sin estos campos continúan siendo legibles.
 
 ## Contratos
 
@@ -47,6 +48,10 @@ Documento único con `bizum` y `bankTransfer`: enabled, label, instructions y re
 ### Shipping
 
 Quote añade `subtotal`, `discountAmount`, `discountedSubtotal`, `price`, `total`, zona y, cuando proceda, distancia/fuente. Cache por dirección normalizada. Las reglas comerciales permanecen en configuración propia.
+
+### Customer y aceptación legal
+
+Checkout solicita nombre y apellidos, email y teléfono con independencia del método de entrega. `PICKUP_FREE` no requiere dirección; los demás métodos sí. La creación del pedido valida y congela el snapshot `customer` y exige aceptación explícita de términos, sin derivarla de la dirección ni de la sesión autenticada.
 
 ## Seguridad
 

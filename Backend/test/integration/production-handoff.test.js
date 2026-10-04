@@ -36,18 +36,25 @@ function orderPayload(product, customization, variant = null) {
   return {
     guestId: "production-guest",
     email: "production@test.com",
+    customer: { fullName: "Cliente Producción", email: "production@test.com", phone: "+34 600 123 123" },
+    termsAccepted: true,
     paymentMethod: "bizum",
     items: [{ productId: product._id.toString(), quantity: 2, provider: "local", variant, customization }],
     shippingAddress: { fullName: "Cliente", street: "Calle 1", city: "Madrid", state: "Madrid", postalCode: "28001", country: "España" },
   };
 }
 
-function v2Customization(product, templateId, templateRevision, views, uploads, variant = null) {
+function v2Customization(product, templateId, templateRevision, views, uploads, variant = null, selectedSurfaceIds = null) {
   return {
     type: "designer",
     schemaVersion: 2,
     designVersion: 2,
     clientId: `client-${templateId}`,
+    productId: product._id.toString(),
+    ...(selectedSurfaceIds ? {
+      selectedSurfaceIds,
+      customizationPricing: { basePrice: Number(product.price), customizationAmount: 0, unitPrice: 999, currency: "EUR", selectedSurfaceIds },
+    } : {}),
     designDocument: {
       schemaVersion: 1,
       documentId: `document-${templateId}`,
@@ -58,6 +65,7 @@ function v2Customization(product, templateId, templateRevision, views, uploads, 
       assets: {},
       views: Object.fromEntries(views.map((viewId) => [viewId, { elements: [] }])),
       metadata: { createdAt: "2026-10-02T08:00:00.000Z", updatedAt: "2026-10-02T08:00:00.000Z" },
+      ...(selectedSurfaceIds ? { selectedSurfaceIds } : {}),
     },
     uploads: { assets: {}, surfaces: Object.fromEntries(Object.entries(uploads).map(([viewId, artworkUploadId]) => [viewId, { artworkUploadId, proofUploadId: artworkUploadId }])) },
   };
@@ -92,8 +100,8 @@ after(async () => {
 });
 
 test("pedido V2 de taza congela wrap, enlaza order item y protege descargas", async () => {
-  const product = await Product.create({ name: "Taza cerámica personalizada", price: 20, stock: 10, active: true, customizable: true, productTemplateId: "mug-ceramic-standard-v1" });
-  const customizationPayload = v2Customization(product, "mug-ceramic-standard-v1", 1, ["wrap"], { wrap: await uploadArtwork(1008, 480) });
+  const product = await Product.create({ _id: "693070095d96fe47cd3f2055", name: "Taza cerámica personalizada", price: 12.5, stock: 10, active: true, customizable: true, productTemplateId: "mug-ceramic-standard-v1", customizationPricing: { enabled: true, surfaces: [{ surfaceId: "wrap-main", enabled: true, required: true, priceModifier: 0 }] } });
+  const customizationPayload = v2Customization(product, "mug-ceramic-standard-v1", 1, ["wrap"], { wrap: await uploadArtwork(1008, 480) }, null, ["wrap-main"]);
   const assetUploadId = await uploadArtwork(10, 10);
   customizationPayload.designDocument.assets["asset-1"] = { assetId: "asset-1", kind: "image", mimeType: "image/png", widthPx: 10, heightPx: 10, sizeBytes: 24, createdAt: "2026-10-02T08:00:00.000Z" };
   customizationPayload.designDocument.views.wrap.elements.push({ id: "image-1", type: "image", printAreaId: "wrap-main", assetId: "asset-1", x: 0.62, y: 0.2, width: 0.25, height: 0.3, rotation: 17, opacity: 1, zIndex: 0, hidden: false });
@@ -101,6 +109,8 @@ test("pedido V2 de taza congela wrap, enlaza order item y protege descargas", as
   const response = await request(app).post("/api/orders").send(orderPayload(product, customizationPayload));
   assert.equal(response.status, 201, JSON.stringify(response.body));
   const orderItem = response.body.order.items[0];
+  assert.equal(orderItem.price, 12.5);
+  assert.deepEqual(orderItem.selectedSurfaceIds, ["wrap-main"]);
   const customization = await Customization.findById(orderItem.customizationId).lean();
   assert.equal(customization.schemaVersion, 2);
   assert.equal(String(customization.orderItemId), String(orderItem._id));
@@ -183,7 +193,7 @@ test("quality gate rechaza rejected y payload manipulado", async () => {
     payload.uploads.assets.image = uploadId;
     const response = await request(app).post("/api/orders").send(orderPayload(product, payload));
     assert.equal(response.status, 400, JSON.stringify(response.body));
-    assert.match(response.body.message, /Calidad de imagen no válida|dimensiones del asset no coinciden/);
+    assert.match(response.body.message, /assets rechazados|Calidad de imagen no válida|dimensiones del asset no coinciden/);
   }
   assert.equal(await Customization.countDocuments(), 0);
 });

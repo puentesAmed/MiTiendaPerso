@@ -24,7 +24,8 @@ import { isProductDesignerV2Enabled } from "../../features/product-designer-v2/u
 import { canUseProductDesignerV2 } from "../../features/product-designer-v2/templates/templateCatalog";
 import { buildDesignerV2Location, createDesignerVariantContext } from "../../features/product-designer-v2/domain/variantContext";
 import { animateAddToCart } from "../../utils/cartAnimation";
-import { getCommercialSurfaces, normalizeSelectedSurfaceIds } from "../../features/product-designer-v2/domain/customizationSurfaces";
+import { canPersonalizeProduct, getProductCustomizationState, normalizeSelectedSurfaceIds } from "../../features/product-designer-v2/domain/customizationSurfaces";
+import { canQuickAdd, isCustomizableProduct } from "../../utils/productCapabilities";
 
 function DetailSkeleton() {
   return (
@@ -131,7 +132,7 @@ export function ProductDetail() {
         setSelectedColor("");
         setSelectedAttributes({});
         setSelectedVariant(null);
-        setSelectedSurfaceIds(getCommercialSurfaces(data).filter((surface) => surface.required).map((surface) => surface.surfaceId));
+        setSelectedSurfaceIds(getProductCustomizationState(data).selectedSurfaceIds);
         setCustomizationQuote(null);
         setQuoteError("");
       } catch {
@@ -156,13 +157,15 @@ export function ProductDetail() {
     (availableColors.length === 0 || Boolean(selectedColor));
   const designerVariant = useMemo(() => createDesignerVariantContext(product, { size: selectedSize, color: selectedColor }), [product, selectedColor, selectedSize]);
   const designerLocation = buildDesignerV2Location(productId, designerVariant);
-  const commercialSurfaces = useMemo(() => getCommercialSurfaces(product), [product]);
+  const customizationState = useMemo(() => getProductCustomizationState(product), [product]);
+  const commercialSurfaces = customizationState.surfaces;
 
   useEffect(() => {
     let active = true;
     if (!productId || commercialSurfaces.length === 0 || !hasRequiredVariant || selectedSurfaceIds.length === 0) {
       setCustomizationQuote(null);
       setQuoteError("");
+      setQuoteLoading(false);
       return () => { active = false; };
     }
     let normalized;
@@ -171,6 +174,7 @@ export function ProductDetail() {
     } catch (error) {
       setCustomizationQuote(null);
       setQuoteError(error.message);
+      setQuoteLoading(false);
       return () => { active = false; };
     }
     setQuoteLoading(true);
@@ -242,7 +246,7 @@ export function ProductDetail() {
   const displayedPrice = customizationQuote?.unitPrice ?? (isAliExpress
     ? selectedVariant?.price?.final ?? product.price?.final
     : product.price?.final ?? product.price);
-  const canPersonalize = canAddToCart && !isAliExpress && commercialSurfaces.length > 0 && Boolean(customizationQuote) && !quoteLoading;
+  const canPersonalize = canPersonalizeProduct({ customizationState, canAddToCart, isAliExpress, customizationQuote, quoteLoading });
 
   const toggleSurface = (surface) => {
     if (surface.required) return;
@@ -263,7 +267,7 @@ export function ProductDetail() {
   });
 
   const handleAddToCart = (event) => {
-    if (isAliExpress || !canAddToCart) return;
+    if (isAliExpress || !canAddToCart || !canQuickAdd(product, { optionsResolved: hasRequiredVariant })) return;
     addItem({
       product,
       quantity: clampQuantity(quantity),
@@ -363,7 +367,7 @@ export function ProductDetail() {
               <p className="text-sm text-muted-foreground">Selecciona las opciones del producto para continuar.</p>
             )}
 
-            {hasDesignerV2Template && isProductDesignerV2Enabled && (
+            {hasDesignerV2Template && isProductDesignerV2Enabled && !customizationState.singleRequiredSurface && (
               <fieldset className="space-y-2 border-t pt-4">
                 <legend className="text-sm font-semibold">¿Dónde quieres personalizar?</legend>
                 {commercialSurfaces.length > 0 ? commercialSurfaces.map((surface) => (
@@ -380,9 +384,18 @@ export function ProductDetail() {
               </fieldset>
             )}
 
-            <Button type="button" size="lg" className="w-full" onClick={handleAddToCart} disabled={!canAddToCart}>
-              <ShoppingCart aria-hidden="true" /> Añadir al carrito
-            </Button>
+            {hasDesignerV2Template && isProductDesignerV2Enabled && customizationState.singleRequiredSurface && (
+              <div className="flex items-center justify-between gap-3 border-t pt-4 text-sm">
+                <span className="font-semibold">{commercialSurfaces[0].label}</span>
+                <span className="font-medium">{commercialSurfaces[0].priceModifier === 0 ? "Incluido" : `+${commercialSurfaces[0].priceModifier.toFixed(2)} €`}</span>
+              </div>
+            )}
+
+            {!isCustomizableProduct(product) && (
+              <Button type="button" size="lg" className="w-full" onClick={handleAddToCart} disabled={!canAddToCart}>
+                <ShoppingCart aria-hidden="true" /> Añadir al carrito
+              </Button>
+            )}
 
             {hasDesignerV2Template && isProductDesignerV2Enabled && (
               canPersonalize && (!(availableSizes.length || availableColors.length) || designerVariant) ? (

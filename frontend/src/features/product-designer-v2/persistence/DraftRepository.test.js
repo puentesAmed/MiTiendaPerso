@@ -8,6 +8,7 @@ import { createDraft } from "./draftModel.js";
 import { addImage, addText } from "../domain/designDocumentActions.js";
 import { createDraftRepository, DraftConflictError, IncompatibleDraftError } from "./DraftRepository.js";
 import { createTestMemoryStorage } from "./testMemoryStorage.js";
+import { filterTemplateBySelectedSurfaceIds } from "../domain/customizationSurfaces.js";
 
 const now = () => "2026-09-29T08:00:00.000Z";
 const makeDocument = () => createDesignDocument({ template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "product-1", idFactory: () => "document-1", now });
@@ -69,6 +70,17 @@ test("no restaura silenciosamente un draft de otra variante", async () => {
   await assert.rejects(
     () => repository.loadDraft("shirt-white", { template: GENERIC_FLAT_DEMO_TEMPLATE, productId: "shirt-1", variant: { variantId: "black", colorId: "black", color: "Negro", size: "M", sizeId: "m" } }),
     /otra variante/,
+  );
+});
+
+test("no restaura un draft de otra selección de superficies", async () => {
+  const repository = createDraftRepository(createTestMemoryStorage(), { now });
+  const frontTemplate = filterTemplateBySelectedSurfaceIds(TSHIRT_BASIC_V1_TEMPLATE, ["tshirt-front"]);
+  const document = createDesignDocument({ template: frontTemplate, productId: "shirt-1", selectedSurfaceIds: ["tshirt-front"], idFactory: () => "front-document", now });
+  await repository.saveDraft(createDraft({ draftId: "shirt-front", document, now }));
+  await assert.rejects(
+    () => repository.loadDraft("shirt-front", { template: frontTemplate, productId: "shirt-1", selectedSurfaceIds: ["tshirt-back"] }),
+    /otra selección de superficies/,
   );
 });
 

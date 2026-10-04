@@ -8,9 +8,8 @@ import { Card } from "./ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Price } from "./ui/Price";
 import { ProductImage } from "./ui/ProductImage";
-import { canUseProductDesignerV2 } from "../features/product-designer-v2/templates/templateCatalog";
-import { isProductDesignerV2Enabled } from "../features/product-designer-v2/utils/featureFlag";
 import { animateAddToCart } from "../utils/cartAnimation";
+import { getProductCardAction, isCustomizableProduct } from "../utils/productCapabilities";
 
 const PRODUCTS_SCROLL_KEY = "products_scroll_y";
 
@@ -21,17 +20,14 @@ export function ProductCard({ product, catalogContext }) {
   const productId = product?.id || product?._id;
   const name = product?.name || product?.title || "Producto";
   const mainImage = product?.image || (Array.isArray(product?.images) && product.images.length > 0 ? product.images[0] : null);
-  const isCustomizable = !!product?.customizable;
-  const canPersonalize = isProductDesignerV2Enabled && canUseProductDesignerV2(product);
+  const isCustomizable = isCustomizableProduct(product);
   const hasNewVariantsArray = Array.isArray(product?.variants);
-  const hasOldSizeVariants = product?.variants?.sizes?.length > 0;
-  const hasOldColorVariants = product?.variants?.colors?.length > 0;
-  const hasVariants = hasNewVariantsArray ? product.variants.length > 0 : hasOldSizeVariants || hasOldColorVariants;
   const availableVariantsCount = hasNewVariantsArray ? product.variants.filter((variant) => variant?.available !== false).length : null;
   const isAvailable = hasNewVariantsArray ? availableVariantsCount > 0 : (typeof product?.stock === "number" ? product.stock > 0 : true);
   const availabilityLabel = hasNewVariantsArray
     ? isAvailable ? `Disponibles: ${availableVariantsCount}` : "Sin stock"
     : typeof product?.stock === "number" && product.stock > 0 ? `Stock: ${product.stock}` : "Sin stock";
+  const primaryAction = getProductCardAction(product);
 
   const rememberProductsScroll = () => {
     if (catalogContext?.returnTo) {
@@ -56,7 +52,7 @@ export function ProductCard({ product, catalogContext }) {
   });
 
   const handleAddToCart = (event) => {
-    if (hasVariants) {
+    if (primaryAction.type === "navigate") {
       rememberProductsScroll();
       navigate(`/productos/${productId}`, { state: getProductsReturnState() });
       return;
@@ -87,11 +83,11 @@ export function ProductCard({ product, catalogContext }) {
             <Price value={product?.price} className="text-base sm:text-lg" />
             <Badge variant={isAvailable ? "success" : "destructive"} className="px-1.5">{availabilityLabel}</Badge>
           </div>
-          <div className="grid gap-1.5 sm:grid-cols-2">
-            <Button size="sm" className={canPersonalize ? "w-full" : "w-full sm:col-span-2"} onClick={handleAddToCart} disabled={!isAvailable}>
-              <ShoppingCart /> {hasVariants ? "Elegir opciones" : "Añadir"}
+          <div className="grid gap-1.5">
+            <Button size="sm" className="w-full" onClick={handleAddToCart} disabled={!isAvailable}>
+              {primaryAction.type === "quick-add" ? <ShoppingCart /> : isCustomizable ? <Sparkles /> : <SlidersHorizontal />}
+              {primaryAction.label}
             </Button>
-            {canPersonalize && <Button as={Link} to={hasVariants ? `/productos/${productId}` : `/personalizar-v2/${productId}`} variant="outline" size="sm" className="w-full"><Sparkles /> Personalizar</Button>}
           </div>
         </div>
       </Card>

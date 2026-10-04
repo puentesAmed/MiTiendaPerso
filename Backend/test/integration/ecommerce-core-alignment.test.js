@@ -41,6 +41,7 @@ test("cupón válido modifica total autoritativo y queda congelado en el pedido"
   await Coupon.create({ code: "AHORRA10", percentOff: 10, enabled: true });
   const response = await request(app).post("/api/orders").send({
     guestId: "guest-coupon", email: "coupon@test.com", paymentMethod: "bizum",
+    customer: { fullName: "Cliente Cupón", email: "coupon@test.com", phone: "+34 600 123 123" }, termsAccepted: true,
     items: [{ productId: product._id, quantity: 1 }], shippingAddress: address,
     couponCode: "ahorra10",
   });

@@ -70,6 +70,8 @@ function validOrderPayload(productId, provider = "local") {
   return {
     guestId: "guest-dormant-integrations",
     email: "guest@test.com",
+    customer: { fullName: "Cliente Test", email: "guest@test.com", phone: "+34 600 123 123" },
+    termsAccepted: true,
     paymentMethod: "bizum",
     items: [{ productId, quantity: 1, provider, price: 20 }],
     shippingAddress: {

@@ -1,7 +1,7 @@
 // src/services/orders.service.js
 import { http } from "./http";
 import { normalizeCustomization } from "../utils/customizationAdapter";
-import { toCheckoutItem } from "../utils/cartLineAdapter";
+import { buildShippingQuotePayload, toCheckoutItem } from "../utils/cartLineAdapter";
 
 export async function createOrderRequest(items, data = {}) {
   const payload = {
@@ -14,6 +14,8 @@ export async function createOrderRequest(items, data = {}) {
     paymentMethod: data.paymentMethod,
     guestId: data.guestId ?? null,
     email: data.email ?? null,
+    customer: data.customer,
+    termsAccepted: data.termsAccepted === true,
     shippingAddress: data.shippingAddress,
     billingAddress: data.billingAddress ?? null,
     notes: data.notes ?? "",
@@ -34,15 +36,7 @@ export async function createOrderRequest(items, data = {}) {
 }
 
 export async function getShippingQuoteRequest(items, shippingAddress, signal, options = {}) {
-  const payload = {
-    items: (items || []).map((item) =>
-      toCheckoutItem(item, { includeCustomization: false })
-    ),
-    shippingAddress,
-    shippingMethodId: options.shippingMethodId || null,
-    couponCode: options.couponCode || "",
-    email: options.email || null,
-  };
+  const payload = buildShippingQuotePayload(items, shippingAddress, options);
 
   const { data } = await http.post("/api/shipping/quote", payload, { signal });
   return data;

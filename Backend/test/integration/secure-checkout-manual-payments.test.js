@@ -34,6 +34,8 @@ function orderPayload(productId, overrides = {}) {
   return {
     guestId: "guest-secure-checkout",
     email: "guest@test.com",
+    customer: { fullName: "Cliente Test", email: "guest@test.com", phone: "+34 600 123 123" },
+    termsAccepted: true,
     paymentMethod: "bizum",
     items: [{ productId, quantity: 1 }],
     shippingAddress: address(),
@@ -42,6 +44,38 @@ function orderPayload(productId, overrides = {}) {
     ...overrides,
   };
 }
+
+test("pedido nuevo exige snapshot de contacto completo y aceptación explícita", async () => {
+  const product = await createProduct();
+  for (const [field, expected] of [
+    ["fullName", /nombre y apellidos/i],
+    ["email", /email de contacto/i],
+    ["phone", /teléfono de contacto/i],
+  ]) {
+    const customer = { fullName: "Cliente Test", email: "guest@test.com", phone: "+34 600 123 123", [field]: "" };
+    const response = await request(app).post("/api/orders").send(orderPayload(product._id.toString(), { customer }));
+    assert.equal(response.status, 400);
+    assert.match(response.body.message, expected);
+  }
+
+  for (const termsAccepted of [false, undefined]) {
+    const payload = orderPayload(product._id.toString(), { termsAccepted });
+    if (termsAccepted === undefined) delete payload.termsAccepted;
+    const response = await request(app).post("/api/orders").send(payload);
+    assert.equal(response.status, 400);
+    assert.match(response.body.message, /aceptar los Términos/i);
+  }
+});
+
+test("método con entrega sigue exigiendo dirección aunque exista customer", async () => {
+  const product = await createProduct();
+  const response = await request(app).post("/api/orders").send(orderPayload(product._id.toString(), {
+    shippingMethodId: "local-urgent",
+    shippingAddress: null,
+  }));
+  assert.equal(response.status, 400);
+  assert.match(response.body.message, /dirección de envío/i);
+});
 
 async function createProduct(overrides = {}) {
   return Product.create({
@@ -119,6 +153,9 @@ test("precio, shipping y total manipulados se ignoran", async () => {
   assert.equal(response.body.order.items[0].price, 20);
   assert.equal(response.body.order.shipping.price, 5.99);
   assert.equal(response.body.order.total, 25.99);
+  assert.deepEqual(response.body.order.customer, { fullName: "Cliente Test", email: "guest@test.com", phone: "+34 600 123 123" });
+  assert.equal(response.body.order.termsAccepted, true);
+  assert.ok(response.body.order.termsAcceptedAt);
 });
 
 test("subtotal y total se recalculan para varias líneas", async () => {

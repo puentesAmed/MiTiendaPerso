@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterTemplateBySelectedSurfaceIds, getCommercialSurfaces, normalizeSelectedSurfaceIds } from "./customizationSurfaces.js";
+import { canPersonalizeProduct, filterTemplateBySelectedSurfaceIds, getCommercialSurfaces, getProductCustomizationState, normalizeSelectedSurfaceIds } from "./customizationSurfaces.js";
 import { getProductTemplateById } from "../templates/templateRepository.js";
 
 const surfaces = [
@@ -21,4 +21,20 @@ test("template del diseñador contiene únicamente superficies seleccionadas", (
   assert.deepEqual(filtered.printSurfaces.map((surface) => surface.id), ["tshirt-front", "tshirt-sleeve-left"]);
   assert.deepEqual(filtered.views.map((view) => view.id), ["front", "sleeve-left"]);
   assert.throws(() => filterTemplateBySelectedSurfaceIds(template, ["missing"]), /ajena/);
+});
+
+test("taza con única superficie required y modifier cero queda configurada y sin carrito directo", () => {
+  const product = {
+    customizable: true,
+    customizationPricing: { enabled: true, surfaces: [{ surfaceId: "wrap-main", label: "Diseño envolvente", enabled: true, required: true, priceModifier: 0 }] },
+  };
+  const customizationState = getProductCustomizationState(product);
+  assert.deepEqual(customizationState, {
+    surfaces: product.customizationPricing.surfaces,
+    personalizationConfigured: true,
+    selectedSurfaceIds: ["wrap-main"],
+    singleRequiredSurface: true,
+  });
+  assert.equal(canPersonalizeProduct({ customizationState, canAddToCart: true, isAliExpress: false, customizationQuote: { unitPrice: 12.5 }, quoteLoading: false }), true);
+  assert.equal(getProductCustomizationState({ ...product, customizationPricing: { enabled: true, surfaces: [{ ...product.customizationPricing.surfaces[0], priceModifier: null }] } }).personalizationConfigured, false);
 });

@@ -35,15 +35,10 @@ function productIdentity(product) {
   };
 }
 
-function hasVariants(product) {
-  if (Array.isArray(product?.variants)) return product.variants.length > 0;
-  return Boolean(product?.variants?.sizes?.length || product?.variants?.colors?.length);
-}
-
 function personalizationPath(product) {
   const id = product?.id || product?._id;
   if (!id || !isProductDesignerV2Enabled || !canUseProductDesignerV2(product)) return "/productos";
-  return hasVariants(product) ? `/productos/${id}` : `/personalizar-v2/${id}`;
+  return `/productos/${id}`;
 }
 
 function categoryLabel(value) {

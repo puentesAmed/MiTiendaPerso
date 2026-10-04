@@ -21,6 +21,8 @@ function validOrderPayload(productId) {
   return {
     guestId: "guest-test-1",
     email: "guest@test.com",
+    customer: { fullName: "Cliente Test", email: "guest@test.com", phone: "+34 600 123 123" },
+    termsAccepted: true,
     paymentMethod: "bizum",
     items: [{ productId, quantity: 1, provider: "local", price: 20 }],
     shippingAddress: {
