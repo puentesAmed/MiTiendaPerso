@@ -3,6 +3,7 @@ import {
   renderDelivery, renderDetailSection, renderEmailLayout, renderMoneySummary, renderOrderMeta,
   renderPaymentPending, renderProducts, renderTotalHighlight,
 } from "../components/orderEmailParts.js";
+import { displayOrderNumber } from "../../services/order-number.service.js";
 
 const EVENT_TITLES = Object.freeze({
   ORDER_RECEIVED: "Pedido recibido",
@@ -27,7 +28,7 @@ function detailedContent(order, event) {
       ? [renderOrderMeta(order), renderTotalHighlight(order), renderPaymentPending(order), renderProducts(order), renderDelivery(order)].join("")
       : [renderOrderMeta(order), renderProducts(order), renderMoneySummary(order), renderDetailSection("Preparación", preparation), renderDelivery(order), renderDetailSection("Pago", payment)].join(""),
     text: [
-      textSection("Pedido", [`#${order._id}`, order.createdAt ? new Date(order.createdAt).toLocaleDateString("es-ES") : ""]),
+      textSection("Pedido", [displayOrderNumber(order), order.createdAt ? new Date(order.createdAt).toLocaleDateString("es-ES") : ""]),
       ...(pending ? [`Importe: ${money(order.total)}`, textSection("Pago pendiente", payment)] : []),
       textSection("Productos", orderSummaryLines(order)),
       ...(!pending ? [textSection("Resumen", [
@@ -49,7 +50,7 @@ function statusContent(order, event) {
   const delivery = ["ORDER_READY_FOR_PICKUP", "ORDER_SHIPPED"].includes(event) ? deliveryLines(order) : [];
   return {
     html: [renderOrderMeta(order), renderDetailSection("Siguiente paso", [nextStep]), renderTotalHighlight(order), delivery.length ? renderDelivery(order) : ""].join(""),
-    text: [textSection("Pedido", [`#${order._id}`]), `Total: ${money(order.total)}`, textSection("Siguiente paso", [nextStep]), textSection("Entrega", delivery)].filter(Boolean).join("\n\n"),
+    text: [textSection("Pedido", [displayOrderNumber(order)]), `Total: ${money(order.total)}`, textSection("Siguiente paso", [nextStep]), textSection("Entrega", delivery)].filter(Boolean).join("\n\n"),
   };
 }
 
@@ -60,7 +61,7 @@ function adminContent(order) {
     .map((item) => `${item.name} · Diseño ${item.designNumber}${item.surfaces.length ? ` · ${item.surfaces.join(" · ")}` : ""}`);
   return {
     html: [renderOrderMeta(order), renderTotalHighlight(order), renderDetailSection("Cliente", customer), renderDelivery(order), renderDetailSection("Pago", paymentLines(order)), renderProducts(order), renderDetailSection("Personalizaciones", personalization)].join(""),
-    text: [textSection("Pedido", [`#${order._id}`]), textSection("Datos clave", keyFacts), textSection("Cliente", customer), textSection("Productos", orderSummaryLines(order))].join("\n\n"),
+    text: [textSection("Pedido", [displayOrderNumber(order)]), textSection("Datos clave", keyFacts), textSection("Cliente", customer), textSection("Productos", orderSummaryLines(order))].join("\n\n"),
   };
 }
 
@@ -76,7 +77,7 @@ export function renderTransactionalOrderEmail(order, event, { publicStorefrontUr
     ORDER_IN_PRODUCTION: `Hola, ${name}. Tu pedido ya está en producción.`,
     ORDER_READY_FOR_PICKUP: `Hola, ${name}. Tu pedido está listo para recoger.`,
     ORDER_SHIPPED: `Hola, ${name}. Hemos enviado tu pedido.`,
-    NEW_ORDER_ADMIN: `Pedido #${order._id} · ${money(order.total)}.`,
+    NEW_ORDER_ADMIN: `Pedido ${displayOrderNumber(order)} · ${money(order.total)}.`,
   };
   const content = admin ? adminContent(order)
     : ["ORDER_RECEIVED", "PAYMENT_PENDING"].includes(event) ? detailedContent(order, event)
@@ -85,7 +86,7 @@ export function renderTransactionalOrderEmail(order, event, { publicStorefrontUr
     : event === "ORDER_RECEIVED" && pickupOrder(order) ? "Te avisaremos cuando esté listo para recoger."
       : "Te avisaremos cuando cambie el estado de tu pedido.";
   return {
-    subject: `${title} · Pedido #${order._id} · MiLuGui`,
-    ...renderEmailLayout({ title, greeting: greetings[event], contentHtml: content.html, contentText: content.text, closing, orderId: order._id, publicStorefrontUrl, replyTo }),
+    subject: `${title} · ${displayOrderNumber(order)} · MiLuGui`,
+    ...renderEmailLayout({ title, greeting: greetings[event], contentHtml: content.html, contentText: content.text, closing, orderNumber: displayOrderNumber(order), publicStorefrontUrl, replyTo }),
   };
 }

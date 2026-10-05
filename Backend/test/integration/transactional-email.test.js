@@ -113,6 +113,7 @@ test("enviar con URL HTTPS válida incluye logo sin consultar al frontend", asyn
 
 test("segunda pasada: total, Bizum y footer condicional mantienen HTML comercial escapado", () => {
   const order = { _id: "order-1", ...orderData({
+    orderNumber: "MLG-261005-042",
     payment: { method: "bizum", status: "pending", instructionsSnapshot: { recipient: "+34 600 000 000", instructions: "Usa <el pedido>" } },
   }) };
   const received = renderTransactionalOrderEmail(order, "ORDER_RECEIVED", { publicStorefrontUrl: null });
@@ -123,12 +124,18 @@ test("segunda pasada: total, Bizum y footer condicional mantienen HTML comercial
   assert.match(received.html, /Punto de recogida/);
   assert.doesNotMatch(received.html, /Si necesitas ayuda|<img|wrap-main|<script>/);
   const pending = renderTransactionalOrderEmail(order, "PAYMENT_PENDING", { publicStorefrontUrl: null, replyTo: "ayuda@example.test" });
-  for (const expected of ["Pago pendiente", "Bizum", "Importe", "35,50 €", "Enviar a", "+34 600 000 000", "Concepto", "PEDIDO-order-1", "Instrucciones", "Usa &lt;el pedido&gt;"]) {
+  for (const expected of ["Pago pendiente", "Bizum", "Importe", "35,50 €", "Enviar a", "+34 600 000 000", "Concepto", "MLG-261005-042", "Instrucciones", "Usa &lt;el pedido&gt;"]) {
     assert.ok(pending.html.includes(expected), expected);
   }
   assert.ok(pending.html.indexOf("Pago pendiente</h2>") < pending.html.indexOf("Productos</h2>"));
   assert.match(pending.html, /Si necesitas ayuda, responde a este correo/);
   assert.doesNotMatch(pending.html, /<el pedido>|wrap-main/);
+  assert.match(pending.subject, /Pago pendiente · MLG-261005-042 · MiLuGui/);
+  assert.doesNotMatch(pending.html + pending.text + pending.subject, /order-1/);
+  const transfer = renderTransactionalOrderEmail({ ...order, payment: { method: "bank_transfer", status: "pending", instructionsSnapshot: { accountHolder: "MiLuGui", iban: "ES123", instructions: "Referencia comercial" } } }, "PAYMENT_PENDING", { publicStorefrontUrl: null });
+  assert.match(transfer.html, /ES123/);
+  assert.match(transfer.html, /MLG-261005-042/);
+  assert.doesNotMatch(transfer.html + transfer.subject, /order-1/);
 });
 
 test("superficies y variantes son comerciales; correos de estado son breves", () => {

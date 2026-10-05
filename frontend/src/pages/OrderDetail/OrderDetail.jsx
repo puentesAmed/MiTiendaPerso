@@ -18,6 +18,7 @@ import { Card } from "../../components/ui/card";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { Price } from "../../components/ui/Price";
 import { Skeleton } from "../../components/ui/skeleton";
+import { displayOrderNumber } from "../../utils/orderNumber";
 
 function DetailSkeleton() {
   return (
@@ -128,7 +129,7 @@ export function OrderDetail() {
         <>
           <header className="mb-5">
             <p className="text-xs text-muted-foreground">Pedido</p>
-            <h2 className="break-all text-xl font-bold tracking-tight sm:text-2xl">#{order._id}</h2>
+            <h2 className="break-all text-xl font-bold tracking-tight sm:text-2xl">{displayOrderNumber(order)}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{formatOrderDate(order.createdAt)}</p>
             <div className="mt-3 flex flex-wrap gap-2"><OrderStatusBadge status={order.status} /><PaymentStatusBadge status={paymentStatus} /></div>
           </header>

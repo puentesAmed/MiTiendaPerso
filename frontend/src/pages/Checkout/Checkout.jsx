@@ -554,10 +554,10 @@ export function Checkout() {
         state: {
           order: data.order,
           orderId: data.orderId,
+          orderNumber: data.orderNumber,
           isGuest: !user,
           email: !user ? customer.email : null,
           emailHasAccount,
-          paymentInstructions: data.paymentInstructions,
         },
       });
       setTimeout(() => {

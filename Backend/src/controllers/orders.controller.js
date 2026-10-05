@@ -32,6 +32,7 @@ import {
 } from "../services/manual-payments.service.js";
 import { consumeCoupon, CouponError, releaseCoupon, validateCoupon } from "../services/coupon.service.js";
 import { calculateOrderPreparation } from "../services/fulfillment.service.js";
+import { generateOrderNumber } from "../services/order-number.service.js";
 import { assertTermsAccepted, normalizeOrderCustomer, OrderCheckoutContractError } from "../services/order-checkout-contract.service.js";
 
 
@@ -202,8 +203,12 @@ export async function createOrder(req, res) {
       }
     }
 
+    const createdAt = new Date();
+    const orderNumber = await generateOrderNumber(createdAt);
     const order = await Order.create({
       _id: orderId,
+      orderNumber,
+      createdAt,
       userId: userId || null,
       guestId: userId ? null : guestId,
       guestEmail: userId ? null : guestEmail,
@@ -276,6 +281,7 @@ export async function createOrder(req, res) {
     return res.status(201).json({
       ok: true,
       orderId: order._id,
+      orderNumber: order.orderNumber,
       order,
       paymentInstructions: await buildManualPaymentInstructions(order),
     });
@@ -595,7 +601,9 @@ export async function trackOrderByEmail(req, res) {
       });
     }
 
-    const order = await Order.findById(orderId).lean();
+    const order = /^MLG-\d{6}-\d{3,}$/.test(orderId)
+      ? await Order.findOne({ orderNumber: orderId }).lean()
+      : mongoose.isValidObjectId(orderId) ? await Order.findById(orderId).lean() : null;
 
     if (!order) {
       return res.status(404).json({
@@ -620,6 +628,7 @@ export async function trackOrderByEmail(req, res) {
       ok: true,
       order: {
         _id: order._id,
+        orderNumber: order.orderNumber,
         status: order.status,
         total: order.total,
         createdAt: order.createdAt,

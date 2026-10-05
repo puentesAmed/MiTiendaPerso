@@ -14,6 +14,7 @@ const addressSchema = new mongoose.Schema(
 
 const orderSchema = new mongoose.Schema(
   {
+    orderNumber: { type: String, unique: true, sparse: true, immutable: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: false },
     guestId: { type: String},
     guestEmail: { type: String},

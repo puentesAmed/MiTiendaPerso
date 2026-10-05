@@ -8,6 +8,7 @@ import { Card } from "../../components/ui/card";
 import { PageContainer } from "../../components/ui/PageContainer";
 import { Price } from "../../components/ui/Price";
 import { ProductImage } from "../../components/ui/ProductImage";
+import { displayOrderNumber } from "../../utils/orderNumber";
 
 function formatMoney(value, currency = "EUR") {
   const amount = Number(value);
@@ -62,11 +63,12 @@ export function OrderConfirmation() {
     );
   }
 
-  const { order, orderId, isGuest, email, emailHasAccount, paymentInstructions } = state;
-  const method = paymentInstructions?.method || order?.payment?.method;
+  const { order, orderId, isGuest, email, emailHasAccount } = state;
+  const orderNumber = displayOrderNumber({ orderNumber: state.orderNumber || order?.orderNumber, _id: orderId });
+  const method = order?.payment?.method;
   const paymentMethodLabel = method === "bank_transfer" ? "Transferencia bancaria" : method === "bizum" ? "Bizum" : "Pago manual";
-  const amount = paymentInstructions?.amount ?? order?.total;
-  const currency = paymentInstructions?.currency || "EUR";
+  const amount = order?.total;
+  const currency = "EUR";
   const itemCount = order?.items?.reduce((total, item) => total + Number(item.quantity || 0), 0) || 0;
 
   const copyToClipboard = async (value, label) => {
@@ -89,7 +91,7 @@ export function OrderConfirmation() {
           <div className="min-w-0">
             <p className="text-sm font-medium text-success">Pedido creado</p>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Gracias por tu pedido</h1>
-            <p className="mt-1 break-words text-sm text-muted-foreground">Referencia del pedido: <strong className="text-foreground">#{orderId}</strong></p>
+            <p className="mt-1 break-words text-sm text-muted-foreground">Pedido: <strong className="text-foreground">{orderNumber}</strong></p>
           </div>
         </header>
 
@@ -111,50 +113,16 @@ export function OrderConfirmation() {
               </dl>
             </Card>
 
-            {paymentInstructions ? (
-              <Card className="p-4 shadow-none" aria-labelledby="payment-instructions-title">
+            <Card className="p-4 shadow-none" aria-labelledby="payment-instructions-title">
                 <div className="flex items-center gap-2">
                   <PackageCheck className="size-5 text-primary" aria-hidden="true" />
-                  <h2 id="payment-instructions-title" className="font-semibold">Completa el pago</h2>
+                  <h2 id="payment-instructions-title" className="font-semibold">Pago pendiente</h2>
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Usa exactamente estos datos enviados por el servidor para identificar tu pedido.
-                </p>
-                <dl className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {method === "bizum" ? (
-                    <CopyValue label="Destinatario Bizum" value={paymentInstructions.recipient} copied={copied} onCopy={copyToClipboard} />
-                  ) : (
-                    <>
-                      {paymentInstructions.accountHolder && (
-                        <div className="rounded-lg border bg-background p-3">
-                          <dt className="text-xs font-medium text-muted-foreground">Titular</dt>
-                          <dd className="mt-1 break-words text-sm font-semibold">{paymentInstructions.accountHolder}</dd>
-                        </div>
-                      )}
-                      <CopyValue label="IBAN" value={paymentInstructions.iban} copied={copied} onCopy={copyToClipboard} />
-                    </>
-                  )}
-                  <CopyValue label="Concepto" value={paymentInstructions.reference} copied={copied} onCopy={copyToClipboard} />
-                  <div className="rounded-lg border bg-background p-3">
-                    <dt className="text-xs font-medium text-muted-foreground">Importe</dt>
-                    <dd className="mt-1 text-sm font-semibold">{formatMoney(paymentInstructions.amount, currency)}</dd>
-                  </div>
-                </dl>
-                {paymentInstructions.instructions && (
-                  <div className="mt-3 rounded-lg bg-muted p-3 text-sm leading-relaxed">
-                    {paymentInstructions.instructions}
-                  </div>
-                )}
-                <p className="mt-3 text-sm font-medium">
-                  Indica el concepto y espera la verificación manual. El estado cambiará cuando confirmemos el pago.
-                </p>
+                <p className="mt-2 text-sm text-muted-foreground">Te hemos enviado las instrucciones de pago por email.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Usa la referencia de pedido indicada en el correo.</p>
+                <dl className="mt-4"><CopyValue label="Referencia del pedido" value={orderNumber} copied={copied} onCopy={copyToClipboard} /></dl>
                 <span className="sr-only" role="status" aria-live="polite">{copied ? `${copied} copiado` : ""}</span>
               </Card>
-            ) : (
-              <Alert className="border-warning/30 bg-warning/10">
-                No se recibieron instrucciones de pago. Conserva la referencia y contacta con la tienda antes de realizar ningún envío de dinero.
-              </Alert>
-            )}
 
             {isGuest && email && (
               <Card className="p-4 shadow-none">

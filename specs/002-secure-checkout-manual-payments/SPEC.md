@@ -553,3 +553,16 @@ Cada tarea debe implementarse con cambios localizados. No se mezclan refactors g
 - definir recuperación segura de instrucciones tras recargar la página de confirmación;
 - revisar emails de pedido y notificaciones de pago como fase separada;
 - eliminar compatibilidad de payload antiguo solo después de desplegar y verificar el nuevo frontend.
+
+## Ajuste localizado — referencia comercial y confirmación
+
+- Cada pedido nuevo recibe en backend un `orderNumber` persistente `MLG-YYMMDD-NNN` (fecha UTC), con contador atómico diario e índice único. `_id` permanece para rutas y relaciones; el cliente no puede imponer `orderNumber`.
+- Confirmación web: solo estado de pago pendiente, referencia comercial e indicación de consultar el correo. No muestra destinatario Bizum, IBAN, titular ni instrucciones completas. El snapshot del pedido se conserva para emails y trazabilidad.
+- Emails transaccionales de SPEC-023B usan `orderNumber` en asunto, cuerpo y concepto de pago. Admin y listados muestran y buscan la referencia comercial.
+- Pedidos históricos sin `orderNumber`: fallback estable `LEGACY-` más los últimos ocho caracteres de `_id`, sin escribir ni generar una nueva referencia durante la lectura. Un backfill, si se decide, queda fuera de este ajuste.
+
+## Limpieza excepcional pre-lanzamiento (solo dry-run autorizado)
+
+- `Backend/scripts/reset-prelaunch-orders.js` audita pedidos, notificaciones, personalizaciones ligadas, archivos de producción exclusivos y `OrderSequence`. El comando sin argumentos es de solo lectura; la ejecución exige `--execute --confirm=RESET_PRELAUNCH` y transacción Mongo.
+- Se conservan Products, usuarios, PaymentSettings, ShippingSettings, drafts sin pedido y assets compartidos o ambiguos. Los archivos exclusivos se retirarían únicamente después del commit de Mongo.
+- El checkout descuenta stock pero Order no guarda un ledger de débitos/restauraciones. En esta limpieza excepcional, el catálogo y su stock se consideran de prueba: el dry-run muestra cantidades candidatas solo como información y el reset **no modifica Product.stock**. La ejecución exige, además de las dos confirmaciones, `--database=<nombre>` coincidente con la conexión. Los contadores de `OrderSequence` solo se reiniciarían en esta limpieza pre-lanzamiento.

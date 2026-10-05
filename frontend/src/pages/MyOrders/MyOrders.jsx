@@ -18,6 +18,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { Price } from "../../components/ui/Price";
 import { Skeleton } from "../../components/ui/skeleton";
+import { displayOrderNumber } from "../../utils/orderNumber";
 
 function OrdersSkeleton() {
   return (
@@ -91,7 +92,7 @@ export function MyOrders() {
                 <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Pedido</p>
-                    <h3 className="break-all text-sm font-semibold">#{order._id}</h3>
+                    <h3 className="break-all text-sm font-semibold">{displayOrderNumber(order)}</h3>
                     <p className="mt-1 text-xs text-muted-foreground">{formatOrderDate(order.createdAt)}</p>
                   </div>
                   <Price value={Number(order.total ?? order.totalAmount ?? 0)} className="text-xl sm:text-right" />

@@ -5,6 +5,8 @@ import request from "supertest";
 import { createApp } from "../../src/app.js";
 import { Product } from "../../src/models/Product.js";
 import { Order } from "../../src/models/Order.js";
+import { generateOrderNumber } from "../../src/services/order-number.service.js";
+import { buildManualPaymentInstructions } from "../../src/services/manual-payments.service.js";
 import { Customization } from "../../src/models/Customization.js";
 import { EmailNotification } from "../../src/models/EmailNotification.js";
 import { emailTransporter } from "../../src/services/email.service.js";
@@ -116,11 +118,51 @@ test("crear pedido nuevo inicializa status, payment.status y paymentStatus", asy
     `Esperado 201, recibido ${res.status}. Body: ${JSON.stringify(res.body)}`
   );
   assert.equal(res.body.order.status, "created");
+  assert.match(res.body.orderNumber, /^MLG-\d{6}-\d{3,}$/);
+  assert.equal(res.body.order.orderNumber, res.body.orderNumber);
+  assert.equal(res.body.order._id, res.body.orderId);
+  assert.equal(res.body.paymentInstructions.reference, res.body.orderNumber);
+  assert.equal((await Order.findById(res.body.orderId)).orderNumber, res.body.orderNumber);
+  const tracking = await request(app).get("/api/orders/track").query({ orderId: res.body.orderNumber, email: "guest@test.com" });
+  assert.equal(tracking.status, 200);
+  assert.equal(tracking.body.order.orderNumber, res.body.orderNumber);
   assert.equal(res.body.order.payment?.status, "pending");
   assert.equal(res.body.order.paymentStatus, "pending");
   const events = await EmailNotification.find({ orderId: res.body.orderId }).lean();
-  assert.deepEqual(events.map((entry) => entry.event).sort(), ["ORDER_RECEIVED", "PAYMENT_PENDING"]);
+  assert.deepEqual(events.map((entry) => entry.event).sort(), ["NEW_ORDER_ADMIN", "ORDER_RECEIVED", "PAYMENT_PENDING"]);
   assert.ok(events.every((entry) => entry.status === "failed"));
+});
+
+test("secuencia comercial diaria es atómica y el índice impide duplicados", async () => {
+  const day = new Date("2026-10-05T23:59:59Z");
+  const numbers = await Promise.all(Array.from({ length: 24 }, () => generateOrderNumber(day)));
+  assert.equal(new Set(numbers).size, 24);
+  assert.deepEqual(numbers.slice().sort(), Array.from({ length: 24 }, (_, index) => `MLG-261005-${String(index + 1).padStart(3, "0")}`));
+  assert.equal(await generateOrderNumber(new Date("2026-10-06T00:00:00Z")), "MLG-261006-001");
+  await Order.init();
+  await Order.create(baseOrder({ orderNumber: numbers[0] }));
+  await assert.rejects(Order.create(baseOrder({ orderNumber: numbers[0] })), (error) => error.code === 11000);
+});
+
+test("el cliente no puede imponer orderNumber al crear pedido", async () => {
+  const product = await Product.create({ name: "Número servidor", price: 20, stock: 2 });
+  await Product.collection.updateOne({ _id: product._id }, { $set: { active: true } });
+  const response = await request(app).post("/api/orders").send({ ...validOrderPayload(product._id.toString()), orderNumber: "MLG-000000-999" });
+  assert.equal(response.status, 201, JSON.stringify(response.body));
+  assert.match(response.body.orderNumber, /^MLG-\d{6}-001$/);
+  assert.notEqual(response.body.orderNumber, "MLG-000000-999");
+});
+
+test("Bizum y transferencia usan la misma referencia comercial persistida", async () => {
+  for (const method of ["bizum", "bank_transfer"]) {
+    const order = await Order.create(baseOrder({
+      orderNumber: method === "bizum" ? "MLG-261005-001" : "MLG-261005-002",
+      payment: { method, status: "pending", instructionsSnapshot: method === "bizum" ? { recipient: "600000000" } : { accountHolder: "MiLuGui", iban: "ES123" } },
+    }));
+    const instructions = await buildManualPaymentInstructions(order);
+    assert.equal(instructions.reference, order.orderNumber);
+    assert.equal(instructions.method, method);
+  }
 });
 
 test("createOrder con customization v1 (designer) sigue creando Customization", async () => {
@@ -331,7 +373,7 @@ test("detalle de pedido propio devuelve snapshot, resumen e instrucciones manual
   assert.equal(res.body.paymentInstructions.method, "bizum");
   assert.equal(res.body.paymentInstructions.status, "pending");
   assert.equal(res.body.paymentInstructions.amount, 15.99);
-  assert.match(res.body.paymentInstructions.reference, /^PEDIDO-/);
+  assert.match(res.body.paymentInstructions.reference, /^LEGACY-/);
 });
 
 test("detalle autenticado no expone pedidos ajenos y exige token", async () => {

@@ -1,4 +1,5 @@
 import { getPaymentSettings } from "./payment-settings.service.js";
+import { displayOrderNumber } from "./order-number.service.js";
 
 const methodKey = (method) => method === "bank_transfer" ? "bankTransfer" : method;
 
@@ -37,7 +38,7 @@ export async function buildManualPaymentInstructions(order) {
     status: order.payment.status,
     amount: order.total,
     currency: "EUR",
-    reference: `PEDIDO-${order._id}`,
+    reference: displayOrderNumber(order),
   };
 
   if (method === "bizum") {

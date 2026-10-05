@@ -114,6 +114,7 @@ import {
 } from "@/components/ui/legacy-ui";
 import { http } from "../../services/http";
 import { OrderTimeline } from "../../components/orders/OrderTimeline";
+import { displayOrderNumber } from "../../utils/orderNumber";
 
 
 /* Labels legibles para el estado logístico */
@@ -235,7 +236,7 @@ export function OrderTracking() {
       {order && (
         <Box mt={6} p={4} borderWidth="1px" borderRadius="md">
           <Text fontWeight="bold" mb={1}>
-            Pedido #{order._id}
+            Pedido {displayOrderNumber(order)}
           </Text>
 
           <Badge colorScheme="blue" mb={2}>

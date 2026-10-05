@@ -1,6 +1,7 @@
 import { getOrderItemVariant } from "../../utils/orderVariantAdapter.js";
 import { PRODUCTION_TEMPLATES } from "../../production/template-catalog.js";
 import { env } from "../../config/env.js";
+import { displayOrderNumber } from "../../services/order-number.service.js";
 
 export const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -85,7 +86,7 @@ export function paymentLines(order, { instructions = false } = {}) {
     instructions && method === "bank_transfer" ? line("Titular", snapshot.accountHolder) : "",
     instructions && method === "bank_transfer" ? line("IBAN", snapshot.iban) : "",
     instructions ? line("Instrucciones", snapshot.instructions) : "",
-    instructions ? `Referencia: PEDIDO-${order._id}` : "",
+    instructions ? `Referencia: ${displayOrderNumber(order)}` : "",
   ].filter(Boolean);
 }
 
@@ -104,7 +105,7 @@ const paragraph = (value) => `<p style="margin:5px 0;font-size:14px;line-height:
 
 export function renderOrderMeta(order) {
   const date = order.createdAt ? new Date(order.createdAt).toLocaleDateString("es-ES") : "";
-  return section(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7faf9;border:1px solid #e3eeeb"><tr>${cell(`<span style="display:block;font-size:12px;color:#66736f">Pedido</span><strong style="display:block;margin-top:4px;font-size:17px;color:#242424;overflow-wrap:anywhere">#${escapeHtml(order._id)}</strong>`, "width:62%;padding:13px;vertical-align:top;")}${cell(`<span style="display:block;font-size:12px;color:#66736f">Fecha</span><strong style="display:block;margin-top:4px;font-size:14px;color:#242424">${escapeHtml(date)}</strong>`, "padding:13px;vertical-align:top;")}</tr></table>`);
+  return section(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7faf9;border:1px solid #e3eeeb"><tr>${cell(`<span style="display:block;font-size:12px;color:#66736f">Pedido</span><strong style="display:block;margin-top:4px;font-size:17px;color:#242424;overflow-wrap:anywhere">${escapeHtml(displayOrderNumber(order))}</strong>`, "width:62%;padding:13px;vertical-align:top;")}${cell(`<span style="display:block;font-size:12px;color:#66736f">Fecha</span><strong style="display:block;margin-top:4px;font-size:14px;color:#242424">${escapeHtml(date)}</strong>`, "padding:13px;vertical-align:top;")}</tr></table>`);
 }
 
 export function renderProducts(order) {
@@ -148,19 +149,19 @@ export function renderPaymentPending(order) {
     ["Importe", money(order.total)],
     [method === "bizum" ? "Enviar a" : "Titular", method === "bizum" ? snapshot.recipient : snapshot.accountHolder],
     ...(method === "bank_transfer" ? [["IBAN", snapshot.iban]] : []),
-    ["Concepto", `PEDIDO-${order._id}`],
+    ["Concepto", displayOrderNumber(order)],
     ["Instrucciones", snapshot.instructions || (method === "bizum" ? "Realiza el Bizum indicando como concepto el número de pedido." : "Indica el número de pedido como referencia del pago.")],
   ].filter(([, value]) => value).map(([label, value]) => `<tr>${cell(escapeHtml(label), "padding:6px 12px 6px 0;vertical-align:top;font-size:12px;color:#66736f;")}${cell(`<strong style="font-size:14px;color:#242424;font-weight:600;overflow-wrap:anywhere">${escapeHtml(value)}</strong>`, "padding:6px 0;vertical-align:top;")}</tr>`).join("");
   return section(`<div style="padding:16px;background:#eef9f6;border:1px solid #c9e5de;border-left:4px solid #52aa9c">${smallHeading("Pago pendiente")}<strong style="display:block;margin-bottom:10px;font-size:16px;color:#242424">${escapeHtml(method === "bizum" ? "Bizum" : "Transferencia bancaria")}</strong><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${fields}</table></div>`);
 }
 
-export function renderEmailLayout({ title, greeting, contentHtml, contentText, closing, orderId, publicStorefrontUrl, replyTo }) {
+export function renderEmailLayout({ title, greeting, contentHtml, contentText, closing, orderNumber, publicStorefrontUrl, replyTo }) {
   const logoUrl = getEmailLogoUrl(publicStorefrontUrl);
   const branding = logoUrl
     ? `<img src="${escapeHtml(logoUrl)}" alt="MiLuGui" width="180" style="display:block;width:180px;max-width:100%;height:auto;border:0" />`
     : `<strong style="font-size:20px;letter-spacing:-.02em;color:#1c1917">MiLuGui</strong>`;
   const replyLine = replyTo ? "Si necesitas ayuda, responde a este correo." : "";
-  const html = `<!doctype html><html lang="es"><body style="margin:0;padding:0;background:#f4f6f5;color:#242424;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:20px 10px"><table role="presentation" width="620" cellpadding="0" cellspacing="0" style="width:100%;max-width:620px;background:#fff;border:1px solid #e4eae7"><tr>${cell(branding, "padding:26px;background:#fff;border-bottom:2px solid #52aa9c;")}</tr><tr>${cell(`<h1 style="margin:0 0 14px;font-size:26px;line-height:1.25;color:#242424">${escapeHtml(title)}</h1><p style="margin:0;font-size:15px;line-height:1.6;color:#444">${escapeHtml(greeting)}</p>`, "padding:26px 26px 6px;")}</tr>${contentHtml}${section(`<p style="margin:0;font-size:14px;line-height:1.5;color:#444">${escapeHtml(closing)}</p>`)}<tr>${cell(`<strong style="font-size:14px;color:#242424">MiLuGui</strong><p style="margin:6px 0 0;font-size:12px;line-height:1.5;color:#66736f">Este correo corresponde a tu pedido #${escapeHtml(orderId)}.</p>${replyLine ? `<p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#66736f">${replyLine}</p>` : ""}`, "padding:20px 26px;background:#f7faf9;border-top:1px solid #e4eae7;")}</tr></table></td></tr></table></body></html>`;
-  const text = ["MiLuGui", title, greeting, contentText, closing, `Este correo corresponde a tu pedido #${orderId}.`, replyLine].filter(Boolean).join("\n\n");
+  const html = `<!doctype html><html lang="es"><body style="margin:0;padding:0;background:#f4f6f5;color:#242424;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:20px 10px"><table role="presentation" width="620" cellpadding="0" cellspacing="0" style="width:100%;max-width:620px;background:#fff;border:1px solid #e4eae7"><tr>${cell(branding, "padding:26px;background:#fff;border-bottom:2px solid #52aa9c;")}</tr><tr>${cell(`<h1 style="margin:0 0 14px;font-size:26px;line-height:1.25;color:#242424">${escapeHtml(title)}</h1><p style="margin:0;font-size:15px;line-height:1.6;color:#444">${escapeHtml(greeting)}</p>`, "padding:26px 26px 6px;")}</tr>${contentHtml}${section(`<p style="margin:0;font-size:14px;line-height:1.5;color:#444">${escapeHtml(closing)}</p>`)}<tr>${cell(`<strong style="font-size:14px;color:#242424">MiLuGui</strong><p style="margin:6px 0 0;font-size:12px;line-height:1.5;color:#66736f">Este correo corresponde a tu pedido ${escapeHtml(orderNumber)}.</p>${replyLine ? `<p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#66736f">${replyLine}</p>` : ""}`, "padding:20px 26px;background:#f7faf9;border-top:1px solid #e4eae7;")}</tr></table></td></tr></table></body></html>`;
+  const text = ["MiLuGui", title, greeting, contentText, closing, `Este correo corresponde a tu pedido ${orderNumber}.`, replyLine].filter(Boolean).join("\n\n");
   return { html, text };
 }
