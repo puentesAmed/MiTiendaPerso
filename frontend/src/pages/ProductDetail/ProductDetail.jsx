@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Minus, Plus, ShoppingCart, Sparkles } from "lucide-react";
 import { apiGetProductById, apiQuoteCustomization } from "../../services/products.service";
@@ -22,10 +22,13 @@ import { ProductGallery } from "../../components/ui/ProductGallery";
 import { Skeleton } from "../../components/ui/skeleton";
 import { isProductDesignerV2Enabled } from "../../features/product-designer-v2/utils/featureFlag";
 import { canUseProductDesignerV2 } from "../../features/product-designer-v2/templates/templateCatalog";
-import { buildDesignerV2Location, createDesignerVariantContext } from "../../features/product-designer-v2/domain/variantContext";
+import { buildDesignerV2Location } from "../../features/product-designer-v2/domain/variantContext";
+import { createCustomizationQuoteCoordinator, createCustomizationQuoteKey } from "../../utils/customizationQuoteRequest";
+import { resolveSelectedVariant, toRequestedProductVariant } from "../../utils/productVariants";
 import { animateAddToCart } from "../../utils/cartAnimation";
 import { canPersonalizeProduct, getProductCustomizationState, normalizeSelectedSurfaceIds } from "../../features/product-designer-v2/domain/customizationSurfaces";
 import { canQuickAdd, isCustomizableProduct } from "../../utils/productCapabilities";
+import { createPersonalizationWorkflow } from "../../features/product-designer-v2/domain/personalizationWorkflow";
 
 function DetailSkeleton() {
   return (
@@ -84,6 +87,7 @@ export function ProductDetail() {
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [personalizationMode, setPersonalizationMode] = useState("same");
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedAttributes, setSelectedAttributes] = useState({});
@@ -93,6 +97,8 @@ export function ProductDetail() {
   const [customizationQuote, setCustomizationQuote] = useState(null);
   const [quoteError, setQuoteError] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const quoteCoordinatorRef = useRef(null);
+  if (!quoteCoordinatorRef.current) quoteCoordinatorRef.current = createCustomizationQuoteCoordinator();
 
   const handleBackToProducts = () => {
     if (location.state?.fromProducts) {
@@ -128,11 +134,13 @@ export function ProductDetail() {
         if (!alive) return;
         setProduct(data);
         setQuantity(1);
+        setPersonalizationMode("same");
         setSelectedSize("");
         setSelectedColor("");
         setSelectedAttributes({});
         setSelectedVariant(null);
         setSelectedSurfaceIds(getProductCustomizationState(data).selectedSurfaceIds);
+        quoteCoordinatorRef.current.reset();
         setCustomizationQuote(null);
         setQuoteError("");
       } catch {
@@ -155,7 +163,7 @@ export function ProductDetail() {
   const hasRequiredVariant =
     (availableSizes.length === 0 || Boolean(selectedSize)) &&
     (availableColors.length === 0 || Boolean(selectedColor));
-  const designerVariant = useMemo(() => createDesignerVariantContext(product, { size: selectedSize, color: selectedColor }), [product, selectedColor, selectedSize]);
+  const designerVariant = useMemo(() => resolveSelectedVariant(product, { size: selectedSize, color: selectedColor }), [product, selectedColor, selectedSize]);
   const designerLocation = buildDesignerV2Location(productId, designerVariant);
   const customizationState = useMemo(() => getProductCustomizationState(product), [product]);
   const commercialSurfaces = customizationState.surfaces;
@@ -168,6 +176,12 @@ export function ProductDetail() {
       setQuoteLoading(false);
       return () => { active = false; };
     }
+    if ((availableSizes.length > 0 || availableColors.length > 0) && !designerVariant) {
+      setCustomizationQuote(null);
+      setQuoteError("La combinación seleccionada no está disponible.");
+      setQuoteLoading(false);
+      return () => { active = false; };
+    }
     let normalized;
     try {
       normalized = normalizeSelectedSurfaceIds(commercialSurfaces, selectedSurfaceIds);
@@ -177,9 +191,18 @@ export function ProductDetail() {
       setQuoteLoading(false);
       return () => { active = false; };
     }
+    const quoteKey = createCustomizationQuoteKey({
+      productId,
+      canonicalVariantId: designerVariant?.variantId,
+      selectedSurfaceIds: normalized,
+    });
+    setCustomizationQuote(null);
     setQuoteLoading(true);
     setQuoteError("");
-    apiQuoteCustomization(productId, { selectedSurfaceIds: normalized, variant: designerVariant })
+    quoteCoordinatorRef.current.request(quoteKey, () => apiQuoteCustomization(productId, {
+      selectedSurfaceIds: normalized,
+      variant: toRequestedProductVariant(designerVariant),
+    }))
       .then((quote) => { if (active) setCustomizationQuote(quote); })
       .catch((error) => {
         if (active) {
@@ -189,7 +212,7 @@ export function ProductDetail() {
       })
       .finally(() => { if (active) setQuoteLoading(false); });
     return () => { active = false; };
-  }, [commercialSurfaces, designerVariant, hasRequiredVariant, productId, selectedSurfaceIds]);
+  }, [availableColors.length, availableSizes.length, commercialSurfaces, designerVariant, hasRequiredVariant, productId, selectedSurfaceIds]);
 
   const aliAttributes = useMemo(() => {
     if (!isAliExpress || !Array.isArray(product?.variants)) return {};
@@ -278,6 +301,19 @@ export function ProductDetail() {
     setAddedDialogOpen(true);
   };
 
+  const handlePersonalize = () => {
+    if (!canPersonalize || ((availableSizes.length || availableColors.length) && !designerVariant)) return;
+    navigate(designerLocation, {
+      state: {
+        variant: designerVariant,
+        selectedSurfaceIds: customizationQuote.selectedSurfaceIds,
+        customizationQuote,
+        personalizationWorkflow: createPersonalizationWorkflow(clampQuantity(quantity), personalizationMode),
+        fromProductDetail: true,
+      },
+    });
+  };
+
   return (
     <PageContainer>
       <Button type="button" variant="ghost" size="sm" className="mb-4 -ml-2" onClick={handleBackToProducts}>
@@ -363,8 +399,16 @@ export function ProductDetail() {
               </div>
             </div>
 
+            {isCustomizableProduct(product) && hasDesignerV2Template && isProductDesignerV2Enabled && quantity > 1 && (
+              <fieldset className="space-y-2 border-t pt-4">
+                <legend className="text-sm font-semibold">¿Cómo quieres personalizar estas unidades?</legend>
+                <label className="flex items-center gap-2 text-sm"><input type="radio" name="personalization-mode" value="same" checked={personalizationMode === "same"} onChange={() => setPersonalizationMode("same")} /> Mismo diseño para todas</label>
+                <label className="flex items-center gap-2 text-sm"><input type="radio" name="personalization-mode" value="different" checked={personalizationMode === "different"} onChange={() => setPersonalizationMode("different")} /> Diseños diferentes</label>
+              </fieldset>
+            )}
+
             {!hasRequiredVariant && (
-              <p className="text-sm text-muted-foreground">Selecciona las opciones del producto para continuar.</p>
+              <p className="text-sm text-muted-foreground">Selecciona talla y color para continuar.</p>
             )}
 
             {hasDesignerV2Template && isProductDesignerV2Enabled && !customizationState.singleRequiredSurface && (
@@ -400,9 +444,8 @@ export function ProductDetail() {
             {hasDesignerV2Template && isProductDesignerV2Enabled && (
               canPersonalize && (!(availableSizes.length || availableColors.length) || designerVariant) ? (
                 <Button
-                  as={Link}
-                  to={designerLocation}
-                  state={{ variant: designerVariant, selectedSurfaceIds: customizationQuote.selectedSurfaceIds, customizationQuote, fromProductDetail: true }}
+                  type="button"
+                  onClick={handlePersonalize}
                   variant="secondary"
                   className="w-full"
                 >

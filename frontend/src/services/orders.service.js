@@ -81,3 +81,13 @@ export async function confirmOrderPayment(orderId) {
   const { data } = await http.post(`/api/orders/${orderId}/mark-paid`);
   return data;
 }
+
+export async function adminGetOrderEmails(orderId) {
+  const { data } = await http.get(`/api/orders/${orderId}/emails`);
+  return data;
+}
+
+export async function adminRetryOrderEmail(orderId, event) {
+  const { data } = await http.post(`/api/orders/${orderId}/emails/${event}/retry`);
+  return data;
+}

@@ -23,7 +23,7 @@ export class AppErrorBoundary extends Component {
     return (
       <main className="grid min-h-screen place-items-center bg-background px-4 text-foreground">
         <section className="w-full max-w-lg rounded-xl border bg-card p-6 text-center shadow-sm" role="alert">
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">MiTiendaPerso</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">MiLuGui</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight">No pudimos mostrar esta página</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Se ha producido un error inesperado. Puedes recargar o volver al inicio.

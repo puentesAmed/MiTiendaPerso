@@ -11,6 +11,8 @@ import {
   trackOrderByEmail,
   adminConfirmDeliveryDate,
   markOrderAsPaid,
+  adminGetOrderEmails,
+  adminRetryOrderEmail,
 } from "../controllers/orders.controller.js";
 
 export const ordersRouter = Router();
@@ -25,6 +27,8 @@ ordersRouter.post("/", optionalAuth, createOrder); // público
 ordersRouter.get("/mine", requireAuth, getOrdersByUser);
 ordersRouter.get("/mine/:id", requireAuth, getOrderByIdForUser);
 ordersRouter.post("/:id/mark-paid", requireAuth, requireAdmin, markOrderAsPaid);
+ordersRouter.get("/:id/emails", requireAuth, requireAdmin, adminGetOrderEmails);
+ordersRouter.post("/:id/emails/:event/retry", requireAuth, requireAdmin, adminRetryOrderEmail);
 
 // ADMIN: lista todos los pedidos
 ordersRouter.get("/", requireAuth, requireAdmin, adminGetAllOrders);

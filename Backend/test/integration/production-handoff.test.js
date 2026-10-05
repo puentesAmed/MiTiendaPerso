@@ -153,6 +153,55 @@ test("pedido V2 de taza congela wrap, enlaza order item y protege descargas", as
   assert.equal(invalid.status, 409);
 });
 
+test("tres tazas con un diseño crean un item y un manifest con cantidad tres", async () => {
+  const product = await Product.create({ name: "Taza por cantidad", price: 12.5, stock: 5, active: true, customizable: true, productTemplateId: "mug-ceramic-standard-v1", customizationPricing: { enabled: true, surfaces: [{ surfaceId: "wrap-main", enabled: true, required: true, priceModifier: 0 }] } });
+  const design = v2Customization(product, "mug-ceramic-standard-v1", 1, ["wrap"], { wrap: await uploadArtwork(1008, 480) }, null, ["wrap-main"]);
+  const order = orderPayload(product, design);
+  order.items[0].quantity = 3;
+  order.items[0].customization.customizationPricing.unitPrice = 0;
+  const response = await request(app).post("/api/orders").send(order);
+  assert.equal(response.status, 201, JSON.stringify(response.body));
+  assert.equal(response.body.order.items.length, 1);
+  assert.equal(response.body.order.items[0].quantity, 3);
+  assert.equal(response.body.order.items[0].price, 12.5);
+  assert.equal(response.body.order.subtotal, 37.5);
+  assert.equal((await Product.findById(product._id)).stock, 2);
+  const customization = await Customization.findById(response.body.order.items[0].customizationId).lean();
+  assert.equal(customization.quantity, 3);
+  const manifest = JSON.parse((await storageProvider.read(customization.productionBundle.manifestStorageKey)).toString("utf8"));
+  assert.equal(manifest.quantity, 3);
+  assert.equal(manifest.surfaces.length, 1);
+});
+
+test("dos diseños de camiseta comparten pedido, conservan precio/cantidad y consumen stock total", async () => {
+  const product = await Product.create({ name: "Camiseta de dos diseños", price: 19.9, stock: 5, active: true, customizable: true, productTemplateId: "tshirt-basic-v1", variants: { sizes: ["M"], colors: ["BLANCO"] }, customizationPricing: { enabled: true, surfaces: [{ surfaceId: "tshirt-front", enabled: true, required: true, priceModifier: 0 }, { surfaceId: "tshirt-back", enabled: true, required: false, priceModifier: 5 }] } });
+  const variant = { size: "M", color: "BLANCO" };
+  const designA = v2Customization(product, "tshirt-basic-v1", 2, ["front"], { front: await uploadArtwork(754, 1024) }, variant, ["tshirt-front"]);
+  const designB = v2Customization(product, "tshirt-basic-v1", 2, ["front", "back"], { front: await uploadArtwork(754, 1024), back: await uploadArtwork(747, 1024) }, variant, ["tshirt-front", "tshirt-back"]);
+  designB.clientId = "client-design-b";
+  designB.designDocument.documentId = "document-design-b";
+  const order = orderPayload(product, designA, variant);
+  order.items = [
+    { productId: product._id.toString(), quantity: 2, variant, customization: designA },
+    { productId: product._id.toString(), quantity: 1, variant, customization: designB },
+  ];
+  const response = await request(app).post("/api/orders").send(order);
+  assert.equal(response.status, 201, JSON.stringify(response.body));
+  assert.deepEqual(response.body.order.items.map((item) => [item.quantity, item.price]), [[2, 19.9], [1, 24.9]]);
+  assert.equal(response.body.order.subtotal, 64.7);
+  assert.equal((await Product.findById(product._id)).stock, 2);
+  const customizations = await Promise.all(response.body.order.items.map((item) => Customization.findById(item.customizationId).lean()));
+  assert.deepEqual(customizations.map((item) => item.quantity), [2, 1]);
+  assert.notEqual(String(customizations[0]._id), String(customizations[1]._id));
+  for (const [index, customization] of customizations.entries()) {
+    const manifest = JSON.parse((await storageProvider.read(customization.productionBundle.manifestStorageKey)).toString("utf8"));
+    assert.equal(manifest.quantity, [2, 1][index]);
+  }
+  const insufficient = await request(app).post("/api/orders").send(order);
+  assert.equal(insufficient.status, 409);
+  assert.match(insufficient.body.message, /Stock insuficiente/);
+});
+
 test("quality gate acepta good, warning e histórico sin status", async () => {
   const product = await Product.create({ name: "Taza quality gate", price: 20, stock: 10, active: true, customizable: true, productTemplateId: "mug-ceramic-standard-v1" });
   for (const fixture of [

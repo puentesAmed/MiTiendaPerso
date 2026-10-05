@@ -125,7 +125,7 @@ export function prepareGarmentAtlas(artworksBySurface, binding, atlasSize, docum
   context.clearRect(0, 0, atlasSize, atlasSize);
   binding.regions.forEach((region) => {
     const source = artworksBySurface[region.printSurfaceId];
-    if (!source) throw new Error(`Falta artwork para PrintSurface ${region.printSurfaceId}.`);
+    if (!source) return;
     const sourceRect = {
       x: region.editorRect.x * source.width,
       y: region.editorRect.y * source.height,
@@ -287,7 +287,7 @@ export class ThreePreviewAdapter {
     const { THREE } = this.runtime;
     this.bindingTargets.forEach(({ surface, binding, mesh, materialIndex, material }) => {
       const artworkCanvas = artworksBySurface[surface.printSurfaceId];
-      if (!artworkCanvas) throw new Error(`Falta artwork para PrintSurface ${surface.printSurfaceId}.`);
+      if (!artworkCanvas) return;
       const canvas = prepareTextureCanvas(artworkCanvas, { ...surface.texture, backgroundColor: this.materialBaseColor(binding.materialName, surface.texture.backgroundColor) }, this.documentApi, surface.uvMapping);
       const key = `${binding.meshName}:${binding.materialName}:${surface.printSurfaceId}`;
       let record = this.bindingRecords.get(key);
@@ -314,6 +314,7 @@ export class ThreePreviewAdapter {
   updateOverlayArtworks(artworksBySurface) {
     const { THREE } = this.runtime;
     this.overlayTargets.forEach(({ binding, mesh, material, triangleIndices }) => {
+      if (!binding.regions.some((region) => artworksBySurface[region.printSurfaceId])) return;
       const canvas = prepareGarmentAtlas(artworksBySurface, binding, this.profile.artworkComposition.atlasSize, this.documentApi);
       const key = `overlay:${binding.meshName}:${binding.materialName}:${binding.geometryRegionId || "all"}`;
       let record = this.bindingRecords.get(key);

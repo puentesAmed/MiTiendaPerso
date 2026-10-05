@@ -123,8 +123,8 @@ export function SiteHeader() {
           </SheetContent>
         </Sheet>
 
-        <Link to="/" className="shrink-0 rounded-md px-1 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="MiTiendaPerso, inicio">
-          <Logo className="text-base sm:text-lg" />
+        <Link to="/" className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Logo />
         </Link>
 
         <nav aria-label="Navegación principal" className="ml-3 hidden items-center gap-0.5 md:flex">

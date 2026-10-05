@@ -9,10 +9,8 @@ import { generateCustomizationZip } from "../utils/generateCustomizationZip.js";
 import { storageProvider } from "../storage/index.js";
 import { calculateEstimatedDelivery } from "../utils/calculateEstimatedDelivery.js";
 
-import { sendEmail } from "../services/email.service.js";
-import { orderClientEmail } from "../emails/templates/orderClientEmail.js";
-import { orderAdminEmail } from "../emails/templates/orderAdminEmail.js";
-import { orderStatusEmail } from "../emails/templates/orderStatusEmail.js";
+import { EmailNotification } from "../models/EmailNotification.js";
+import { retryTransactionalEmail, sendOrderCreatedEmails, sendTransactionalEmail } from "../services/transactional-email.service.js";
 
 import { isDesignerCustomization, normalizeCustomizationPayload } from "../utils/customizationAdapter.js";
 import { createProductionCustomization, ProductionCustomizationError } from "../services/production-customization.service.js";
@@ -273,25 +271,7 @@ export async function createOrder(req, res) {
       );
     }
 
-    try {
-      await sendEmail({
-        to: order.customer?.email || order.guestEmail || req.user?.email,
-        subject: "Confirmación de pedido",
-        html: orderClientEmail(order),
-      });
-    } catch (err) {
-      console.warn("⚠️ Error enviando email al cliente:", err.message);
-    }
-
-    try {
-      await sendEmail({
-        to: process.env.ADMIN_EMAIL,
-        subject: "Nuevo pedido #" + order._id,
-        html: orderAdminEmail(order),
-      });
-    } catch (err) {
-      console.warn("⚠️ Error enviando email al admin:", err.message);
-    }
+    await sendOrderCreatedEmails(order).catch(() => console.warn("[email] order_created log_unavailable", { orderId: String(order._id) }));
 
     return res.status(201).json({
       ok: true,
@@ -530,26 +510,6 @@ export async function adminConfirmDeliveryDate(req, res) {
 
     await order.save();
 
-    // 📧 Email automático al cliente
-    const emailData = orderStatusEmail(order, {
-      type: "deliveryConfirmed",
-    });
-
-    if (emailData) {
-      try {
-        await sendEmail({
-          to: order.guestEmail || order.userId?.email,
-          subject: emailData.subject,
-          html: emailData.html,
-        });
-      } catch (emailError) {
-        console.warn(
-          "Fecha confirmada, pero no se pudo enviar su notificación:",
-          emailError.message
-        );
-      }
-    }
-
     return res.json({
       ok: true,
       message: "Fecha de entrega confirmada correctamente",
@@ -576,6 +536,7 @@ export async function adminUpdateOrderStatus(req, res) {
 
     const allowed = [
       "processing",
+      "ready_for_pickup",
       "shipped",
       "delivered",
       "cancelled",
@@ -595,26 +556,15 @@ export async function adminUpdateOrderStatus(req, res) {
       return res.status(404).json({ ok: false, message: "Pedido no encontrado" });
     }
 
+    const previousStatus = order.status;
+    const pickup = order.shipping?.type === "PICKUP_FREE" || order.shipping?.methodId === "pickup-free";
+    if (status === "ready_for_pickup" && !pickup) return res.status(409).json({ ok: false, message: "Solo los pedidos de recogida pueden marcarse listos" });
+    if (status === "shipped" && pickup) return res.status(409).json({ ok: false, message: "Los pedidos de recogida no se marcan enviados" });
     order.status = status;
     await order.save();
-
-    // 📧 Notificar al cliente
-
-    const emailData = orderStatusEmail(order);
-
-    if (emailData) {
-      try {
-        await sendEmail({
-          to: order.guestEmail || order.userId?.email,
-          subject: emailData.subject,
-          html: emailData.html,
-        });
-      } catch (emailError) {
-        console.warn(
-          "Estado actualizado, pero no se pudo enviar su notificación:",
-          emailError.message
-        );
-      }
+    const emailEvent = status === "ready_for_pickup" ? "ORDER_READY_FOR_PICKUP" : status === "shipped" ? "ORDER_SHIPPED" : null;
+    if (emailEvent && previousStatus !== status) {
+      await sendTransactionalEmail(order, emailEvent).catch(() => console.warn("[email] status log_unavailable", { orderId: String(order._id) }));
     }
    
     return res.json({
@@ -742,6 +692,8 @@ export async function markOrderAsPaid(req, res) {
 
     await order.save();
 
+    await sendTransactionalEmail(order, "PAYMENT_CONFIRMED").catch(() => console.warn("[email] payment log_unavailable", { orderId: String(order._id) }));
+
     return res.json({
       ok: true,
       message: "Pago confirmado manualmente",
@@ -752,5 +704,29 @@ export async function markOrderAsPaid(req, res) {
       ok: false,
       message: "Error interno al marcar pedido como pagado",
     });
+  }
+}
+
+export async function adminGetOrderEmails(req, res) {
+  try {
+    const order = await Order.findById(req.params.id).select("_id").lean();
+    if (!order) return res.status(404).json({ ok: false, message: "Pedido no encontrado" });
+    const emails = await EmailNotification.find({ orderId: order._id })
+      .select("event recipient status attempts providerMessageId sentAt lastError createdAt")
+      .sort({ createdAt: 1 }).lean();
+    return res.json({ ok: true, emails });
+  } catch {
+    return res.status(500).json({ ok: false, message: "No se pudieron cargar los emails" });
+  }
+}
+
+export async function adminRetryOrderEmail(req, res) {
+  try {
+    const email = await retryTransactionalEmail(req.params.id, req.params.event);
+    if (!email) return res.status(404).json({ ok: false, message: "Email fallido no encontrado" });
+    if (email.status !== "sent" && email.status !== "failed") return res.status(409).json({ ok: false, message: "Email en curso" });
+    return res.json({ ok: true, email });
+  } catch {
+    return res.status(500).json({ ok: false, message: "No se pudo reintentar el email" });
   }
 }

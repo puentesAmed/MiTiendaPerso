@@ -1,4 +1,6 @@
 import { Customization } from "../models/Customization.js";
+import { Order } from "../models/Order.js";
+import { sendTransactionalEmail } from "../services/transactional-email.service.js";
 
 const V2_TRANSITIONS = Object.freeze({
   pending: new Set(["issue"]),
@@ -94,6 +96,7 @@ export async function updateCustomizationStatus(req, res) {
       return res.status(404).json({ ok: false, message: "No encontrado" });
     }
 
+    const productionStarted = customization.schemaVersion === 2 && status === "in_production" && customization.productionStatus !== status;
     if (customization.schemaVersion === 2) {
       const current = customization.productionStatus || "pending";
       if (!V2_TRANSITIONS[current]?.has(status)) return res.status(409).json({ ok: false, message: "Transición de producción no permitida" });
@@ -106,6 +109,11 @@ export async function updateCustomizationStatus(req, res) {
       customization.status = status;
     }
     await customization.save();
+
+    if (productionStarted && customization.orderId) {
+      const order = await Order.findById(customization.orderId).catch(() => null);
+      if (order) await sendTransactionalEmail(order, "ORDER_IN_PRODUCTION").catch(() => console.warn("[email] production log_unavailable", { orderId: String(order._id) }));
+    }
 
     res.json({ ok: true, customization: toAdminCustomization(customization.toObject()) });
   } catch (err) {

@@ -4,6 +4,7 @@ import { Badge } from "../ui/badge";
 const ORDER_STATUSES = {
   created: { label: "Pedido recibido", variant: "secondary" },
   processing: { label: "En preparación", variant: "warning" },
+  ready_for_pickup: { label: "Listo para recogida", variant: "success" },
   shipped: { label: "Enviado", variant: "default" },
   delivered: { label: "Entregado", variant: "success" },
   cancelled: { label: "Cancelado", variant: "destructive" },

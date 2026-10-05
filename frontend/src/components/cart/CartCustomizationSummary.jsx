@@ -2,7 +2,7 @@ import { Pencil, Sparkles } from "lucide-react";
 import { Button } from "../ui/button";
 import { ProductImage } from "../ui/ProductImage";
 
-export function CartCustomizationSummary({ item, onEdit }) {
+export function CartCustomizationSummary({ item, onEdit, designLabel = null }) {
   const customization = item?.customization;
   if (!customization) return null;
 
@@ -26,7 +26,7 @@ export function CartCustomizationSummary({ item, onEdit }) {
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
           <Sparkles className="size-3.5 text-primary" aria-hidden="true" />
-          Producto personalizado
+          {designLabel || "Producto personalizado"}
         </p>
         {texts.length > 0 && (
           <p className="mt-1 truncate text-xs text-muted-foreground">

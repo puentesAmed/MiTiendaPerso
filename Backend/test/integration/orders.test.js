@@ -6,6 +6,7 @@ import { createApp } from "../../src/app.js";
 import { Product } from "../../src/models/Product.js";
 import { Order } from "../../src/models/Order.js";
 import { Customization } from "../../src/models/Customization.js";
+import { EmailNotification } from "../../src/models/EmailNotification.js";
 import { emailTransporter } from "../../src/services/email.service.js";
 import { storageProvider } from "../../src/storage/index.js";
 import { setupTestDB, clearTestDB, teardownTestDB } from "../setup/test-db.js";
@@ -117,6 +118,9 @@ test("crear pedido nuevo inicializa status, payment.status y paymentStatus", asy
   assert.equal(res.body.order.status, "created");
   assert.equal(res.body.order.payment?.status, "pending");
   assert.equal(res.body.order.paymentStatus, "pending");
+  const events = await EmailNotification.find({ orderId: res.body.orderId }).lean();
+  assert.deepEqual(events.map((entry) => entry.event).sort(), ["ORDER_RECEIVED", "PAYMENT_PENDING"]);
+  assert.ok(events.every((entry) => entry.status === "failed"));
 });
 
 test("createOrder con customization v1 (designer) sigue creando Customization", async () => {

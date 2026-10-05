@@ -70,7 +70,7 @@ const orderSchema = new mongoose.Schema(
     // Estado logístico del pedido
     status: {
       type: String,
-      enum: ["created", "processing", "shipped", "delivered", "cancelled"],
+      enum: ["created", "processing", "ready_for_pickup", "shipped", "delivered", "cancelled"],
       default: "created",
     },
 

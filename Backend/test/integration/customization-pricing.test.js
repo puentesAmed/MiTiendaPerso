@@ -113,6 +113,20 @@ test("quote valida selección y calcula precio autoritativo", async () => {
   assert.throws(() => resolveCustomizationQuote(product, ["tshirt-front", "tshirt-front"]), /duplicadas/);
 });
 
+test("quote resuelve S + Blanco contra valores canónicos de Mongo", async () => {
+  const product = await Product.create({ name: "Camiseta básica personalizada", price: 19.9, stock: 20, active: true, customizable: true, productTemplateId: "tshirt-basic-v1", variants: { sizes: ["S", "M", "L", "XL"], colors: ["NEGRO", "BLANCO"] }, customizationPricing: { enabled: true, surfaces } });
+  const quoted = await request(app).post(`/api/products/${product._id}/customization-quote`).send({ selectedSurfaceIds: ["tshirt-front"], variant: { size: "S", color: "BLANCO" } });
+  assert.equal(quoted.status, 200, JSON.stringify(quoted.body));
+  assert.deepEqual(quoted.body.quote, {
+    basePrice: 19.9, customizationAmount: 0, unitPrice: 19.9, currency: "EUR",
+    selectedSurfaceIds: ["tshirt-front"],
+    selectedSurfaces: [{ surfaceId: "tshirt-front", label: "Frontal", required: true, priceModifier: 0 }],
+  });
+  const invalid = await request(app).post(`/api/products/${product._id}/customization-quote`).send({ selectedSurfaceIds: ["tshirt-front"], variant: { size: "XXL", color: "BLANCO" } });
+  assert.equal(invalid.status, 400);
+  assert.match(invalid.body.message, /talla válida/i);
+});
+
 test("pedido ignora precio manipulado y congela base, incremento y unitario", async () => {
   const product = await Product.create({ name: "Camiseta", price: 20, stock: 10, active: true, customizable: true, productTemplateId: "tshirt-basic-v1", customizationPricing: { enabled: true, surfaces } });
   const manipulatedPrice = { unitPrice: 0, selectedSurfaceIds: ["tshirt-front", "tshirt-back"] };

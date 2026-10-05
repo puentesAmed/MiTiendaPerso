@@ -8,6 +8,11 @@ export function getMockupDefinition(template) {
 }
 
 export function isMockupModeAvailable(template) {
-  return Boolean(getMockupDefinition(template));
+  const definition = getMockupDefinition(template);
+  return Boolean(definition?.kind === "product-preview" && template?.views?.some((view) => view.id === definition.sourceViewId));
+}
+
+export function getAvailableDesignerModes({ has2DPreview, has3DProfile }) {
+  return ["design", ...(has2DPreview ? ["mockup"] : []), ...(has3DProfile ? ["three-d"] : [])];
 }
 

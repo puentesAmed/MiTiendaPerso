@@ -209,10 +209,12 @@ export function validateProduct3DProfile(profile) {
 export function validateProduct3DProfileForTemplate(profile, template) {
   const errors = [...validateProduct3DProfile(profile).errors];
   const surfaces = new Map(template?.printSurfaces?.map((surface) => [surface.id, surface]) || []);
-  profile?.printableSurfaces?.forEach((profileSurface) => {
-    const printSurface = surfaces.get(profileSurface.printSurfaceId);
-    if (!printSurface) {
-      errors.push(`PrintSurface no existe en ProductTemplate: ${profileSurface.printSurfaceId}.`);
+  const profileSurfaces = new Map(profile?.printableSurfaces?.map((surface) => [surface.printSurfaceId, surface]) || []);
+  if (surfaces.size === 0) errors.push("ProductTemplate no tiene PrintSurface para el perfil 3D.");
+  surfaces.forEach((printSurface, surfaceId) => {
+    const profileSurface = profileSurfaces.get(surfaceId);
+    if (!profileSurface) {
+      errors.push(`Product3DProfile no soporta PrintSurface: ${surfaceId}.`);
       return;
     }
     const uv = profileSurface.uvMapping;
@@ -249,6 +251,11 @@ export function isThreeDModeAvailable(template) {
 
 export function getProduct3DSurfaceIds(profile) {
   return [...new Set((profile?.printableSurfaces || []).map((surface) => surface.printSurfaceId))];
+}
+
+export function getRenderable3DSurfaceIds(profile, template) {
+  const selected = new Set(template?.printSurfaces?.map((surface) => surface.id) || []);
+  return getProduct3DSurfaceIds(profile).filter((id) => selected.has(id));
 }
 
 export function getMaterialVariant(profile, productVariant = null) {

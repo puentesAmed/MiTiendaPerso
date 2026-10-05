@@ -1,14 +1,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MUG_CERAMIC_STANDARD_V1_TEMPLATE } from "../templates/mugCeramicStandardV1.js";
+import { TSHIRT_BASIC_V1_TEMPLATE } from "../templates/tshirtBasicV1.js";
+import { isThreeDModeAvailable } from "../three/threeModelRegistry.js";
+import { filterTemplateBySelectedSurfaceIds } from "../domain/customizationSurfaces.js";
 import { createDesignDocument } from "../contracts/designDocument.js";
-import { getMockupDefinition, isMockupModeAvailable } from "./mockupCatalog.js";
+import { getMockupDefinition, getAvailableDesignerModes, isMockupModeAvailable } from "./mockupCatalog.js";
 import { createMockupFingerprintInput, deriveMockupStatus, hashMockupFingerprint } from "./mockupState.js";
 
-test("tab Mockup depende del registry declarado por ProductTemplate", () => {
-  assert.equal(isMockupModeAvailable(MUG_CERAMIC_STANDARD_V1_TEMPLATE), true);
+test("preview 2D de desarrollo no habilita modo Mockup", () => {
+  assert.equal(isMockupModeAvailable(MUG_CERAMIC_STANDARD_V1_TEMPLATE), false);
   assert.equal(isMockupModeAvailable({ mockups: [] }), false);
   assert.equal(getMockupDefinition(MUG_CERAMIC_STANDARD_V1_TEMPLATE).sourceViewId, "wrap");
+});
+
+test("modos declaran Design y capacidades 2D/3D en orden", () => {
+  const modesFor = (template) => getAvailableDesignerModes({ has2DPreview: isMockupModeAvailable(template), has3DProfile: isThreeDModeAvailable(template) });
+  assert.deepEqual(modesFor(MUG_CERAMIC_STANDARD_V1_TEMPLATE), ["design", "three-d"]);
+  assert.deepEqual(modesFor(TSHIRT_BASIC_V1_TEMPLATE), ["design", "three-d"]);
+  assert.deepEqual(modesFor(filterTemplateBySelectedSurfaceIds(TSHIRT_BASIC_V1_TEMPLATE, ["tshirt-front", "tshirt-back", "tshirt-sleeve-left"])), ["design", "three-d"]);
+  assert.deepEqual(getAvailableDesignerModes({ has2DPreview: true, has3DProfile: true }), ["design", "mockup", "three-d"]);
+  assert.deepEqual(getAvailableDesignerModes({ has2DPreview: true, has3DProfile: false }), ["design", "mockup"]);
+  assert.deepEqual(getAvailableDesignerModes({ has2DPreview: false, has3DProfile: false }), ["design"]);
 });
 
 test("fingerprint es estable, hasheable y no recibe session state", async () => {

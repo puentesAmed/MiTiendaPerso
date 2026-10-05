@@ -35,3 +35,14 @@ test("descubre draft anterior del mismo producto sin cruzar productos", () => {
   });
   assert.deepEqual(findDraftReference(storage, document), { key: legacyKey, draftId: "draft-old", exact: false });
 });
+
+test("cada diseño secuencial conserva referencia propia y no recupera otro paso", () => {
+  const workflow = { workflowId: "ca1452de-1111-4111-8111-123456789abc", currentIndex: 1 };
+  const first = createDraftReferenceKey(document, workflow);
+  const second = createDraftReferenceKey(document, { ...workflow, currentIndex: 2 });
+  assert.notEqual(first, second);
+  const storage = createStorage({ [first]: "draft-first" });
+  assert.equal(findDraftReference(storage, document, { ...workflow, currentIndex: 2 }), null);
+  assert.equal(findDraftReference(storage, document), null);
+  assert.deepEqual(findDraftReference(storage, document, workflow), { key: first, draftId: "draft-first", exact: true });
+});

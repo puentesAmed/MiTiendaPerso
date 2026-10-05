@@ -17,6 +17,11 @@ const CONFIG_KEYS = [
   "SMTP_PASS",
   "EMAIL_FROM",
   "ADMIN_EMAIL",
+  "TRANSACTIONAL_EMAIL_ENABLED",
+  "RESEND_API_KEY",
+  "RESEND_FROM_EMAIL",
+  "RESEND_FROM_NAME",
+  "ADMIN_NOTIFICATION_EMAIL",
   "STORAGE_PROVIDER",
   "STORAGE_ROOT",
 ];
@@ -112,4 +117,11 @@ test("SMTP parcial impide arrancar", () => {
   const result = loadProductionConfig({ SMTP_HOST: "smtp.example.test" });
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}\n${result.stderr}`, /SMTP/);
+});
+
+test("Resend habilitado sin configuración informa sin derribar ecommerce", () => {
+  const result = loadProductionConfig({ TRANSACTIONAL_EMAIL_ENABLED: "true" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /config_incomplete/);
+  assert.doesNotMatch(result.stderr, /Bearer|re_/);
 });

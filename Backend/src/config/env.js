@@ -31,6 +31,9 @@ const MANUAL_PAYMENT_BANK_TRANSFER_ENABLED = isEnabled(
   'MANUAL_PAYMENT_BANK_TRANSFER_ENABLED'
 );
 const SHIPPING_DISTANCE_ENABLED = isEnabled('SHIPPING_DISTANCE_ENABLED');
+if (isEnabled('TRANSACTIONAL_EMAIL_ENABLED') && (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL)) {
+  console.warn('[email] config_incomplete: RESEND_API_KEY y RESEND_FROM_EMAIL son necesarios para enviar.');
+}
 let SHIPPING_DISTANCE_BANDS = [];
 try {
   SHIPPING_DISTANCE_BANDS = JSON.parse(process.env.SHIPPING_DISTANCE_BANDS_JSON || '[]');
@@ -143,6 +146,7 @@ export const env = {
   JWT_SECRET: process.env.JWT_SECRET,
   CORS_ORIGINS,
   FRONTEND_URL,
+  PUBLIC_STOREFRONT_URL: (process.env.PUBLIC_STOREFRONT_URL || '').trim(),
   NODE_ENV,
   STORAGE_PROVIDER,
   STORAGE_ROOT: CONFIGURED_STORAGE_ROOT || path.resolve(process.cwd(), 'uploads'),
@@ -190,5 +194,13 @@ export const env = {
     pass: process.env.SMTP_PASS,
     from: process.env.EMAIL_FROM,
     adminEmail: process.env.ADMIN_EMAIL,
+  },
+  TRANSACTIONAL_EMAIL: {
+    enabled: isEnabled('TRANSACTIONAL_EMAIL_ENABLED'),
+    apiKey: (process.env.RESEND_API_KEY || '').trim(),
+    fromEmail: (process.env.RESEND_FROM_EMAIL || '').trim(),
+    fromName: (process.env.RESEND_FROM_NAME || 'MiLuGui').trim(),
+    replyTo: (process.env.RESEND_REPLY_TO || '').trim(),
+    adminEmail: (process.env.ADMIN_NOTIFICATION_EMAIL || '').trim(),
   },
 };

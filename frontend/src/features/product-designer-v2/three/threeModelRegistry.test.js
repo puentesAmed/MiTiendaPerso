@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { MUG_CERAMIC_STANDARD_V1_TEMPLATE } from "../templates/mugCeramicStandardV1.js";
 import { GENERIC_FLAT_DEMO_TEMPLATE } from "../templates/genericFlatDemo.js";
 import { TSHIRT_BASIC_V1_TEMPLATE } from "../templates/tshirtBasicV1.js";
-import { PRODUCT_3D_PROFILES, THREE_MODEL_ASSETS, getMaterialVariant, getProduct3DProfile, getProduct3DProfileForTemplate, getProduct3DSurfaceIds, getThreeModelAsset, isThreeDModeAvailable, validateProduct3DProfile, validateProduct3DProfileForTemplate } from "./threeModelRegistry.js";
+import { filterTemplateBySelectedSurfaceIds } from "../domain/customizationSurfaces.js";
+import { PRODUCT_3D_PROFILES, THREE_MODEL_ASSETS, getMaterialVariant, getProduct3DProfile, getProduct3DProfileForTemplate, getProduct3DSurfaceIds, getRenderable3DSurfaceIds, getThreeModelAsset, isThreeDModeAvailable, validateProduct3DProfile, validateProduct3DProfileForTemplate } from "./threeModelRegistry.js";
 
 const mugProfile = PRODUCT_3D_PROFILES["mug-11oz-v1"];
 const fallbackProfile = PRODUCT_3D_PROFILES["mug-ceramic-development-v1"];
@@ -76,4 +77,24 @@ test("camiseta registra cuatro paneles exactos, asset de desarrollo y variantes 
   assert.deepEqual(new Set(tshirtProfile.artworkComposition.bindings.map((binding) => binding.geometryRegionId)), new Set(["front", "back", "sleeve-left", "sleeve-right"]));
   assert.equal(getMaterialVariant(tshirtProfile, { colorId: "black" }).id, "black");
   assert.equal(getMaterialVariant(tshirtProfile, { colorId: "missing" }).id, "white");
+});
+
+test("perfil 3D completo admite subconjuntos contratados desde cualquier vista", () => {
+  const combinations = [
+    ["tshirt-front"],
+    ["tshirt-front", "tshirt-back"],
+    ["tshirt-sleeve-left"],
+    ["tshirt-front", "tshirt-back", "tshirt-sleeve-left"],
+    ["tshirt-front", "tshirt-back", "tshirt-sleeve-left", "tshirt-sleeve-right"],
+  ];
+  for (const selected of combinations) {
+    const template = filterTemplateBySelectedSurfaceIds(TSHIRT_BASIC_V1_TEMPLATE, selected);
+    assert.equal(getProduct3DProfileForTemplate(template), tshirtProfile);
+    assert.equal(isThreeDModeAvailable(template), true);
+    assert.deepEqual(getRenderable3DSurfaceIds(tshirtProfile, template), selected);
+    for (const view of template.views) assert.ok(view.printSurfaceId && selected.includes(view.printSurfaceId));
+  }
+  const foreignSurface = { ...TSHIRT_BASIC_V1_TEMPLATE, printSurfaces: [{ ...TSHIRT_BASIC_V1_TEMPLATE.printSurfaces[0], id: "foreign" }] };
+  assert.equal(validateProduct3DProfileForTemplate(tshirtProfile, foreignSurface).valid, false);
+  assert.equal(getRenderable3DSurfaceIds(mugProfile, MUG_CERAMIC_STANDARD_V1_TEMPLATE).includes("wrap-main"), true);
 });

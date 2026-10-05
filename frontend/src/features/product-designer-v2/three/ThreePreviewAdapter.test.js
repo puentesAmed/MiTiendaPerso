@@ -76,6 +76,14 @@ test("atlas garment conserva transparencia y compone un panel independiente", ()
   assert.equal(operations.filter(([operation]) => operation === "drawImage").length, 1);
 });
 
+test("atlas de manga sin contratar permanece transparente y no exige artwork", () => {
+  const operations = [];
+  const output = { getContext: () => ({ clearRect: (...args) => operations.push(["clearRect", ...args]), save: () => operations.push(["save"]), translate: () => {}, scale: () => {}, drawImage: (...args) => operations.push(["drawImage", ...args]), restore: () => operations.push(["restore"]) }) };
+  const rightBinding = tshirtProfile.artworkComposition.bindings.find((binding) => binding.geometryRegionId === "sleeve-right");
+  prepareGarmentAtlas({ "tshirt-front": { width: 754, height: 1024 } }, rightBinding, 2048, { createElement: () => output });
+  assert.equal(operations.filter(([operation]) => operation === "drawImage").length, 0);
+});
+
 test("BACK aplica mirror una sola vez antes de crear la CanvasTexture", () => {
   const operations = [];
   const output = { getContext: () => ({ clearRect() {}, save() {}, translate() {}, scale: (...args) => operations.push(args), drawImage() {}, restore() {} }) };
@@ -159,6 +167,11 @@ test("overlay garment reutiliza modelo y texturas al actualizar artwork", () => 
   adapter.camera = {};
   adapter.modelLoadCount = 1;
   const artworks = { "tshirt-front": { width: 754, height: 1024 }, "tshirt-back": { width: 747, height: 1024 }, "tshirt-sleeve-left": { width: 1024, height: 525 }, "tshirt-sleeve-right": { width: 1024, height: 525 } };
+  const selectedArtworks = Object.fromEntries(Object.entries(artworks).filter(([id]) => id !== "tshirt-sleeve-right"));
+  adapter.updateArtworks(selectedArtworks);
+  assert.equal(adapter.ownedTextures.size, 5);
+  assert.equal(meshes.find(({ binding }) => binding.geometryRegionId === "sleeve-right").mesh.children.length, 0);
+  assert.equal(meshes.find(({ binding }) => binding.geometryRegionId === "sleeve-right").mesh.geometry.type, "BoxGeometry");
   adapter.updateArtworks(artworks);
   const textures = [...adapter.ownedTextures];
   assert.equal(textures.length, 6);

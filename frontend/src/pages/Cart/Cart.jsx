@@ -118,6 +118,9 @@ export function Cart() {
                           {item.customization && (
                             <CartCustomizationSummary
                               item={item}
+                              designLabel={items.filter((candidate) => candidate.productId === item.productId && candidate.customization).length > 1
+                                ? `Diseño ${items.slice(0, index + 1).filter((candidate) => candidate.productId === item.productId && candidate.customization).length}`
+                                : null}
                               onEdit={() => navigate(`/personalizar-v2/${item.productId}`, {
                                 state: {
                                   lineKey: item.lineKey,

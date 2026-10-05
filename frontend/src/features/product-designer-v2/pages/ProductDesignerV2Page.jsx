@@ -31,6 +31,7 @@ import { requestMockup } from "../mockups/mockups.service.js";
 import { getProduct3DProfileForTemplate, isThreeDModeAvailable } from "../three/threeModelRegistry.js";
 import { resolveDesignerVariantContext } from "../domain/variantContext.js";
 import { filterTemplateBySelectedSurfaceIds, getCommercialSurfaces, normalizeSelectedSurfaceIds } from "../domain/customizationSurfaces.js";
+import { getCurrentDesignQuantity, nextPersonalizationRouteState, normalizePersonalizationWorkflow } from "../domain/personalizationWorkflow.js";
 import { useCart } from "../../../hooks/useCart.js";
 import { createDesignerV2CustomizationPayload } from "../../../utils/customizationAdapter.js";
 import { prepareProductionHandoff } from "../production/productionHandoff.js";
@@ -49,6 +50,7 @@ export function ProductDesignerV2Page() {
   const { productId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const personalizationWorkflow = useMemo(() => normalizePersonalizationWorkflow(location.state?.personalizationWorkflow), [location.state?.personalizationWorkflow]);
   const { addItem, updateCustomization } = useCart();
   const [state, dispatch] = useReducer(designerV2Reducer, initialDesignerV2State);
   const [editorError, setEditorError] = useState("");
@@ -78,7 +80,7 @@ export function ProductDesignerV2Page() {
     assetRegistry.dispose();
   }, [assetRegistry, autosaveScheduler]);
 
-  const mockupDefinition = useMemo(() => getMockupDefinition(state.asyncState.template), [state.asyncState.template]);
+  const mockupDefinition = useMemo(() => isMockupModeAvailable(state.asyncState.template) ? getMockupDefinition(state.asyncState.template) : null, [state.asyncState.template]);
   const product3DProfile = useMemo(() => getProduct3DProfileForTemplate(state.asyncState.template), [state.asyncState.template]);
   const mockupFingerprintInput = useMemo(() => {
     if (!mockupDefinition || !state.documentState.document || !state.asyncState.template) return "";
@@ -95,7 +97,7 @@ export function ProductDesignerV2Page() {
     mockupAbortRef.current?.abort();
     setMockupState({ loading: false, result: null, error: "" });
     setImageQualityFeedback(null);
-  }, [productId]);
+  }, [productId, personalizationWorkflow?.currentIndex, personalizationWorkflow?.workflowId]);
 
   useEffect(() => {
     let active = true;
@@ -172,7 +174,7 @@ export function ProductDesignerV2Page() {
         }
         dispatch({ type: "ready", payload: { product, template, document } });
         try {
-          const reference = findDraftReference(localStorage, document);
+          const reference = findDraftReference(localStorage, document, personalizationWorkflow);
           if (!reference) return;
           recoveryReferenceKeyRef.current = reference.key;
           const draft = await draftRepository.loadDraft(reference.draftId, { template, productId: document.productId, variant: document.variant, selectedSurfaceIds: document.selectedSurfaceIds });
@@ -194,7 +196,7 @@ export function ProductDesignerV2Page() {
       });
 
     return () => { active = false; };
-  }, [assetRegistry, assetRepository, draftRepository, location.search, location.state?.customization, location.state?.selectedSurfaceIds, location.state?.variant, productId]);
+  }, [assetRegistry, assetRepository, draftRepository, location.search, location.state?.customization, location.state?.selectedSurfaceIds, location.state?.variant, personalizationWorkflow, productId]);
 
   const handleBack = () => {
     if (location.state?.fromProductDetail) navigate(-1);
@@ -211,7 +213,7 @@ export function ProductDesignerV2Page() {
       const saved = await draftRepository.saveDraft({ ...baseDraft, document }, { expectedRevision: savedRevisionRef.current, force });
       activeDraftRef.current = saved;
       savedRevisionRef.current = saved.revision;
-      try { localStorage.setItem(createDraftReferenceKey(document), saved.draftId); } catch { /* referencia opcional */ }
+      try { localStorage.setItem(createDraftReferenceKey(document, personalizationWorkflow), saved.draftId); } catch { /* referencia opcional */ }
       dispatch({ type: "save-succeeded", payload: { document, savedAt: saved.updatedAt } });
       await garbageCollectAssets({ assetRepository, draftRepository, document, history: historyRef.current, runtimeAssetRegistry: assetRegistry });
       return saved;
@@ -225,7 +227,7 @@ export function ProductDesignerV2Page() {
       dispatch({ type: "save-failed", payload: { message, conflict } });
       return null;
     }
-  }, [assetRegistry, assetRepository, draftRepository]);
+  }, [assetRegistry, assetRepository, draftRepository, personalizationWorkflow]);
 
   const enqueueSave = useCallback((document, options) => {
     const queued = saveQueueRef.current.catch(() => undefined).then(() => persistDocument(document, options));
@@ -267,7 +269,7 @@ export function ProductDesignerV2Page() {
     setRecoveryError("");
     try {
       await draftRepository.deleteDraft(recoveryDraft.draftId);
-      try { localStorage.removeItem(recoveryReferenceKeyRef.current || createDraftReferenceKey(state.documentState.document)); } catch { /* referencia opcional */ }
+      try { localStorage.removeItem(recoveryReferenceKeyRef.current || createDraftReferenceKey(state.documentState.document, personalizationWorkflow)); } catch { /* referencia opcional */ }
       const document = createDesignDocument({ template: state.asyncState.template, productId: state.asyncState.product.id || state.asyncState.product._id, variant: state.documentState.document.variant, selectedSurfaceIds: state.documentState.document.selectedSurfaceIds ?? null });
       activeDraftRef.current = null;
       savedRevisionRef.current = null;
@@ -280,7 +282,7 @@ export function ProductDesignerV2Page() {
     } finally {
       setRecoveryBusy(false);
     }
-  }, [assetRegistry, assetRepository, draftRepository, recoveryDraft, state.asyncState.product, state.asyncState.template, state.documentState.document]);
+  }, [assetRegistry, assetRepository, draftRepository, personalizationWorkflow, recoveryDraft, state.asyncState.product, state.asyncState.template, state.documentState.document]);
 
   const handleReloadStored = useCallback(async () => {
     const draftId = activeDraftRef.current?.draftId;
@@ -428,6 +430,11 @@ export function ProductDesignerV2Page() {
     try {
       assertNoRejectedImageAssets(state.documentState.document);
       const uploads = await prepareProductionHandoff({ document: state.documentState.document, template: state.asyncState.template, assetRegistry });
+      if (personalizationWorkflow?.mode === "different") {
+        autosaveScheduler.cancel();
+        const saved = await enqueueSave(state.documentState.document);
+        if (!saved) throw new Error("No se pudo guardar este diseño. Inténtalo de nuevo antes de continuar.");
+      }
       const product = state.asyncState.product;
       const customization = createDesignerV2CustomizationPayload({
         clientId: location.state?.customization?.clientId || crypto.randomUUID(),
@@ -439,14 +446,17 @@ export function ProductDesignerV2Page() {
         customizationPricing: location.state?.customizationQuote || location.state?.customization?.customizationPricing || null,
       });
       if (location.state?.lineKey) updateCustomization(location.state.lineKey, customization);
-      else addItem({ product, quantity: 1, variant: state.documentState.document.variant, customization });
-      navigate(location.state?.returnTo || "/carrito");
+      else addItem({ product, quantity: getCurrentDesignQuantity(personalizationWorkflow), variant: state.documentState.document.variant, customization });
+      const nextState = nextPersonalizationRouteState(location.state);
+      if (nextState && !location.state?.lineKey) {
+        navigate(`${location.pathname}${location.search}`, { replace: true, state: nextState });
+      } else navigate(location.state?.returnTo || "/carrito");
     } catch (error) {
       setEditorError(error.response?.data?.message || error.message || "No se pudo preparar el diseño para producción.");
     } finally {
       setHandoffBusy(false);
     }
-  }, [addItem, assetRegistry, handoffBusy, location.state, navigate, state.asyncState.product, state.asyncState.template, state.documentState.document, updateCustomization]);
+  }, [addItem, assetRegistry, autosaveScheduler, enqueueSave, handoffBusy, location.pathname, location.search, location.state, navigate, personalizationWorkflow, state.asyncState.product, state.asyncState.template, state.documentState.document, updateCustomization]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -555,6 +565,7 @@ export function ProductDesignerV2Page() {
       onEditorError={setEditorError}
       onBack={handleBack}
       onAddToCart={handleAddToCart}
+      personalizationWorkflow={personalizationWorkflow}
       handoffBusy={handoffBusy}
       qualityBlocked={qualityBlocked}
       />

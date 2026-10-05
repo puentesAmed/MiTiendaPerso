@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { EditableDesignStage } from "./EditableDesignStage.jsx";
 import { MockupPanel } from "./MockupPanel.jsx";
+import { getAvailableDesignerModes } from "../mockups/mockupCatalog.js";
 import { calculateInitialImageBounds, isElementOutOfBounds } from "../domain/designDocumentActions.js";
 import { getViewAspectRatio, getViewPrintAreas, getViewPrintSurface } from "../contracts/printSurface.js";
 import { DESIGNER_FONT_CATEGORIES, DESIGNER_FONTS, getDesignerFont, resolveDesignerFontFamily } from "../../../../../shared/designer-v2/fontRegistry.js";
@@ -189,7 +190,9 @@ function MobileToolbar({ elements, layers, properties, saveStatus, onAddText, on
   );
 }
 
-export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, mode, mockupAvailable, mockupStatus, mockupResult, mockupError, threeDAvailable, product3DProfile, dirty, saveStatus, saveError, saveConflict, lastSavedAt, canUndo, canRedo, assetRegistry, editorError, imageQualityFeedback, onSelectView, onSelectMode, onGenerateMockup, onSelectElement, onAddText, onChooseImage, onAddShape, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onSaveNow, onReloadStored, onOverwriteStored, onZoomChange, onViewportChange, onEditorError, onBack, onAddToCart, handoffBusy, qualityBlocked }) {
+export function DesignerV2Shell({ product, template, document, activeViewId, activePrintAreaId, selectedElementIds, zoom, pan, mode, mockupAvailable, mockupStatus, mockupResult, mockupError, threeDAvailable, product3DProfile, dirty, saveStatus, saveError, saveConflict, lastSavedAt, canUndo, canRedo, assetRegistry, editorError, imageQualityFeedback, onSelectView, onSelectMode, onGenerateMockup, onSelectElement, onAddText, onChooseImage, onAddShape, onUpdateElement, onUpdateElements, onDuplicate, onDelete, onLayerAction, onUndo, onRedo, onSaveNow, onReloadStored, onOverwriteStored, onZoomChange, onViewportChange, onEditorError, onBack, onAddToCart, personalizationWorkflow, handoffBusy, qualityBlocked }) {
+  const availableModes = getAvailableDesignerModes({ has2DPreview: mockupAvailable, has3DProfile: threeDAvailable });
+  const hasNextDesign = personalizationWorkflow?.mode === "different" && personalizationWorkflow.currentIndex < personalizationWorkflow.totalQuantity;
   const view = template.views.find((candidate) => candidate.id === activeViewId) || template.views[0];
   const printAreas = getViewPrintAreas(template, view);
   const elements = document.views[view.id]?.elements || [];
@@ -223,8 +226,10 @@ export function DesignerV2Shell({ product, template, document, activeViewId, act
           <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><h1 id="designer-v2-title" className="truncate text-base font-bold tracking-tight sm:text-lg">Designer V2</h1><Badge variant="outline" className="hidden sm:inline-flex">{saveStatusLabel(saveStatus)}</Badge></div><p className="truncate text-xs text-muted-foreground">{product.name || "Producto"}{document.variant?.size ? ` · Talla ${document.variant.size}` : ""}{document.variant?.color ? ` · Color ${document.variant.color}` : ""}{lastSavedAt && !dirty ? ` · ${new Date(lastSavedAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : ""}</p></div>
           <div className="flex items-center gap-1" aria-label="Historial de edición"><Button type="button" variant="ghost" size="icon" disabled={!canUndo} onClick={onUndo} aria-label="Deshacer"><Undo2 aria-hidden="true" /></Button><Button type="button" variant="ghost" size="icon" disabled={!canRedo} onClick={onRedo} aria-label="Rehacer"><Redo2 aria-hidden="true" /></Button></div>
           <Button type="button" size="sm" onClick={onSaveNow} disabled={saveStatus === "saving"} title="Guarda localmente mediante IndexedDB"><Save aria-hidden="true" /> <span className="hidden sm:inline">Guardar en este dispositivo</span></Button>
-          <Button type="button" size="sm" onClick={onAddToCart} disabled={handoffBusy || qualityBlocked}><ShoppingCart aria-hidden="true" /> <span className="hidden sm:inline">{handoffBusy ? "Preparando…" : "Añadir al carrito"}</span></Button>
+          <Button type="button" size="sm" onClick={onAddToCart} disabled={handoffBusy || qualityBlocked}><ShoppingCart aria-hidden="true" /> <span className="sm:hidden">{handoffBusy ? "Preparando…" : hasNextDesign ? "Continuar" : "Añadir"}</span><span className="hidden sm:inline">{handoffBusy ? "Preparando…" : hasNextDesign ? "Guardar y continuar" : "Añadir al carrito"}</span></Button>
         </header>
+
+        {personalizationWorkflow && <p className="mt-2 text-xs font-medium text-muted-foreground" role="status">{personalizationWorkflow.mode === "different" ? `Diseño ${personalizationWorkflow.currentIndex} de ${personalizationWorkflow.totalQuantity}` : "Un diseño para todas las unidades"} · Cantidad de este diseño: {personalizationWorkflow.mode === "same" ? personalizationWorkflow.totalQuantity : 1}</p>}
 
         <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground" role="status"><strong>{saveStatusLabel(saveStatus)}.</strong> El diseño se conserva localmente en este navegador.</div>
         {editorError ? <div className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">{editorError}</div> : null}
@@ -244,7 +249,13 @@ export function DesignerV2Shell({ product, template, document, activeViewId, act
 
         <footer className="mt-3 grid min-w-0 gap-3 rounded-xl border bg-card p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <div className="min-w-0"><p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Vistas</p><div className="flex min-w-0 gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Vistas del producto">{template.views.map((candidate) => { const count = document.views[candidate.id]?.elements.length || 0; return <button key={candidate.id} type="button" role="tab" aria-selected={activeViewId === candidate.id} onClick={() => onSelectView(candidate.id)} className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeViewId === candidate.id ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}>{candidate.label} <span aria-label={`${count} elementos`}>({count})</span></button>; })}</div></div>
-          <div><p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Modo</p><div className="flex gap-1 rounded-lg border bg-muted/35 p-1" role="tablist" aria-label="Modos del diseñador"><Button type="button" size="sm" variant={mode === "design" ? "secondary" : "ghost"} role="tab" aria-selected={mode === "design"} onClick={() => onSelectMode("design")}><MousePointer2 aria-hidden="true" /> Design</Button><Button type="button" size="sm" variant={mode === "mockup" ? "secondary" : "ghost"} role="tab" aria-selected={mode === "mockup"} disabled={!mockupAvailable} aria-label={mockupAvailable ? "Abrir modo Mockup" : "Mockup no disponible para este producto"} onClick={() => onSelectMode("mockup")}><Box aria-hidden="true" /> Mockup</Button>{threeDAvailable ? <Button type="button" size="sm" variant={mode === "three-d" ? "secondary" : "ghost"} role="tab" aria-selected={mode === "three-d"} aria-label="Abrir preview 3D" onClick={() => onSelectMode("three-d")}><Boxes aria-hidden="true" /> 3D</Button> : null}</div></div>
+          <div><p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Modo</p><div className="flex gap-1 rounded-lg border bg-muted/35 p-1" role="tablist" aria-label="Modos del diseñador">
+            {availableModes.map((availableMode) => {
+              const ModeIcon = availableMode === "design" ? MousePointer2 : availableMode === "mockup" ? Box : Boxes;
+              const label = availableMode === "design" ? "Design" : availableMode === "mockup" ? "Mockup" : "3D";
+              return <Button key={availableMode} type="button" size="sm" variant={mode === availableMode ? "secondary" : "ghost"} role="tab" aria-selected={mode === availableMode} aria-label={`Abrir modo ${label}`} onClick={() => onSelectMode(availableMode)}><ModeIcon aria-hidden="true" /> {label}</Button>;
+            })}
+          </div></div>
         </footer>
       </div>
     </main>

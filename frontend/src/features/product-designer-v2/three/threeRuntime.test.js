@@ -16,6 +16,8 @@ test("componente 3D también cruza una frontera lazy y libera el adapter", async
   assert.match(shell, /lazy\(\(\) => import\("\.\/ThreeProductPreview\.jsx"\)/);
   assert.match(preview, /adapter\?\.dispose\(\)/);
   assert.match(preview, /adapterRef\.current\.updateArtworks/);
+  assert.match(preview, /onClick=\{\(\) => setRetryAttempt\(\(attempt\) => attempt \+ 1\)\}/);
+  assert.match(preview, /\[assetRegistry, profile, retryAttempt, template\]/);
   assert.doesNotMatch(preview, /from "three"/);
 });
 
